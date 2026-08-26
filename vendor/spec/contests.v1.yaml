@@ -1,0 +1,795 @@
+openapi: 3.0.3
+info:
+  title: PRUAction — Contest Domain API
+  version: 0.2.0-draft
+  description: |
+    Draft command/read API for contest configuration, governance and the daily
+    cumulative calculation of every eligible agent under every active contest.
+
+    Country/tenant is resolved from the JWT `cty` claim. UI composition is a
+    BFF concern. Monetary values are decimal strings plus ISO 4217 currency.
+    Labels are i18n keys/codes, never domain-provided English copy. Submitted,
+    approved and published versions are immutable. Every write is optimistic-
+    concurrency protected and audited.
+
+    ## Command guarantees
+    Every command requires `Idempotency-Key`. The service persists the normalized
+    request hash and terminal HTTP response under tenant + operationId + key.
+    Identical replays return the original response; a different request using the
+    same key returns `CON-4091`. `If-Match` identifies the current mutable
+    revision; stale values return `CON-4121`. Multi-document business commands
+    commit configuration/workflow state, audit and outbox atomically.
+
+    Provisional scopes (IAM claim mapping is OQ-CA-04): `contests:read`,
+    `contests:write`, `contests:submit`, `contests:approve:business`,
+    `contests:approve:compensation`, `contests:approve:risk`,
+    `contests:publish`, `contests:templates:write`, `contests:rules:write`,
+    `contests:simulate`, `contests:audit:read`, `contests:audit:export`,
+    `contests:runs:operate`, `contests:admin`.
+  contact: { name: Contest Domain Team }
+  x-domain: contests
+  x-spec-repo: pruaction-spec
+servers:
+  - url: https://api.{env}.pruaction.internal/contests/v1
+    variables:
+      env: { default: sit, enum: [sit, uat, prod] }
+security:
+  - bearerAuth: []
+tags:
+  - { name: Contests }
+  - { name: Versions }
+  - { name: Validation }
+  - { name: Simulation }
+  - { name: Templates }
+  - { name: Rules }
+  - { name: Approvals }
+  - { name: AgentResults }
+  - { name: CalculationRuns }
+  - { name: Sources }
+  - { name: Audit }
+paths:
+  /contests:
+    get:
+      operationId: listContests
+      summary: List tenant contests
+      tags: [Contests]
+      x-required-scopes: [contests:read]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ContestStatus' } }
+        - { name: archived, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: Tenant-scoped contest page.
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ContestPage' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createContest
+      summary: Create a contest and first draft
+      tags: [Contests]
+      x-required-scopes: [contests:write]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateContestRequest' } } }
+      responses:
+        '201': { description: Contest and first mutable draft., content: { application/json: { schema: { $ref: '#/components/schemas/ContestDetail' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /contests/overview:
+    get:
+      operationId: getContestOverview
+      summary: Get contest portfolio overview
+      tags: [Contests]
+      x-required-scopes: [contests:read]
+      responses:
+        '200': { description: Cycle metrics and actionable attention items., content: { application/json: { schema: { $ref: '#/components/schemas/ContestOverview' } } } }
+  /contests/code-availability:
+    get:
+      operationId: checkContestCodeAvailability
+      summary: Check active contest code availability
+      tags: [Contests]
+      x-required-scopes: [contests:write]
+      parameters:
+        - { name: code, in: query, required: true, schema: { $ref: '#/components/schemas/Code' } }
+      responses:
+        '200': { description: Availability result., content: { application/json: { schema: { type: object, required: [code, available], properties: { code: { $ref: '#/components/schemas/Code' }, available: { type: boolean }, reasonCode: { type: string } } } } } }
+  /contests/{contestId}:
+    get:
+      operationId: getContest
+      summary: Get contest identity and version pointers
+      tags: [Contests]
+      x-required-scopes: [contests:read]
+      parameters: [{ $ref: '#/components/parameters/ContestId' }]
+      responses:
+        '200': { description: Contest identity and version references., content: { application/json: { schema: { $ref: '#/components/schemas/ContestDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /contests/{contestId}/versions:
+    post:
+      operationId: createContestVersion
+      summary: Clone a contest version into a draft
+      tags: [Versions]
+      x-required-scopes: [contests:write]
+      parameters:
+        - { $ref: '#/components/parameters/ContestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [baseVersionId, changeRationale], properties: { baseVersionId: { $ref: '#/components/schemas/Id' }, changeRationale: { type: string, minLength: 1, maxLength: 2000 } } } } }
+      responses:
+        '201': { description: New mutable draft., content: { application/json: { schema: { $ref: '#/components/schemas/ContestVersion' } } } }
+  /contest-versions/{versionId}:
+    get:
+      operationId: getContestVersion
+      summary: Get a normalized contest version
+      tags: [Versions]
+      x-required-scopes: [contests:read]
+      parameters: [{ $ref: '#/components/parameters/VersionId' }]
+      responses:
+        '200':
+          description: Complete normalized version.
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ContestVersion' } } }
+    patch:
+      operationId: patchContestVersion
+      summary: Merge-patch a mutable draft version
+      tags: [Versions]
+      x-required-scopes: [contests:write]
+      parameters:
+        - { $ref: '#/components/parameters/VersionId' }
+        - { $ref: '#/components/parameters/IfMatch' }
+      requestBody:
+        required: true
+        content: { application/merge-patch+json: { schema: { type: object, description: Mutable ContestConfiguration fields only. } } }
+      responses:
+        '200': { description: Updated draft., content: { application/json: { schema: { $ref: '#/components/schemas/ContestVersion' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /contest-versions/{versionId}/validate:
+    post:
+      operationId: validateContestVersion
+      summary: Validate a pinned contest configuration
+      tags: [Validation]
+      x-required-scopes: [contests:write]
+      parameters:
+        - { $ref: '#/components/parameters/VersionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200': { description: Deterministic validation report., content: { application/json: { schema: { $ref: '#/components/schemas/ValidationReport' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /contest-versions/{versionId}/diff:
+    get:
+      operationId: getContestVersionDiff
+      summary: Compare two contest versions
+      tags: [Versions]
+      x-required-scopes: [contests:read]
+      parameters:
+        - { $ref: '#/components/parameters/VersionId' }
+        - { name: againstVersionId, in: query, required: true, schema: { $ref: '#/components/schemas/Id' } }
+      responses:
+        '200': { description: Stable domain-path semantic diff., content: { application/json: { schema: { type: object, required: [changes], properties: { changes: { type: array, items: { $ref: '#/components/schemas/MaterialChange' } } } } } } }
+  /contest-versions/{versionId}/submit:
+    post:
+      operationId: submitContestVersion
+      summary: Freeze and submit a draft for approval
+      tags: [Approvals]
+      x-required-scopes: [contests:submit]
+      parameters:
+        - { $ref: '#/components/parameters/VersionId' }
+        - { $ref: '#/components/parameters/IfMatch' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [attested, changeRationale], properties: { attested: { type: boolean, enum: [true] }, changeRationale: { type: string, minLength: 1, maxLength: 2000 }, validationRunId: { $ref: '#/components/schemas/Id' }, simulationRunId: { $ref: '#/components/schemas/Id' } } } } }
+      responses:
+        '201': { description: Frozen review snapshot and approval instance., content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalInstance' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /contest-versions/{versionId}/simulations:
+    post:
+      operationId: startContestSimulation
+      summary: Start a checksum-pinned contest simulation
+      tags: [Simulation]
+      x-required-scopes: [contests:simulate]
+      parameters:
+        - { $ref: '#/components/parameters/VersionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StartSimulationRequest' } } }
+      responses:
+        '202': { description: Simulation accepted., content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /simulations/{simulationId}:
+    get:
+      operationId: getContestSimulation
+      summary: Get simulation status and summary
+      tags: [Simulation]
+      x-required-scopes: [contests:simulate]
+      parameters: [{ name: simulationId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }]
+      responses:
+        '200': { description: Simulation status and summary., content: { application/json: { schema: { $ref: '#/components/schemas/Simulation' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /templates:
+    get:
+      operationId: listContestTemplates
+      summary: List reusable contest templates
+      tags: [Templates]
+      x-required-scopes: [contests:read]
+      responses:
+        '200': { description: Template catalogue., content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: '#/components/schemas/ReusableAssetSummary' } } } } } } }
+    post:
+      operationId: createContestTemplate
+      summary: Create a reusable template draft
+      tags: [Templates]
+      x-required-scopes: [contests:templates:write]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReusableAssetInput' } } } }
+      responses:
+        '201': { description: Template draft created., content: { application/json: { schema: { $ref: '#/components/schemas/ReusableAssetSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /rules:
+    get:
+      operationId: listReusableRules
+      summary: List reusable contest rules
+      tags: [Rules]
+      x-required-scopes: [contests:read]
+      responses:
+        '200': { description: Rule catalogue., content: { application/json: { schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: '#/components/schemas/ReusableAssetSummary' } } } } } } }
+    post:
+      operationId: createReusableRule
+      summary: Create a reusable rule draft
+      tags: [Rules]
+      x-required-scopes: [contests:rules:write]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReusableAssetInput' } } } }
+      responses:
+        '201': { description: Rule draft created., content: { application/json: { schema: { $ref: '#/components/schemas/ReusableAssetSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /rule-versions/{ruleVersionId}:
+    get:
+      operationId: getReusableRuleVersion
+      summary: Get a reusable rule version and canonical expression
+      tags: [Rules]
+      x-required-scopes: [contests:read]
+      parameters: [{ $ref: '#/components/parameters/RuleVersionId' }]
+      responses:
+        '200':
+          description: Version-pinned reusable rule.
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReusableRuleVersion' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: patchReusableRuleVersion
+      summary: Replace the canonical expression of a reusable rule draft
+      tags: [Rules]
+      x-required-scopes: [contests:rules:write]
+      parameters:
+        - { $ref: '#/components/parameters/RuleVersionId' }
+        - { $ref: '#/components/parameters/IfMatch' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReusableRulePatch' } } }
+      responses:
+        '200': { description: Updated and validated reusable rule draft., content: { application/json: { schema: { $ref: '#/components/schemas/ReusableRuleVersion' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /rule-versions/{ruleVersionId}/validate:
+    post:
+      operationId: validateReusableRuleVersion
+      summary: Validate and explain a reusable rule expression
+      tags: [Rules, Validation]
+      x-required-scopes: [contests:rules:write]
+      parameters:
+        - { $ref: '#/components/parameters/RuleVersionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReusableRulePatch' } } }
+      responses:
+        '200': { description: Deterministic rule validation and node explanation., content: { application/json: { schema: { $ref: '#/components/schemas/RuleValidationReport' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /approvals:
+    get:
+      operationId: listApprovals
+      summary: List approval inbox items
+      tags: [Approvals]
+      x-required-scopes: [contests:read]
+      parameters:
+        - { name: inbox, in: query, schema: { type: string, enum: [ASSIGNED, SUBMITTED, COMPLETED], default: ASSIGNED } }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { description: Approval inbox., content: { application/json: { schema: { type: object, required: [items, page], properties: { items: { type: array, items: { $ref: '#/components/schemas/ApprovalInstance' } }, page: { $ref: '#/components/schemas/PageMeta' } } } } } }
+  /approvals/{approvalId}:
+    get:
+      operationId: getApproval
+      summary: Get a frozen approval instance
+      tags: [Approvals]
+      x-required-scopes: [contests:read]
+      parameters: [{ $ref: '#/components/parameters/ApprovalId' }]
+      responses:
+        '200': { description: Frozen review and decision history., content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalInstance' } } } }
+  /approvals/{approvalId}/decisions:
+    post:
+      operationId: decideApproval
+      summary: Decide the current approval stage
+      tags: [Approvals]
+      description: Caller cannot decide a version they created or submitted.
+      x-required-scopes: [contests:approve:business, contests:approve:compensation, contests:approve:risk]
+      parameters:
+        - { $ref: '#/components/parameters/ApprovalId' }
+        - { $ref: '#/components/parameters/IfMatch' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [decision], properties: { decision: { type: string, enum: [APPROVE, RETURN, REJECT] }, comment: { type: string, maxLength: 2000 } } } } }
+      responses:
+        '200': { description: Decision recorded and next stage assigned., content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalInstance' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /contest-versions/{versionId}/publish:
+    post:
+      operationId: publishContestVersion
+      summary: Start publication of an approved version
+      tags: [Approvals]
+      x-required-scopes: [contests:publish]
+      parameters:
+        - { $ref: '#/components/parameters/VersionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '202': { description: Publication accepted., content: { application/json: { schema: { $ref: '#/components/schemas/Job' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /contests/{contestId}/agent-results:
+    get:
+      operationId: listContestAgentResults
+      summary: List current cumulative contest results
+      tags: [AgentResults]
+      x-required-scopes: [contests:read]
+      parameters:
+        - { $ref: '#/components/parameters/ContestId' }
+        - { name: businessDate, in: query, schema: { type: string, format: date } }
+        - { name: qualificationStatus, in: query, schema: { $ref: '#/components/schemas/QualificationStatus' } }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { description: Current cumulative result page., content: { application/json: { schema: { $ref: '#/components/schemas/AgentResultPage' } } } }
+  /contests/{contestId}/agents/{participantId}/result:
+    get:
+      operationId: getContestAgentResult
+      summary: Get one current cumulative participant result
+      tags: [AgentResults]
+      x-required-scopes: [contests:read]
+      parameters:
+        - { $ref: '#/components/parameters/ContestId' }
+        - { $ref: '#/components/parameters/ParticipantId' }
+      responses:
+        '200': { description: Latest cumulative agent result., content: { application/json: { schema: { $ref: '#/components/schemas/AgentContestResult' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /contests/{contestId}/agents/{participantId}/daily-results:
+    get:
+      operationId: listContestAgentDailyResults
+      summary: List immutable participant daily history
+      tags: [AgentResults]
+      x-required-scopes: [contests:read]
+      parameters:
+        - { $ref: '#/components/parameters/ContestId' }
+        - { $ref: '#/components/parameters/ParticipantId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { description: Immutable daily cumulative history., content: { application/json: { schema: { $ref: '#/components/schemas/AgentDailyResultPage' } } } }
+  /calculation-runs:
+    post:
+      operationId: startCalculationRun
+      summary: Start a pinned daily calculation run
+      tags: [CalculationRuns]
+      x-required-scopes: [contests:runs:operate]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StartCalculationRunRequest' } } }
+      responses:
+        '202': { description: Daily run accepted., content: { application/json: { schema: { $ref: '#/components/schemas/CalculationRun' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /calculation-runs/{runId}:
+    get:
+      operationId: getCalculationRun
+      summary: Get calculation and reconciliation state
+      tags: [CalculationRuns]
+      x-required-scopes: [contests:runs:operate]
+      parameters: [{ $ref: '#/components/parameters/RunId' }]
+      responses:
+        '200': { description: Run and reconciliation state., content: { application/json: { schema: { $ref: '#/components/schemas/CalculationRun' } } } }
+  /source-snapshots:
+    post:
+      operationId: registerSourceSnapshot
+      summary: Register an immutable source manifest
+      tags: [Sources]
+      x-required-scopes: [contests:runs:operate]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SourceSnapshotManifest' } } } }
+      responses:
+        '201': { description: Immutable manifest registered., content: { application/json: { schema: { $ref: '#/components/schemas/SourceSnapshotManifest' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /audit-events:
+    get:
+      operationId: listContestAuditEvents
+      summary: List append-only contest audit events
+      tags: [Audit]
+      x-required-scopes: [contests:audit:read]
+      parameters:
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: eventType, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { description: Append-only audit page., content: { application/json: { schema: { $ref: '#/components/schemas/AuditPage' } } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    ContestId: { name: contestId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    VersionId: { name: versionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    ApprovalId: { name: approvalId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    RuleVersionId: { name: ruleVersionId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    RunId: { name: runId, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    ParticipantId: { name: participantId, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 128 } }
+    Cursor: { name: cursor, in: query, schema: { type: string, maxLength: 512 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
+    IfMatch: { name: If-Match, in: header, required: true, schema: { type: string } }
+  responses:
+    Unauthorized: { description: Missing or invalid identity., content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Forbidden: { description: "Missing scope, tenant/entity grant, or maker-checker violation.", content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    NotFound: { description: Tenant-scoped resource not found., content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Conflict: { description: "State, idempotency or concurrent-version conflict.", content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    PreconditionFailed: { description: If-Match does not identify current mutable revision., content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    UnprocessableEntity: { description: Domain validation failed., content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    DependencyUnavailable: { description: Required source or internal dependency is unavailable., content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  schemas:
+    Id: { type: string, pattern: '^[A-Za-z0-9_-]{8,64}$' }
+    Code: { type: string, pattern: '^[A-Za-z0-9_-]{3,40}$' }
+    DecimalString: { type: string, pattern: '^-?(0|[1-9][0-9]*)(\.[0-9]+)?$' }
+    Money:
+      type: object
+      required: [amount, currency]
+      properties: { amount: { $ref: '#/components/schemas/DecimalString' }, currency: { type: string, pattern: '^[A-Z]{3}$' } }
+    ContestStatus: { type: string, enum: [DRAFT, IN_REVIEW, RETURNED, APPROVED, SCHEDULED, ACTIVE, TRACKING, COMPLETED, NEEDS_ATTENTION, ARCHIVED, CANCELLED], x-extensible-enum: true }
+    VersionStatus: { type: string, enum: [DRAFT, IN_REVIEW, RETURNED, APPROVED, PUBLISHED, SUPERSEDED, CANCELLED], x-extensible-enum: true }
+    QualificationStatus: { type: string, enum: [IN_PROGRESS, QUALIFIED, NOT_QUALIFIED, QUALITY_GATE_FAILED, DISQUALIFIED, TRACKING, FINAL], x-extensible-enum: true }
+    CalculationState: { type: string, enum: [WAITING_FOR_SOURCES, SOURCE_VALIDATION, READY, ELIGIBILITY_RESOLUTION, CALCULATING, RECONCILING, READY_TO_PUBLISH, PUBLISHED, PARTIAL, QUARANTINED, FAILED, CANCELLED, SUPERSEDED], x-extensible-enum: true }
+    MetricValue:
+      type: object
+      required: [metricCode, kind, value]
+      properties:
+        metricCode: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,63}$' }
+        kind: { type: string, enum: [MONEY, COUNT, PERCENT, DECIMAL, BOOLEAN, DATE] }
+        value: { oneOf: [{ $ref: '#/components/schemas/DecimalString' }, { type: integer }, { type: boolean }, { type: string, format: date }] }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        priorDailyValue: { $ref: '#/components/schemas/DecimalString' }
+        dailyDelta: { $ref: '#/components/schemas/DecimalString' }
+    ExpressionNode:
+      type: object
+      description: Typed allowlisted AST. Exactly one of all/any/not/predicate.
+      properties:
+        nodeId: { $ref: '#/components/schemas/Id' }
+        all: { type: array, items: { $ref: '#/components/schemas/ExpressionNode' } }
+        any: { type: array, items: { $ref: '#/components/schemas/ExpressionNode' } }
+        not: { $ref: '#/components/schemas/ExpressionNode' }
+        predicate:
+          type: object
+          required: [metricCode, operator, value]
+          properties:
+            metricCode: { type: string }
+            operator: { type: string, enum: [GTE, GT, LTE, LT, EQ, NEQ, IN, NOT_IN, BETWEEN, EXISTS], x-extensible-enum: true }
+            value: {}
+    SourceCitation:
+      type: object
+      required: [artifactName, sha256, page, section, reviewStatus]
+      properties:
+        artifactName: { type: string }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        page: { type: integer, minimum: 1 }
+        section: { type: string }
+        reviewStatus: { type: string, enum: [EXTRACTED, REVIEWED, APPROVED, CONFLICT] }
+    ContestConfiguration:
+      type: object
+      required: [basics, audience, qualification, calculation, rewards, governance]
+      properties:
+        basics: { type: object, additionalProperties: true }
+        audience: { type: object, additionalProperties: true }
+        qualification: { $ref: '#/components/schemas/QualificationConfiguration' }
+        calculation: { type: object, additionalProperties: true }
+        rewards: { type: object, additionalProperties: true }
+        governance: { type: object, additionalProperties: true }
+        sourceCitations: { type: array, items: { $ref: '#/components/schemas/SourceCitation' } }
+    Operand:
+      oneOf:
+        - { type: object, required: [kind, value], properties: { kind: { enum: [DECIMAL, MONEY, PERCENT] }, value: { $ref: '#/components/schemas/DecimalString' }, currency: { type: string, pattern: '^[A-Z]{3}$' } } }
+        - { type: object, required: [kind, value], properties: { kind: { type: string, enum: [INTEGER] }, value: { type: integer } } }
+        - { type: object, required: [kind, value], properties: { kind: { type: string, enum: [BOOLEAN] }, value: { type: boolean } } }
+        - { type: object, required: [kind, value], properties: { kind: { type: string, enum: [DATE] }, value: { type: string, format: date } } }
+        - { type: object, required: [kind, from, to], properties: { kind: { type: string, enum: [DATE_RANGE] }, from: { type: string, format: date }, to: { type: string, format: date } } }
+        - { type: object, required: [kind, lovKey, valueCode], properties: { kind: { type: string, enum: [LOV] }, lovKey: { type: string }, valueCode: { type: string } } }
+        - { type: object, required: [kind, lovKey, valueCodes], properties: { kind: { type: string, enum: [LOV_SET] }, lovKey: { type: string }, valueCodes: { type: array, items: { type: string }, uniqueItems: true } } }
+    RuleExpression:
+      oneOf:
+        - { type: object, required: [nodeId, type, children], properties: { nodeId: { $ref: '#/components/schemas/Id' }, type: { type: string, enum: [ALL] }, children: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RuleExpression' } } } }
+        - { type: object, required: [nodeId, type, children], properties: { nodeId: { $ref: '#/components/schemas/Id' }, type: { type: string, enum: [ANY] }, minimumPass: { type: integer, minimum: 1 }, children: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RuleExpression' } } } }
+        - { type: object, required: [nodeId, type, child], properties: { nodeId: { $ref: '#/components/schemas/Id' }, type: { type: string, enum: [NOT] }, child: { $ref: '#/components/schemas/RuleExpression' } } }
+        - { type: object, required: [nodeId, type, metricCode, operator], properties: { nodeId: { $ref: '#/components/schemas/Id' }, type: { type: string, enum: [PREDICATE] }, metricCode: { type: string }, operator: { enum: [GTE, GT, LTE, LT, EQ, NEQ, IN, NOT_IN, BETWEEN, EXISTS] }, operand: { $ref: '#/components/schemas/Operand' }, sourceCitationIds: { type: array, items: { type: string } } } }
+    QualificationConfiguration:
+      type: object
+      required: [routes, tiers, periods, targets, rewardPrecedenceCode]
+      properties:
+        routes: { type: array, items: { type: object, required: [routeId, code, labelKey, order, enabled, expression, tierIds], properties: { routeId: { $ref: '#/components/schemas/Id' }, code: { type: string }, labelKey: { type: string }, order: { type: integer, minimum: 1 }, enabled: { type: boolean }, expression: { $ref: '#/components/schemas/RuleExpression' }, tierIds: { type: array, items: { $ref: '#/components/schemas/Id' } } } } }
+        tiers: { type: array, items: { type: object, required: [tierId, code, labelKey, order, rewardCode], properties: { tierId: { $ref: '#/components/schemas/Id' }, code: { type: string }, labelKey: { type: string }, order: { type: integer, minimum: 1 }, rewardCode: { type: string } } } }
+        periods: { type: array, items: { type: object, required: [periodId, labelKey, order], properties: { periodId: { $ref: '#/components/schemas/Id' }, labelKey: { type: string }, order: { type: integer, minimum: 1 } } } }
+        targets: { type: array, items: { type: object, required: [tierId, periodId, state], properties: { tierId: { $ref: '#/components/schemas/Id' }, periodId: { $ref: '#/components/schemas/Id' }, state: { enum: [EXPLICIT, INHERITED, NOT_APPLICABLE, NOT_CONFIGURED] }, value: { $ref: '#/components/schemas/DecimalString' }, inheritedFromPeriodId: { $ref: '#/components/schemas/Id' } } } }
+        rewardPrecedenceCode: { type: string }
+    ContestSummary:
+      type: object
+      required: [contestId, code, nameKey, status, ownerRef, campaignStart, campaignEnd, ruleCount, updatedAt]
+      properties:
+        contestId: { $ref: '#/components/schemas/Id' }
+        code: { $ref: '#/components/schemas/Code' }
+        nameKey: { type: string }
+        status: { $ref: '#/components/schemas/ContestStatus' }
+        ownerRef: { type: string }
+        campaignStart: { type: string, format: date }
+        campaignEnd: { type: string, format: date }
+        audienceCodes: { type: array, items: { type: string } }
+        ruleCount: { type: integer, minimum: 0 }
+        updatedAt: { type: string, format: date-time }
+    PageMeta: { type: object, required: [hasMore], properties: { nextCursor: { type: string }, hasMore: { type: boolean }, count: { type: integer, minimum: 0 } } }
+    ContestPage: { type: object, required: [items, page], properties: { items: { type: array, items: { $ref: '#/components/schemas/ContestSummary' } }, page: { $ref: '#/components/schemas/PageMeta' } } }
+    ContestOverview:
+      type: object
+      required: [metrics, attentionItems]
+      properties:
+        metrics: { type: array, items: { type: object, required: [code, value], properties: { code: { type: string }, value: { type: integer }, supportingCode: { type: string } } } }
+        attentionItems: { type: array, items: { type: object, required: [id, type, severity, target], properties: { id: { $ref: '#/components/schemas/Id' }, type: { type: string }, severity: { type: string, enum: [INFO, WARNING, ERROR] }, target: { type: string } } } }
+    CreateContestRequest:
+      type: object
+      required: [code, nameKey, country, timezone]
+      properties:
+        code: { $ref: '#/components/schemas/Code' }
+        nameKey: { type: string }
+        country: { type: string, pattern: '^[A-Z]{2}$' }
+        timezone: { type: string }
+        templateVersionId: { $ref: '#/components/schemas/Id' }
+    ContestDetail:
+      allOf:
+        - { $ref: '#/components/schemas/ContestSummary' }
+        - type: object
+          required: [country, timezone, latestVersionId]
+          properties: { country: { type: string }, timezone: { type: string }, latestVersionId: { $ref: '#/components/schemas/Id' }, publishedVersionId: { $ref: '#/components/schemas/Id' } }
+    ContestVersion:
+      type: object
+      required: [versionId, contestId, revision, status, configuration, checksum, createdBy, createdAt]
+      properties:
+        versionId: { $ref: '#/components/schemas/Id' }
+        contestId: { $ref: '#/components/schemas/Id' }
+        revision: { type: integer, minimum: 1 }
+        displayVersion: { type: string }
+        status: { $ref: '#/components/schemas/VersionStatus' }
+        baseVersionId: { $ref: '#/components/schemas/Id' }
+        configuration: { $ref: '#/components/schemas/ContestConfiguration' }
+        checksum: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ValidationIssue:
+      type: object
+      required: [issueId, severity, code, path, messageKey]
+      properties: { issueId: { $ref: '#/components/schemas/Id' }, severity: { type: string, enum: [ERROR, WARNING, INFO] }, code: { type: string }, path: { type: string }, messageKey: { type: string }, acknowledgementAllowed: { type: boolean } }
+    ValidationReport:
+      type: object
+      required: [validationRunId, versionId, rulesetVersion, blocking, issues, completedAt]
+      properties: { validationRunId: { $ref: '#/components/schemas/Id' }, versionId: { $ref: '#/components/schemas/Id' }, rulesetVersion: { type: string }, blocking: { type: boolean }, score: { type: integer, minimum: 0, maximum: 100 }, issues: { type: array, items: { $ref: '#/components/schemas/ValidationIssue' } }, completedAt: { type: string, format: date-time } }
+    MaterialChange:
+      type: object
+      required: [changeId, operation, path, materiality]
+      properties: { changeId: { $ref: '#/components/schemas/Id' }, operation: { type: string, enum: [ADDED, MODIFIED, REMOVED] }, path: { type: string }, materiality: { type: string, enum: [MATERIAL, NON_MATERIAL] }, beforeHash: { type: string }, afterHash: { type: string } }
+    ApprovalStage:
+      type: object
+      required: [stageId, order, type, status]
+      properties: { stageId: { $ref: '#/components/schemas/Id' }, order: { type: integer, minimum: 1 }, type: { type: string }, assigneeRef: { type: string }, status: { type: string, enum: [PENDING, ASSIGNED, APPROVED, RETURNED, REJECTED, CANCELLED] }, decidedAt: { type: string, format: date-time } }
+    ApprovalInstance:
+      type: object
+      required: [approvalId, contestId, versionId, snapshotChecksum, status, stages, submittedBy, submittedAt]
+      properties: { approvalId: { $ref: '#/components/schemas/Id' }, contestId: { $ref: '#/components/schemas/Id' }, versionId: { $ref: '#/components/schemas/Id' }, snapshotChecksum: { type: string }, status: { type: string, enum: [PENDING, IN_PROGRESS, RETURNED, REJECTED, APPROVED, CANCELLED, COMPLETED] }, currentStageId: { $ref: '#/components/schemas/Id' }, stages: { type: array, items: { $ref: '#/components/schemas/ApprovalStage' } }, submittedBy: { type: string }, submittedAt: { type: string, format: date-time }, dueAt: { type: string, format: date-time }, riskCode: { type: string }, materialChanges: { type: array, items: { $ref: '#/components/schemas/MaterialChange' } } }
+    StartSimulationRequest:
+      type: object
+      required: [type, versionChecksum]
+      additionalProperties: false
+      properties:
+        type: { type: string, enum: [SAMPLE_PARTICIPANT, PORTFOLIO_IMPACT] }
+        versionChecksum: { type: string, pattern: '^[a-f0-9]{64}$' }
+        participantId: { type: string, minLength: 3, maxLength: 128, description: Required for SAMPLE_PARTICIPANT; never a name or government identifier. }
+        sourceBusinessDate: { type: string, format: date }
+      example: { type: PORTFOLIO_IMPACT, versionChecksum: a94a8fe5ccb19ba61c4c0873d391e987982fbbd3c5d6f6e6a7e7f7a8b9c0d1e2, sourceBusinessDate: '2026-07-27' }
+    Job:
+      type: object
+      required: [jobId, type, status, createdAt]
+      properties:
+        jobId: { $ref: '#/components/schemas/Id' }
+        type: { type: string, enum: [SIMULATION, PUBLICATION, AUDIT_EXPORT] }
+        status: { type: string, enum: [QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED, DEAD_LETTERED] }
+        progressPct: { type: integer, minimum: 0, maximum: 100 }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+        problem: { $ref: '#/components/schemas/Problem' }
+    Simulation:
+      allOf:
+        - { $ref: '#/components/schemas/Job' }
+        - type: object
+          required: [simulationId, versionId, versionChecksum, simulationType, reconciliation]
+          properties:
+            simulationId: { $ref: '#/components/schemas/Id' }
+            versionId: { $ref: '#/components/schemas/Id' }
+            versionChecksum: { type: string, pattern: '^[a-f0-9]{64}$' }
+            simulationType: { type: string, enum: [SAMPLE_PARTICIPANT, PORTFOLIO_IMPACT] }
+            sourceBusinessDate: { type: string, format: date }
+            reconciliation: { $ref: '#/components/schemas/Reconciliation' }
+            summary: { $ref: '#/components/schemas/SimulationSummary' }
+            resultRef: { type: string }
+    SimulationSummary:
+      type: object
+      required: [processed, qualified, notQualified, failed, quarantined]
+      additionalProperties: false
+      properties:
+        processed: { type: integer, minimum: 0 }
+        qualified: { type: integer, minimum: 0 }
+        notQualified: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        quarantined: { type: integer, minimum: 0 }
+    ReusableAssetSummary: { type: object, required: [assetId, code, name, type, status, latestVersion, latestVersionId], properties: { assetId: { $ref: '#/components/schemas/Id' }, code: { $ref: '#/components/schemas/Code' }, name: { type: string, minLength: 1, maxLength: 160 }, nameKey: { type: string }, type: { type: string, enum: [TEMPLATE, RULE] }, categoryCode: { type: string }, status: { type: string, enum: [DRAFT, IN_REVIEW, APPROVED, DEPRECATED] }, latestVersion: { type: string }, latestVersionId: { $ref: '#/components/schemas/Id' }, adoptionCount: { type: integer, minimum: 0 } } }
+    ReusableAssetInput:
+      type: object
+      required: [code, name, categoryCode, configuration]
+      additionalProperties: false
+      properties:
+        code: { $ref: '#/components/schemas/Code' }
+        name: { type: string, minLength: 1, maxLength: 160 }
+        nameKey: { type: string, pattern: '^contest\.[A-Za-z0-9_.-]+$' }
+        categoryCode: { type: string, enum: [ELIGIBILITY, QUALITY, PRODUCTION, REWARD, GOVERNANCE] }
+        configuration: { type: object, minProperties: 1, description: Template configuration or reusable canonical RuleExpression; validated by asset type. }
+      example: { code: ACTIVE_AGENTS, name: Active agents, nameKey: contest.rule.activeAgents, categoryCode: ELIGIBILITY, configuration: { nodeId: active_root, type: ALL, children: [{ nodeId: active_status, type: PREDICATE, metricCode: AGENT_ACTIVE, operator: EQ, operand: { kind: BOOLEAN, value: true } }] } }
+    ReusableRulePatch:
+      type: object
+      required: [expression, options]
+      additionalProperties: false
+      properties:
+        expression: { $ref: '#/components/schemas/RuleExpression' }
+        options:
+          type: object
+          required: [periodMode, unknownCodePolicy]
+          additionalProperties: false
+          properties:
+            periodMode: { type: string, enum: [FULL_CAMPAIGN, MONTHLY_INDEPENDENT, CUMULATIVE, CUSTOM_WINDOWS] }
+            considerationPeriodCode: { type: string }
+            unknownCodePolicy: { type: string, enum: [BLOCK] }
+    ReusableRuleVersion:
+      type: object
+      required: [assetId, ruleVersionId, revision, code, name, categoryCode, status, expression, options, checksum, catalogueVersion, createdBy, createdAt]
+      additionalProperties: false
+      properties:
+        assetId: { $ref: '#/components/schemas/Id' }
+        ruleVersionId: { $ref: '#/components/schemas/Id' }
+        revision: { type: integer, minimum: 1 }
+        code: { $ref: '#/components/schemas/Code' }
+        name: { type: string }
+        nameKey: { type: string }
+        categoryCode: { type: string }
+        status: { type: string, enum: [DRAFT, IN_REVIEW, APPROVED, SUPERSEDED, DEPRECATED] }
+        expression: { $ref: '#/components/schemas/RuleExpression' }
+        options: { $ref: '#/components/schemas/ReusableRulePatch/properties/options' }
+        checksum: { type: string, pattern: '^[a-f0-9]{64}$' }
+        catalogueVersion: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RuleNodeOutcome:
+      type: object
+      required: [nodeId, outcome]
+      additionalProperties: false
+      properties:
+        nodeId: { $ref: '#/components/schemas/Id' }
+        outcome: { type: string, enum: [PASS, FAIL, ERROR, NOT_EVALUATED] }
+        reasonCode: { type: string }
+    RuleValidationReport:
+      type: object
+      required: [valid, issues, nodeOutcomes, configurationChecksum, engineVersion, catalogueVersion]
+      additionalProperties: false
+      properties:
+        valid: { type: boolean }
+        issues: { type: array, items: { $ref: '#/components/schemas/ValidationIssue' } }
+        nodeOutcomes: { type: array, items: { $ref: '#/components/schemas/RuleNodeOutcome' } }
+        configurationChecksum: { type: string, pattern: '^[a-f0-9]{64}$' }
+        engineVersion: { type: string }
+        catalogueVersion: { type: string }
+    EligibilityResult: { type: object, required: [status, applicableCategoryCodes, reasonCodes], properties: { status: { type: string, enum: [ELIGIBLE, INELIGIBLE, TEMPORARILY_EXCLUDED, DISQUALIFIED] }, eligibleFrom: { type: string, format: date }, eligibleThrough: { type: string, format: date }, applicableCategoryCodes: { type: array, items: { type: string } }, reasonCodes: { type: array, items: { type: string } } } }
+    CategoryResult:
+      type: object
+      required: [categoryCode, qualificationStatus, cumulativeMetrics, qualityGateResults]
+      properties:
+        categoryCode: { type: string }
+        evaluationPeriodCode: { type: string }
+        qualificationStatus: { $ref: '#/components/schemas/QualificationStatus' }
+        cumulativeMetrics: { type: array, items: { $ref: '#/components/schemas/MetricValue' } }
+        achievedTierCode: { type: string }
+        nextTierCode: { type: string }
+        qualityGateResults: { type: array, items: { type: object, required: [code, passed], properties: { code: { type: string }, passed: { type: boolean }, actual: { $ref: '#/components/schemas/MetricValue' } } } }
+        rewardCode: { type: string }
+        explanationRef: { type: string }
+    AgentContestResult:
+      type: object
+      required: [contestId, contestVersionId, participantId, eligibility, currentResult, latestRunId, configurationChecksum, engineVersion]
+      properties:
+        contestId: { $ref: '#/components/schemas/Id' }
+        contestVersionId: { $ref: '#/components/schemas/Id' }
+        participantId: { type: string }
+        eligibility: { $ref: '#/components/schemas/EligibilityResult' }
+        currentResult:
+          type: object
+          required: [businessDate, calculationState, qualificationStatus, categoryResults]
+          properties: { businessDate: { type: string, format: date }, calculationState: { type: string, enum: [CALCULATED, QUARANTINED, FAILED] }, qualificationStatus: { $ref: '#/components/schemas/QualificationStatus' }, categoryResults: { type: array, items: { $ref: '#/components/schemas/CategoryResult' } } }
+        firstCalculatedAt: { type: string, format: date-time }
+        lastCalculatedAt: { type: string, format: date-time }
+        latestRunId: { $ref: '#/components/schemas/Id' }
+        configurationChecksum: { type: string }
+        engineVersion: { type: string }
+    AgentDailyResult:
+      allOf:
+        - { $ref: '#/components/schemas/AgentContestResult' }
+        - type: object
+          required: [dailyResultId, businessDate, calculationRevision, sourceLineage, publicationStatus]
+          properties:
+            dailyResultId: { $ref: '#/components/schemas/Id' }
+            businessDate: { type: string, format: date }
+            calculationRevision: { type: integer, minimum: 1 }
+            sourceLineage: { $ref: '#/components/schemas/SourceLineage' }
+            publicationStatus: { type: string, enum: [STAGED, PUBLISHED, SUPERSEDED] }
+            supersedesDailyResultId: { $ref: '#/components/schemas/Id' }
+    AgentResultPage: { type: object, required: [items, page], properties: { items: { type: array, items: { $ref: '#/components/schemas/AgentContestResult' } }, page: { $ref: '#/components/schemas/PageMeta' } } }
+    AgentDailyResultPage: { type: object, required: [items, page], properties: { items: { type: array, items: { $ref: '#/components/schemas/AgentDailyResult' } }, page: { $ref: '#/components/schemas/PageMeta' } } }
+    SourceLineage: { type: object, required: [agentMasterBatchId, productionBatchId], properties: { agentMasterBatchId: { type: string }, productionBatchId: { type: string }, agentMasterSha256: { type: string }, productionSha256: { type: string } } }
+    Reconciliation: { type: object, required: [eligible, calculated, succeeded, failed, quarantined], properties: { eligible: { type: integer, minimum: 0 }, calculated: { type: integer, minimum: 0 }, succeeded: { type: integer, minimum: 0 }, failed: { type: integer, minimum: 0 }, quarantined: { type: integer, minimum: 0 }, controlTotals: { type: object, additionalProperties: { $ref: '#/components/schemas/DecimalString' } } } }
+    StartCalculationRunRequest: { type: object, required: [businessDate, agentMasterBatchId, productionBatchId], properties: { businessDate: { type: string, format: date }, agentMasterBatchId: { type: string }, productionBatchId: { type: string }, contestIds: { type: array, items: { $ref: '#/components/schemas/Id' } }, reasonCode: { type: string, enum: [SCHEDULED, RERUN, BACKFILL, DISPUTE_REPLAY] } } }
+    CalculationRun: { type: object, required: [runId, businessDate, status, sourceLineage, reconciliation, createdAt], properties: { runId: { $ref: '#/components/schemas/Id' }, businessDate: { type: string, format: date }, status: { $ref: '#/components/schemas/CalculationState' }, contestIds: { type: array, items: { $ref: '#/components/schemas/Id' } }, sourceLineage: { $ref: '#/components/schemas/SourceLineage' }, reconciliation: { $ref: '#/components/schemas/Reconciliation' }, supersedesRunId: { $ref: '#/components/schemas/Id' }, createdAt: { type: string, format: date-time }, publishedAt: { type: string, format: date-time }, problem: { $ref: '#/components/schemas/Problem' } } }
+    SourceSnapshotManifest: { type: object, required: [sourceBatchId, sourceType, businessDate, schemaVersion, objectUri, sha256, rowCount, receivedAt, status], properties: { sourceBatchId: { type: string }, sourceType: { type: string, enum: [AGENT_MASTER, PRODUCTION] }, businessDate: { type: string, format: date }, schemaVersion: { type: string }, objectUri: { type: string }, sha256: { type: string, pattern: '^[a-f0-9]{64}$' }, rowCount: { type: integer, minimum: 0 }, receivedAt: { type: string, format: date-time }, status: { type: string, enum: [RECEIVED, VALIDATING, VALID, INVALID, QUARANTINED] }, qualityResults: { type: array, items: { type: object, additionalProperties: true } } } }
+    AuditEvent: { type: object, required: [eventId, occurredAt, actorRef, action, resourceType, resourceId, outcome, eventHash], properties: { eventId: { $ref: '#/components/schemas/Id' }, occurredAt: { type: string, format: date-time }, actorRef: { type: string }, action: { type: string }, resourceType: { type: string }, resourceId: { type: string }, versionId: { type: string }, reasonCode: { type: string }, traceId: { type: string }, beforeHash: { type: string }, afterHash: { type: string }, previousEventHash: { type: string }, eventHash: { type: string }, outcome: { type: string, enum: [SUCCEEDED, FAILED, DENIED] } } }
+    AuditPage: { type: object, required: [items, page], properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }, page: { $ref: '#/components/schemas/PageMeta' } } }
+    Problem:
+      type: object
+      required: [type, title, status, code, traceId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, pattern: '^CON-[0-9]{4}$' }
+        detail: { type: string }
+        traceId: { type: string }
+        errors: { type: array, items: { type: object, required: [path, code, messageKey], properties: { path: { type: string }, code: { type: string }, messageKey: { type: string } } } }

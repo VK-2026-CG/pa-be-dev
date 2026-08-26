@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "backend-contests-my-country-isolation-2026-08",
+  "handoffId": "contests-my-country-isolation-2026-08",
+  "consumer": "backend",
+  "status": "IN_PROGRESS",
+  "specCommit": null,
+  "implementation": { "repository": "PruactionBackend", "commit": null, "dirty": true },
+  "validation": [{ "command": "npm test", "status": "PASS", "summary": "52 tests passed before final implementation commit" }],
+  "operationCoverage": [{ "operationId": "createContest", "status": "IMPLEMENTED", "evidence": "test/contest-spec.test.ts" }],
+  "acceptanceCriteria": [{ "id": "AC-CA-01-01", "status": "PASS", "evidence": "test/contest-spec.test.ts" }],
+  "migrations": [{ "name": "MY Contest isolated database migration", "status": "APPLIED", "evidence": "npm run db:audit:collections" }],
+  "gaps": ["Promote to COMPLETE after the spec and implementation commits are immutable"],
+  "updatedAt": "2026-08-25T00:00:00.000Z"
+}

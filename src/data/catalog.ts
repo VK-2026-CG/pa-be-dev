@@ -1,0 +1,99 @@
+import type { MetricDefinition } from '../types.js';
+
+const P: MetricDefinition['dimensions']['periods'] = ['MTD', 'QTD', 'YTD'];
+const BL: MetricDefinition['dimensions']['businessLines'] = ['ALL', 'INSURANCE', 'TAKAFUL'];
+const B: MetricDefinition['dimensions']['basis'] = ['STANDARD', 'SCHEME'];
+const cap = (o: Partial<MetricDefinition['capabilities']>): MetricDefinition['capabilities'] => ({
+  goal: false, penders: false, repricing: false, breakdown: false, threshold: false, history: false, ...o,
+});
+
+/**
+ * MY seed — mirrors pruaction-spec domains/insights/data/mongodb.md §4 (v1.3.0).
+ * SCHEME segmentOverrides are a PLACEHOLDER pending OQ-20 (Scheme set/order/goals
+ * unconfirmed): stubbed as the smaller re-ordered set [TPC, FYP, CASE_COUNT].
+ */
+export const CATALOG: MetricDefinition[] = [
+  { metricCode: 'TPC', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 1, customizable: false,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
+    capabilities: cap({ goal: true, penders: true, repricing: true, breakdown: true, history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { defaultOrder: 1 } } },
+  { metricCode: 'PTPC', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 2, customizable: false,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
+    capabilities: cap({ penders: true, repricing: true, breakdown: true }),
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { included: false } } },
+  { metricCode: 'CASE_COUNT', valueType: 'COUNT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 3, customizable: false,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
+    capabilities: cap({ goal: true, penders: true, history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { defaultOrder: 3 } } },
+  { metricCode: 'FYP', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 4, customizable: false,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
+    capabilities: cap({ goal: true, penders: true, history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { defaultOrder: 2 } } },
+  { metricCode: 'MANPOWER', valueType: 'COUNT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 5, customizable: false,
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    capabilities: cap({ barComparison: true, history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
+  { metricCode: 'ACTIVITY_RATIO', valueType: 'PERCENT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 6, customizable: false,
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PP',
+    capabilities: cap({ threshold: true, history: true }), threshold: { value: 90, comparator: 'GTE' },
+    dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
+  { metricCode: 'PRODUCTIVITY', valueType: 'DECIMAL', category: 'PRIORITY', defaultSelected: true, defaultOrder: 7, customizable: false,
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    capabilities: cap({ history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
+  { metricCode: 'AVERAGE_CASE_SIZE', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 8, customizable: false,
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    capabilities: cap({ history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
+  { metricCode: 'NEW_RECRUIT_CONTRACTED', valueType: 'COUNT', category: 'FOCUS', defaultSelected: false, defaultOrder: 5, customizable: true,
+    scopes: ['SELF', 'TEAM'], scopeOverrides: { TEAM: { category: 'PRIORITY', defaultOrder: 9, defaultSelected: true } },
+    favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    capabilities: cap({ barComparison: true, history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
+  { metricCode: 'FYC', valueType: 'MONEY', currency: 'MYR', category: 'FOCUS', defaultSelected: true, defaultOrder: 1, customizable: true,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
+    capabilities: cap({ goal: true, penders: true, history: true }),
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { included: false } } },
+  { metricCode: 'PERSISTENCY_CY', valueType: 'PERCENT', category: 'FOCUS', defaultSelected: true, defaultOrder: 2, customizable: true,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PP',
+    capabilities: cap({ threshold: true, history: true }), threshold: { value: 90, comparator: 'GTE' },
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { included: false } } },
+  { metricCode: 'PERSISTENCY_Y1', valueType: 'PERCENT', category: 'FOCUS', defaultSelected: false, defaultOrder: 3, customizable: true,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PP',
+    capabilities: cap({ threshold: true, history: true }), threshold: { value: 85, comparator: 'GTE' },
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { included: false } } },
+  { metricCode: 'PERSISTENCY_Y2', valueType: 'PERCENT', category: 'FOCUS', defaultSelected: false, defaultOrder: 4, customizable: true,
+    scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PP',
+    capabilities: cap({ threshold: true, history: true }), threshold: { value: 80, comparator: 'GTE' },
+    dimensions: { periods: P, businessLines: BL, basis: B },
+    segmentOverrides: { SCHEME: { included: false } } },
+];
+
+export interface EffectiveDef extends MetricDefinition { effCategory: 'PRIORITY' | 'FOCUS'; effOrder: number; effSelected: boolean }
+
+/** Resolve the catalog for a (scope, basis) lens: membership + category/order after overrides (D-12, D-13). */
+export function effectiveCatalog(scope: 'SELF' | 'TEAM', basis: 'STANDARD' | 'SCHEME'): EffectiveDef[] {
+  return CATALOG.filter((d) => d.scopes.includes(scope))
+    .filter((d) => (d.segmentOverrides?.[basis]?.included ?? true) && d.dimensions.basis.includes(basis))
+    .map((d) => {
+      const so = d.scopeOverrides?.[scope];
+      const seg = d.segmentOverrides?.[basis];
+      return {
+        ...d,
+        effCategory: seg?.category ?? so?.category ?? d.category,
+        effOrder: seg?.defaultOrder ?? so?.defaultOrder ?? d.defaultOrder,
+        effSelected: seg?.defaultSelected ?? so?.defaultSelected ?? d.defaultSelected,
+      };
+    })
+    .sort((a, b) => a.effOrder - b.effOrder);
+}
+export function findDef(code: string): MetricDefinition | undefined {
+  return CATALOG.find((d) => d.metricCode === code);
+}

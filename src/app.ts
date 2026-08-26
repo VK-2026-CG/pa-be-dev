@@ -1,0 +1,208 @@
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import { findAgent, type AgentRecord } from './data/registry.js';
+import { CATALOG, effectiveCatalog } from './data/catalog.js';
+import { ANCHOR_YEAR, contextFor, type Lens } from './data/values.js';
+import type { DataSource } from './data/source.js';
+import type { Basis, BusinessLine, PeriodType, Problem, Scope, TeamView } from './types.js';
+import { SpecContestRepository } from './contest/spec-repository.js';
+import { registerSpecContestRoutes } from './contest/spec-routes.js';
+import { createContestBrochureStore, type ContestBrochureStore } from './contest/brochure-store.js';
+import { ContestBrochureImportService } from './contest/brochure-import.js';
+import { createBrochureInferenceProvider, type ContestBrochureInferenceProvider } from './contest/brochure-import-provider.js';
+
+const PERIODS = new Set(['MTD', 'QTD', 'YTD']);
+const BLS = new Set(['ALL', 'INSURANCE', 'TAKAFUL']);
+const BASES = new Set(['STANDARD', 'SCHEME']);
+const SCOPES = new Set(['SELF', 'TEAM']);
+const TVS = new Set(['DIRECT', 'GROUP']);
+
+function problem(reply: FastifyReply, status: number, code: string, title: string, detail?: string) {
+  const body: Problem = { title, status, code, ...(detail ? { detail } : {}) };
+  return reply.status(status).type('application/problem+json').send(body);
+}
+
+interface Caller { agent: AgentRecord }
+
+/** Stub auth: trusts x-agent-id / x-tenant headers (the BFF's stub JWT). */
+function caller(req: FastifyRequest, reply: FastifyReply): Caller | null {
+  const agentId = (req.headers['x-agent-id'] as string | undefined) ?? 'A1001';
+  const agent = findAgent(agentId);
+  if (!agent) {
+    void problem(reply, 401, 'INS-4010', 'Unknown caller identity');
+    return null;
+  }
+  return { agent };
+}
+
+interface LensQuery {
+  period?: string; businessLine?: string; basis?: string; scope?: string; teamView?: string;
+}
+
+/** Parse + authorize the standard lens params. Returns null after replying on error. */
+function lens(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply): (Lens & Caller) | null {
+  const c = caller(req, reply);
+  if (!c) return null;
+  const pathAgent = findAgent(req.params.agentId);
+  if (!pathAgent) { void problem(reply, 404, 'INS-4040', 'Unknown agent for tenant'); return null; }
+  if (pathAgent.agentId !== c.agent.agentId && c.agent.level === 'P4') {
+    void problem(reply, 403, 'INS-4030', 'Agent may only read own data'); return null;
+  }
+  const q = req.query;
+  const period = (q.period ?? 'YTD') as PeriodType;
+  const businessLine = (q.businessLine ?? 'ALL') as BusinessLine;
+  const basis = (q.basis ?? 'STANDARD') as Basis;
+  const scope = (q.scope ?? 'SELF') as Scope;
+  const teamView = (q.teamView ?? (scope === 'TEAM' ? 'DIRECT' : undefined)) as TeamView | undefined;
+  for (const [name, val, set] of [
+    ['period', period, PERIODS], ['businessLine', businessLine, BLS], ['basis', basis, BASES], ['scope', scope, SCOPES],
+  ] as const) {
+    if (!set.has(val)) { void problem(reply, 400, 'INS-4000', 'Invalid parameter', `${name}=${val}`); return null; }
+  }
+  if (teamView !== undefined && !TVS.has(teamView)) {
+    void problem(reply, 400, 'INS-4000', 'Invalid parameter', `teamView=${teamView}`); return null;
+  }
+  // Scope/level gating (D-14, ruling 2026-08): TEAM needs a leader; GROUP needs P2.
+  if (scope === 'TEAM' && pathAgent.level === 'P4') {
+    void problem(reply, 403, 'INS-4032', 'scope=TEAM requires a leader (P2/P3)'); return null;
+  }
+  if (scope === 'TEAM' && teamView === 'GROUP' && pathAgent.level !== 'P2') {
+    void problem(reply, 403, 'INS-4031', 'teamView=GROUP requires a P2-level leader'); return null;
+  }
+  return { period, businessLine, basis, scope, ...(scope === 'TEAM' ? { teamView } : {}), agent: pathAgent };
+}
+
+export function buildApp(source: DataSource, specContestRepository = new SpecContestRepository(),brochureStore:ContestBrochureStore=createContestBrochureStore(),inferenceProvider:ContestBrochureInferenceProvider=createBrochureInferenceProvider()) {
+  const app = Fastify({ logger: false });
+  void app.register(cors, { origin: true });
+  void app.register(multipart);
+
+  app.get('/healthz', async () => ({ ok: true, service: 'pruaction-insights-service', spec: '1.3.0' }));
+  registerSpecContestRoutes(app, specContestRepository,brochureStore,new ContestBrochureImportService(specContestRepository,brochureStore,inferenceProvider));
+
+  app.get<{ Params: { agentId: string }; Querystring: LensQuery & { scope2?: string; codes?: string; listScope?: string } }>(
+    '/insights/v1/agents/:agentId/metrics',
+    async (req, reply) => {
+      const l = lens(req, reply); if (!l) return;
+      const raw = (req.query as Record<string, string | undefined>);
+      const listScope = (raw.listScope ?? 'ALL') as 'PRIORITY' | 'FOCUS' | 'ALL';
+      const codes = raw.codes ? raw.codes.split(',') : undefined;
+      const list = await source.metricList(l.agent, l, listScope, codes);
+      if (!list) return problem(reply, 404, 'INS-4040', 'No data materialized for this lens');
+      return list;
+    },
+  );
+
+  app.get<{ Params: { agentId: string; metricCode: string }; Querystring: LensQuery }>(
+    '/insights/v1/agents/:agentId/metrics/:metricCode',
+    async (req, reply) => {
+      const l = lens(req, reply); if (!l) return;
+      const detail = await source.metricDetail(l.agent, req.params.metricCode, l);
+      if (!detail) return problem(reply, 404, 'INS-4041', 'Metric not in catalog for this lens', req.params.metricCode);
+      return detail;
+    },
+  );
+
+  app.get<{ Params: { agentId: string; metricCode: string }; Querystring: LensQuery & { anchorYear?: string; yearsBack?: string } }>(
+    '/insights/v1/agents/:agentId/metrics/:metricCode/series',
+    async (req, reply) => {
+      const l = lens(req, reply); if (!l) return;
+      const anchorYear = req.query.anchorYear ? Number(req.query.anchorYear) : ANCHOR_YEAR;
+      const yearsBack = req.query.yearsBack !== undefined ? Number(req.query.yearsBack) : 2;
+      if (!Number.isInteger(yearsBack) || yearsBack < 0 || yearsBack > 4) {
+        return problem(reply, 400, 'INS-4000', 'Invalid parameter', `yearsBack=${req.query.yearsBack}`);
+      }
+      const s = await source.metricSeries(l.agent, req.params.metricCode, l, anchorYear, yearsBack);
+      if (!s) return problem(reply, 404, 'INS-4041', 'Metric has no history for this lens', req.params.metricCode);
+      return s;
+    },
+  );
+
+  app.get<{ Params: { agentId: string }; Querystring: { scope?: string; variant?: string } }>(
+    '/insights/v1/agents/:agentId/milestones',
+    async (req, reply) => {
+      const c = caller(req, reply); if (!c) return;
+      if (!findAgent(req.params.agentId)) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      // Milestones are personal, scope-invariant (AC-P4-01-12/-20, OQ-10).
+      return source.milestones(c.agent);
+    },
+  );
+
+  app.get('/insights/v1/metric-definitions', async (req, reply) => {
+    const c = caller(req, reply); if (!c) return;
+    return { country: c.agent.tenant, items: CATALOG };
+  });
+
+  app.get<{ Params: { agentId: string }; Querystring: { scope?: string; basis?: string } }>(
+    '/insights/v1/agents/:agentId/metric-preferences',
+    async (req, reply) => {
+      const c = caller(req, reply); if (!c) return;
+      const agent = findAgent(req.params.agentId);
+      if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      const scope = (req.query.scope ?? 'SELF') as Scope;
+      const basis = (req.query.basis ?? 'STANDARD') as Basis;
+      if (!SCOPES.has(scope)) return problem(reply, 400, 'INS-4000', 'Invalid parameter', `scope=${scope}`);
+      return source.getPreferences(agent, scope, basis);
+    },
+  );
+
+  app.put<{ Params: { agentId: string }; Querystring: { scope?: string; basis?: string }; Body: { priorityMetricCodes?: unknown; focusMetricCodes?: unknown } }>(
+    '/insights/v1/agents/:agentId/metric-preferences',
+    async (req, reply) => {
+      const c = caller(req, reply); if (!c) return;
+      const agent = findAgent(req.params.agentId);
+      if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      const scope = (req.query.scope ?? 'SELF') as Scope;
+      const basis = (req.query.basis ?? 'STANDARD') as Basis;
+      const body = req.body ?? {};
+      const p = body.priorityMetricCodes; const f = body.focusMetricCodes;
+      const isStrArr = (x: unknown): x is string[] => Array.isArray(x) && x.every((s) => typeof s === 'string');
+      if (!isStrArr(p) || !isStrArr(f)) {
+        return problem(reply, 400, 'INS-4001', 'priorityMetricCodes and focusMetricCodes must be string arrays');
+      }
+      const res = await source.putPreferences(agent, scope, basis, { priorityMetricCodes: p, focusMetricCodes: f });
+      if (!res.ok) return problem(reply, 422, res.error.code, 'Preference validation failed', res.error.detail);
+      return res.prefs;
+    },
+  );
+
+  app.get<{ Params: { agentId: string }; Querystring: { scope?: string; context?: string } }>(
+    '/insights/v1/agents/:agentId/recommendations',
+    async (req, reply) => {
+      const c = caller(req, reply); if (!c) return;
+      const agent = findAgent(req.params.agentId);
+      if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      const scope = (req.query.scope ?? 'SELF') as Scope;
+      return source.recommendations(agent, scope);
+    },
+  );
+
+  app.post<{ Params: { agentId: string; recommendationId: string }; Body: { rating?: unknown } }>(
+    '/insights/v1/agents/:agentId/recommendations/:recommendationId/feedback',
+    async (req, reply) => {
+      const c = caller(req, reply); if (!c) return;
+      const agent = findAgent(req.params.agentId);
+      if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      const rating = req.body?.rating;
+      if (rating !== 'UP' && rating !== 'DOWN') {
+        return problem(reply, 400, 'INS-4002', 'rating must be UP or DOWN');
+      }
+      const ok = await source.recordFeedback(agent, req.params.recommendationId, rating);
+      if (!ok) return problem(reply, 404, 'INS-4042', 'Unknown recommendation');
+      return reply.status(204).send();
+    },
+  );
+
+  // Convenience (not in the OpenAPI): expose the effective catalog per lens for debugging.
+  app.get<{ Querystring: { scope?: string; basis?: string } }>('/insights/v1/debug/effective-catalog', async (req) => {
+    const scope = (req.query.scope ?? 'SELF') as Scope;
+    const basis = (req.query.basis ?? 'STANDARD') as Basis;
+    return { scope, basis, items: effectiveCatalog(scope, basis).map((d) => ({ metricCode: d.metricCode, effCategory: d.effCategory, effOrder: d.effOrder, effSelected: d.effSelected })) };
+  });
+
+  // asOfDate sanity endpoint used by the smoke script.
+  app.get('/insights/v1/debug/context', async () => contextFor({ period: 'YTD', businessLine: 'ALL', basis: 'STANDARD', scope: 'SELF' }));
+
+  return app;
+}

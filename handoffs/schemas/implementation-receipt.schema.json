@@ -1,0 +1,462 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pruaction:handoff:implementation-receipt:1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "receiptId",
+    "handoffId",
+    "consumer",
+    "status",
+    "specCommit",
+    "implementation",
+    "validation",
+    "operationCoverage",
+    "acceptanceCriteria",
+    "migrations",
+    "gaps",
+    "updatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "receiptId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{7,127}$"
+    },
+    "handoffId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{7,127}$"
+    },
+    "specId": {
+      "type": "string",
+      "pattern": "^(?:[A-Z][A-Z0-9]+-[0-9]+-SP[0-9]{2}|SPEC-[0-9]{4}-[0-9]{3})$"
+    },
+    "jiraId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$"
+    },
+    "bugJiraId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$"
+    },
+    "defectClassification": {
+      "enum": [
+        "IMPLEMENTATION_DEFECT",
+        "TEST_DEFECT",
+        "DATA_DEFECT",
+        "CONFIGURATION_DEFECT",
+        "SPEC_DEFECT",
+        "NEW_REQUIREMENT",
+        "UNKNOWN"
+      ]
+    },
+    "consumer": {
+      "enum": [
+        "backend",
+        "frontend"
+      ]
+    },
+    "status": {
+      "enum": [
+        "IN_PROGRESS",
+        "COMPLETE",
+        "BLOCKED"
+      ]
+    },
+    "specCommit": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "implementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "dirty"
+      ],
+      "properties": {
+        "repository": {
+          "enum": [
+            "PruactionBackend",
+            "PruactionWeb"
+          ]
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
+      }
+    },
+    "validation": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validation"
+      }
+    },
+    "operationCoverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/coverage"
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ac"
+      }
+    },
+    "migrations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/migration"
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "designValidation": {
+      "$ref": "#/$defs/designValidation"
+    }
+  },
+  "$defs": {
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "status",
+        "summary"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_RUN"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "IMPLEMENTED",
+            "UNCHANGED",
+            "BLOCKED",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        }
+      }
+    },
+    "ac": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^AC-[A-Z0-9-]+$"
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "BLOCKED",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "APPLIED",
+            "DRY_RUN",
+            "NOT_REQUIRED",
+            "BLOCKED"
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        }
+      }
+    },
+    "designValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "assetValidation",
+        "tokenValidation",
+        "visualValidation",
+        "responsiveValidation",
+        "accessibilityValidation"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_RUN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "assetValidation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "assetsRequired",
+            "assetsPresent",
+            "checksumFailures",
+            "unsafeSvgCount",
+            "placeholderCount"
+          ],
+          "properties": {
+            "assetsRequired": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "assetsPresent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "checksumFailures": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unsafeSvgCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "placeholderCount": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "tokenValidation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "missingTokens",
+            "rawColors",
+            "rawGradients",
+            "rawShadows",
+            "rawFonts"
+          ],
+          "properties": {
+            "missingTokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rawColors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rawGradients": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rawShadows": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rawFonts": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "visualValidation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "baselineId",
+              "status",
+              "evidence"
+            ],
+            "properties": {
+              "baselineId": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "PASS",
+                  "FAIL",
+                  "NOT_RUN"
+                ]
+              },
+              "evidence": {
+                "type": "string"
+              },
+              "differentPixelRatio": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "responsiveValidation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "viewport",
+              "status",
+              "evidence"
+            ],
+            "properties": {
+              "viewport": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "PASS",
+                  "FAIL",
+                  "NOT_RUN"
+                ]
+              },
+              "evidence": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "accessibilityValidation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "criterion",
+              "status",
+              "evidence"
+            ],
+            "properties": {
+              "criterion": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "PASS",
+                  "FAIL",
+                  "NOT_RUN"
+                ]
+              },
+              "evidence": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "COMPLETE"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "specCommit": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+          },
+          "implementation": {
+            "properties": {
+              "commit": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "dirty": {
+                "const": false
+              }
+            },
+            "required": [
+              "commit",
+              "dirty"
+            ]
+          },
+          "gaps": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

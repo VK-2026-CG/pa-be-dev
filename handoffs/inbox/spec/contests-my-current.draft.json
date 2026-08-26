@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "contests-my-country-isolation-2026-08",
+  "status": "DRAFT",
+  "domain": "contests",
+  "country": "MY",
+  "compatibility": "BREAKING",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "0.4.0-draft"
+  },
+  "changedArtifacts": [
+    "domains/contests/api/contests.v1.yaml",
+    "domains/contests/bff/contest-admin-vm.ts",
+    "domains/contests/data/mongodb.md",
+    "common/registry.json",
+    "common/assets/MY/manifest.json",
+    "domains/contests/screens/ContestPortfolio_CA-01/screen.manifest.json"
+  ],
+  "acceptanceCriteria": [
+    "AC-CA-01-01",
+    "AC-C1-03",
+    "AC-CA-UX-PORTFOLIO-01",
+    "AC-CA-UX-PORTFOLIO-02",
+    "AC-CA-UX-PORTFOLIO-03"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Enforce deployment-owned country",
+        "Keep Insights and Contest databases independent"
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Derive Contest country and API URL from deployment context",
+        "Remove request-selected country"
+      ],
+      "screenPackages": [
+        {
+          "screenId": "CA-01",
+          "version": "0.2.0",
+          "manifest": "domains/contests/screens/ContestPortfolio_CA-01/screen.manifest.json"
+        }
+      ],
+      "commonDependencies": [
+        "component.contests.shell",
+        "component.global.page-header",
+        "component.global.async-state",
+        "component.global.status-tag",
+        "bff.contests.domain-call"
+      ],
+      "ux": {
+        "required": true,
+        "designStatus": "BLOCKED",
+        "sourceMode": "HYBRID",
+        "assetManifest": "common/assets/MY/manifest.json",
+        "assetPackVersion": "0.1.0-draft",
+        "tokenFiles": [
+          "common/ux/tokens/color.tokens.json",
+          "common/ux/tokens/gradient.tokens.json",
+          "common/ux/tokens/typography.tokens.json",
+          "common/ux/tokens/shadow.tokens.json"
+        ],
+        "visualBaselines": [
+          "CA-01.desktop.ready",
+          "CA-01.mobile.ready",
+          "CA-01.desktop.loading"
+        ],
+        "fixtures": [
+          "domains/contests/screens/ContestPortfolio_CA-01/fixtures/ready.json"
+        ],
+        "uxAcceptanceCriteria": [
+          "AC-CA-UX-PORTFOLIO-01",
+          "AC-CA-UX-PORTFOLIO-02",
+          "AC-CA-UX-PORTFOLIO-03"
+        ],
+        "unapprovedInferences": [
+          "Current colors, gradients, shadows and radii are migrated Web substitutes",
+          "Existing icons are catalog matches/substitutes, not exact Figma exports"
+        ],
+        "openDesignQuestions": [
+          "Approved Contest Portfolio Figma frame IDs",
+          "Approved DLS font package",
+          "Desktop/tablet/mobile responsive rulings",
+          "Canonical visual baselines"
+        ]
+      }
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-08-25T00:00:00.000Z"
+}

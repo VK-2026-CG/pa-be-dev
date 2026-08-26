@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pruaction:handoff:spec:1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "handoffId",
+    "status",
+    "domain",
+    "country",
+    "compatibility",
+    "spec",
+    "changedArtifacts",
+    "acceptanceCriteria",
+    "consumers",
+    "openQuestions",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "handoffId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{7,127}$"
+    },
+    "specId": {
+      "type": "string",
+      "pattern": "^(?:[A-Z][A-Z0-9]+-[0-9]+-SP[0-9]{2}|SPEC-[0-9]{4}-[0-9]{3})$"
+    },
+    "jiraId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$"
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "READY",
+        "SUPERSEDED"
+      ]
+    },
+    "domain": {
+      "enum": [
+        "insights",
+        "contests"
+      ]
+    },
+    "country": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "compatibility": {
+      "enum": [
+        "ADDITIVE",
+        "BREAKING",
+        "NONE"
+      ]
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "dirty",
+        "version"
+      ],
+      "properties": {
+        "repository": {
+          "const": "PruactionSpec"
+        },
+        "commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    },
+    "changedArtifacts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^AC-[A-Z0-9-]+$"
+      }
+    },
+    "consumers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend",
+        "frontend"
+      ],
+      "properties": {
+        "backend": {
+          "$ref": "#/$defs/consumer"
+        },
+        "frontend": {
+          "$ref": "#/$defs/consumer"
+        }
+      }
+    },
+    "openQuestions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "requiredActions"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "requiredActions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "screenPackages": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "screenId",
+              "version",
+              "manifest"
+            ],
+            "properties": {
+              "screenId": {
+                "pattern": "^[A-Z]{2}-[0-9]{2}$"
+              },
+              "version": {
+                "type": "string"
+              },
+              "manifest": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "commonDependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "ux": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required",
+            "designStatus",
+            "sourceMode",
+            "assetManifest",
+            "assetPackVersion",
+            "tokenFiles",
+            "visualBaselines",
+            "fixtures",
+            "uxAcceptanceCriteria",
+            "unapprovedInferences",
+            "openDesignQuestions"
+          ],
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "designStatus": {
+              "enum": [
+                "NOT_REQUIRED",
+                "BLOCKED",
+                "DRAFT",
+                "UX_REVIEW",
+                "APPROVED"
+              ]
+            },
+            "sourceMode": {
+              "enum": [
+                "FIGMA_MCP",
+                "IMAGE_ANALYSIS",
+                "HYBRID",
+                "NOT_REQUIRED"
+              ]
+            },
+            "assetManifest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "assetPackVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tokenFiles": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            },
+            "visualBaselines": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            },
+            "fixtures": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            },
+            "uxAcceptanceCriteria": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "pattern": "^AC-[A-Z0-9-]+$"
+              }
+            },
+            "unapprovedInferences": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            },
+            "openDesignQuestions": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "READY"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "spec": {
+            "properties": {
+              "commit": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{40}$"
+              },
+              "dirty": {
+                "const": false
+              }
+            },
+            "required": [
+              "commit",
+              "dirty"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

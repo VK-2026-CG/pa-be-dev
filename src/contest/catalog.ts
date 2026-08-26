@@ -1,0 +1,20 @@
+/** Malaysia Contest rule LOVs (catalogue version MY-2026.2). */
+export const LOVS: Record<string, Array<{ code: string; label: string; order: number }>> = {
+  entity: [{ code: 'PAMB', label: 'Prudential Assurance Malaysia Berhad', order: 1 }, { code: 'PBTB', label: 'Prudential BSN Takaful', order: 2 }, { code: 'PRUBSN_DIRECT', label: 'PruBSN Direct', order: 3 }],
+  rank: ['AGENT', 'UM1', 'UM2', 'AM', 'SAM', 'P4', 'P3', 'P2'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'agent.level': ['AGENT', 'UM1', 'UM2', 'AM', 'SAM'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'qualifier.type': ['PERSONAL', 'DIRECT_UNIT', 'GROUP', 'ROOKIE', 'INTRODUCER', 'VALIDATED_NEW_AGENT'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  region: [{ code: 'CENTRAL', label: 'Central', order: 1 }, { code: 'NORTH', label: 'North', order: 2 }, { code: 'SOUTH', label: 'South', order: 3 }],
+  'contest.region': ['CENTRAL_EAST_COAST', 'NORTHERN', 'SOUTHERN', 'EAST_MALAYSIA'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  channel: [{ code: 'AGENCY', label: 'Agency', order: 1 }, { code: 'TAKAFUL', label: 'Takaful', order: 2 }],
+  business_line: [{ code: 'INSURANCE', label: 'Insurance', order: 1 }, { code: 'TAKAFUL', label: 'Takaful', order: 2 }],
+  'business.line': ['INSURANCE', 'TAKAFUL'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'production.repricing': ['INCLUDING_REPRICING', 'EXCLUDING_REPRICING', 'NOT_APPLICABLE'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'product.family': ['CONVENTIONAL_LIFE', 'FAMILY_TAKAFUL', 'INDIVIDUAL_LIFE', 'INDIVIDUAL_CERTIFICATE', 'GROUP_LIFE', 'GROUP_TAKAFUL', 'UNIT_TRUST', 'PSA', 'SINGLE_PREMIUM', 'REGULAR_PREMIUM', 'GROUP_BUSINESS', 'GROUP_RENEWAL'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'product.code': ['PRUALLOCATOR', 'PRUBSN_ANUGERAH_MEDICALLOCATOR', 'PRUBSN_ASPIRASI', 'PRUBSN_WARISANGOLD_ALLOCATOR', 'PRULIVE_WELL', 'PRUWITH_YOU', 'PRUWITH_YOU_PLUS', 'PRULADY', 'PRUCANCER_X', 'PRUMAN'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'rider.code': ['PRUMILLION_MED_ACTIVE', 'ACTIVE_BOOSTER', 'PRUMILLION_MED_2', 'PRUMILLION_MED_BOOSTER_2', 'PRUVALUE_MED', 'PRUVALUE_MED_BOOSTER', 'PRUHEALTH', 'PRUMEDIC_OVERSEAS', 'TOTAL_MULTI_CRISIS_CARE', 'ESSENTIAL_CHILD_PLUS', 'MULTI_CRISIS_CARE', 'EARLY_CRISIS_CARE', 'CRISIS_CARE', 'CRISIS_GUARD', 'ESSENTIAL_CANCER_CARE', 'CRITICAL_CARE', 'CRITICAL_CARE_PLUS'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'premium.type': ['REGULAR_PREMIUM', 'SINGLE_PREMIUM', 'PSA', 'CONTRIBUTION', 'GROUP_PREMIUM', 'GROUP_CONTRIBUTION'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'transaction.type': ['NEW_BUSINESS', 'ENDORSEMENT', 'RENEWAL', 'REPRICING', 'CANCELLATION_FROM_INCEPTION', 'LAPSE', 'PREMIUM_REDUCTION', 'CONTRIBUTION_REDUCTION', 'RIDER_REMOVAL'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'business.type': ['INDIVIDUAL', 'GROUP', 'GROUP_NEW_BUSINESS', 'GROUP_RENEWAL'].map((code, index) => ({ code, label: code, order: index + 1 })),
+  'source.qualification': ['MDRT', 'COT', 'TOT', 'PRUDENTIAL_WEALTH_PLANNER', 'EXECUTIVE_WEALTH_PLANNER', 'SENIOR_WEALTH_PLANNER', 'PREMIER_WEALTH_PLANNER', 'MASTER_WEALTH_PLANNER', 'PRUMDA_GROUP', 'PRUMDA_DIRECT', 'STAR_CLUB', 'STAR_CLUB_SUMMIT'].map((code, index) => ({ code, label: code, order: index + 1 })),
+};

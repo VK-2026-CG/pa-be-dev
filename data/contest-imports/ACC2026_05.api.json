@@ -1,0 +1,1606 @@
+{
+  "schemaVersion": "1.0",
+  "source": {
+    "fileName": "ACC2026_05_2026 Prudential Wealth Planner.pdf",
+    "sha256": "53b06f53a66fb14aa0815a217431cc6153865f109c74f60ef43a7e5c27182824",
+    "pdfPages": 6,
+    "numberedPages": 5,
+    "circularCode": "ACC2026_05"
+  },
+  "createRequest": {
+    "code": "ACC2026_05",
+    "nameKey": "contest.imported.wealthPlanner",
+    "timezone": "Asia/Kuala_Lumpur"
+  },
+  "portfolio": {
+    "campaignStart": "2026-01-01",
+    "campaignEnd": "2026-12-31",
+    "audienceCodes": [
+      "PERSONAL"
+    ],
+    "ruleCount": 5
+  },
+  "configuration": {
+    "basics": {
+      "timezone": "Asia/Kuala_Lumpur",
+      "sourceCircular": "ACC2026_05"
+    },
+    "audience": {
+      "rules": [
+        {
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "include": true,
+          "entityCodes": [
+            "PAMB",
+            "PRUBSN_DIRECT"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AM",
+            "SAM"
+          ],
+          "include": false,
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "audienceCode": "ROOKIE",
+          "rankCodes": [
+            "AGENT"
+          ],
+          "include": true,
+          "contractFrom": "2025-10-01",
+          "contractTo": "2026-12-31",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ]
+    },
+    "qualification": {
+      "routes": [
+        {
+          "routeId": "wealth_planner",
+          "code": "WEALTH_PLANNER",
+          "labelKey": "contest.award.wealthPlanner",
+          "order": 1,
+          "enabled": true,
+          "audienceCode": "PERSONAL",
+          "expression": {
+            "nodeId": "wealth_planner_root",
+            "type": "ALL",
+            "children": [
+              {
+                "nodeId": "wealth_planner_audience",
+                "type": "PREDICATE",
+                "metricCode": "AUDIENCE_TYPE",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "qualifier.type",
+                  "valueCodes": [
+                    "PERSONAL"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "wealth_planner_ranks",
+                "type": "PREDICATE",
+                "metricCode": "AGENT_LEVEL",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "agent.level",
+                  "valueCodes": [
+                    "AGENT",
+                    "UM1",
+                    "UM2"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "wealth_planner_included_products",
+                "type": "PREDICATE",
+                "metricCode": "PRODUCT_FAMILY",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "product.family",
+                  "valueCodes": [
+                    "CONVENTIONAL_LIFE",
+                    "FAMILY_TAKAFUL",
+                    "SINGLE_PREMIUM",
+                    "PSA",
+                    "GROUP_BUSINESS"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "wealth_planner_exclude_products",
+                "type": "NOT",
+                "child": {
+                  "nodeId": "wealth_planner_excluded_product_family",
+                  "type": "PREDICATE",
+                  "metricCode": "PRODUCT_FAMILY",
+                  "operator": "IN",
+                  "operand": {
+                    "kind": "LOV_SET",
+                    "lovKey": "product.family",
+                    "valueCodes": [
+                      "UNIT_TRUST",
+                      "GROUP_RENEWAL"
+                    ]
+                  },
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              },
+              {
+                "nodeId": "wealth_planner_tpc_all",
+                "type": "ALL",
+                "children": [
+                  {
+                    "nodeId": "wealth_planner_tpc_0",
+                    "type": "PREDICATE",
+                    "metricCode": "TPC",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "MONEY",
+                      "value": "125000.00",
+                      "currency": "MYR"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "tierIds": [
+            "wealth_planner"
+          ],
+          "selectionPolicy": {
+            "mode": "ALL_QUALIFIERS"
+          },
+          "rewardPolicy": {
+            "rewardCodes": [
+              "LAPEL_PIN",
+              "ISSOSNE"
+            ],
+            "precedenceCode": "HIGHEST_ELIGIBLE"
+          },
+          "trackingPolicyIds": [
+            "issosne-tenure",
+            "issosne-tpc"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "routeId": "executive_wealth",
+          "code": "EXECUTIVE_WEALTH",
+          "labelKey": "contest.award.executiveWealth",
+          "order": 2,
+          "enabled": true,
+          "audienceCode": "PERSONAL",
+          "expression": {
+            "nodeId": "executive_wealth_root",
+            "type": "ALL",
+            "children": [
+              {
+                "nodeId": "executive_wealth_audience",
+                "type": "PREDICATE",
+                "metricCode": "AUDIENCE_TYPE",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "qualifier.type",
+                  "valueCodes": [
+                    "PERSONAL"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "executive_wealth_ranks",
+                "type": "PREDICATE",
+                "metricCode": "AGENT_LEVEL",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "agent.level",
+                  "valueCodes": [
+                    "AGENT",
+                    "UM1",
+                    "UM2"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "executive_wealth_included_products",
+                "type": "PREDICATE",
+                "metricCode": "PRODUCT_FAMILY",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "product.family",
+                  "valueCodes": [
+                    "CONVENTIONAL_LIFE",
+                    "FAMILY_TAKAFUL",
+                    "SINGLE_PREMIUM",
+                    "PSA",
+                    "GROUP_BUSINESS"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "executive_wealth_exclude_products",
+                "type": "NOT",
+                "child": {
+                  "nodeId": "executive_wealth_excluded_product_family",
+                  "type": "PREDICATE",
+                  "metricCode": "PRODUCT_FAMILY",
+                  "operator": "IN",
+                  "operand": {
+                    "kind": "LOV_SET",
+                    "lovKey": "product.family",
+                    "valueCodes": [
+                      "UNIT_TRUST",
+                      "GROUP_RENEWAL"
+                    ]
+                  },
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              },
+              {
+                "nodeId": "executive_wealth_tpc_ipr_all",
+                "type": "ALL",
+                "children": [
+                  {
+                    "nodeId": "executive_wealth_tpc_ipr_0",
+                    "type": "PREDICATE",
+                    "metricCode": "TPC",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "MONEY",
+                      "value": "250000.00",
+                      "currency": "MYR"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  },
+                  {
+                    "nodeId": "executive_wealth_tpc_ipr_1",
+                    "type": "PREDICATE",
+                    "metricCode": "IPR",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "PERCENT",
+                      "value": "85.00"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "tierIds": [
+            "executive_wealth"
+          ],
+          "selectionPolicy": {
+            "mode": "ALL_QUALIFIERS"
+          },
+          "rewardPolicy": {
+            "rewardCodes": [
+              "LAPEL_PIN",
+              "NAAP",
+              "ISSOSNE"
+            ],
+            "precedenceCode": "HIGHEST_ELIGIBLE"
+          },
+          "trackingPolicyIds": [
+            "issosne-tenure",
+            "issosne-tpc"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "routeId": "senior_wealth",
+          "code": "SENIOR_WEALTH",
+          "labelKey": "contest.award.seniorWealth",
+          "order": 3,
+          "enabled": true,
+          "audienceCode": "PERSONAL",
+          "expression": {
+            "nodeId": "senior_wealth_root",
+            "type": "ALL",
+            "children": [
+              {
+                "nodeId": "senior_wealth_audience",
+                "type": "PREDICATE",
+                "metricCode": "AUDIENCE_TYPE",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "qualifier.type",
+                  "valueCodes": [
+                    "PERSONAL"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "senior_wealth_ranks",
+                "type": "PREDICATE",
+                "metricCode": "AGENT_LEVEL",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "agent.level",
+                  "valueCodes": [
+                    "AGENT",
+                    "UM1",
+                    "UM2"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "senior_wealth_included_products",
+                "type": "PREDICATE",
+                "metricCode": "PRODUCT_FAMILY",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "product.family",
+                  "valueCodes": [
+                    "CONVENTIONAL_LIFE",
+                    "FAMILY_TAKAFUL",
+                    "SINGLE_PREMIUM",
+                    "PSA",
+                    "GROUP_BUSINESS"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "senior_wealth_exclude_products",
+                "type": "NOT",
+                "child": {
+                  "nodeId": "senior_wealth_excluded_product_family",
+                  "type": "PREDICATE",
+                  "metricCode": "PRODUCT_FAMILY",
+                  "operator": "IN",
+                  "operand": {
+                    "kind": "LOV_SET",
+                    "lovKey": "product.family",
+                    "valueCodes": [
+                      "UNIT_TRUST",
+                      "GROUP_RENEWAL"
+                    ]
+                  },
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              },
+              {
+                "nodeId": "senior_wealth_tpc_ipr_all",
+                "type": "ALL",
+                "children": [
+                  {
+                    "nodeId": "senior_wealth_tpc_ipr_0",
+                    "type": "PREDICATE",
+                    "metricCode": "TPC",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "MONEY",
+                      "value": "375000.00",
+                      "currency": "MYR"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  },
+                  {
+                    "nodeId": "senior_wealth_tpc_ipr_1",
+                    "type": "PREDICATE",
+                    "metricCode": "IPR",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "PERCENT",
+                      "value": "85.00"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "tierIds": [
+            "senior_wealth"
+          ],
+          "selectionPolicy": {
+            "mode": "ALL_QUALIFIERS"
+          },
+          "rewardPolicy": {
+            "rewardCodes": [
+              "DIGITAL",
+              "LAPEL_PIN",
+              "NAAP",
+              "ISSOSNE"
+            ],
+            "precedenceCode": "HIGHEST_ELIGIBLE"
+          },
+          "trackingPolicyIds": [
+            "issosne-tenure",
+            "issosne-tpc"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "routeId": "premier_wealth",
+          "code": "PREMIER_WEALTH",
+          "labelKey": "contest.award.premierWealth",
+          "order": 4,
+          "enabled": true,
+          "audienceCode": "PERSONAL",
+          "expression": {
+            "nodeId": "premier_wealth_root",
+            "type": "ALL",
+            "children": [
+              {
+                "nodeId": "premier_wealth_audience",
+                "type": "PREDICATE",
+                "metricCode": "AUDIENCE_TYPE",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "qualifier.type",
+                  "valueCodes": [
+                    "PERSONAL"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "premier_wealth_ranks",
+                "type": "PREDICATE",
+                "metricCode": "AGENT_LEVEL",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "agent.level",
+                  "valueCodes": [
+                    "AGENT",
+                    "UM1",
+                    "UM2"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "premier_wealth_included_products",
+                "type": "PREDICATE",
+                "metricCode": "PRODUCT_FAMILY",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "product.family",
+                  "valueCodes": [
+                    "CONVENTIONAL_LIFE",
+                    "FAMILY_TAKAFUL",
+                    "SINGLE_PREMIUM",
+                    "PSA",
+                    "GROUP_BUSINESS"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "premier_wealth_exclude_products",
+                "type": "NOT",
+                "child": {
+                  "nodeId": "premier_wealth_excluded_product_family",
+                  "type": "PREDICATE",
+                  "metricCode": "PRODUCT_FAMILY",
+                  "operator": "IN",
+                  "operand": {
+                    "kind": "LOV_SET",
+                    "lovKey": "product.family",
+                    "valueCodes": [
+                      "UNIT_TRUST",
+                      "GROUP_RENEWAL"
+                    ]
+                  },
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              },
+              {
+                "nodeId": "premier_wealth_tpc_ipr_all",
+                "type": "ALL",
+                "children": [
+                  {
+                    "nodeId": "premier_wealth_tpc_ipr_0",
+                    "type": "PREDICATE",
+                    "metricCode": "TPC",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "MONEY",
+                      "value": "500000.00",
+                      "currency": "MYR"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  },
+                  {
+                    "nodeId": "premier_wealth_tpc_ipr_1",
+                    "type": "PREDICATE",
+                    "metricCode": "IPR",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "PERCENT",
+                      "value": "85.00"
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "tierIds": [
+            "premier_wealth"
+          ],
+          "selectionPolicy": {
+            "mode": "ALL_QUALIFIERS"
+          },
+          "rewardPolicy": {
+            "rewardCodes": [
+              "DIGITAL",
+              "TROPHY",
+              "LAPEL_PIN",
+              "NAAP",
+              "ISSOSNE"
+            ],
+            "precedenceCode": "HIGHEST_ELIGIBLE"
+          },
+          "trackingPolicyIds": [
+            "issosne-tenure",
+            "issosne-tpc"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "routeId": "master_wealth",
+          "code": "MASTER_WEALTH",
+          "labelKey": "contest.award.masterWealth",
+          "order": 5,
+          "enabled": true,
+          "audienceCode": "PERSONAL",
+          "expression": {
+            "nodeId": "master_wealth_root",
+            "type": "ALL",
+            "children": [
+              {
+                "nodeId": "master_wealth_audience",
+                "type": "PREDICATE",
+                "metricCode": "AUDIENCE_TYPE",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "qualifier.type",
+                  "valueCodes": [
+                    "PERSONAL"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "master_wealth_ranks",
+                "type": "PREDICATE",
+                "metricCode": "AGENT_LEVEL",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "agent.level",
+                  "valueCodes": [
+                    "AGENT",
+                    "UM1",
+                    "UM2"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "master_wealth_included_products",
+                "type": "PREDICATE",
+                "metricCode": "PRODUCT_FAMILY",
+                "operator": "IN",
+                "operand": {
+                  "kind": "LOV_SET",
+                  "lovKey": "product.family",
+                  "valueCodes": [
+                    "CONVENTIONAL_LIFE",
+                    "FAMILY_TAKAFUL",
+                    "SINGLE_PREMIUM",
+                    "PSA",
+                    "GROUP_BUSINESS"
+                  ]
+                },
+                "sourceCitationIds": [
+                  "ACC2026_05:p2:c-requirements"
+                ]
+              },
+              {
+                "nodeId": "master_wealth_exclude_products",
+                "type": "NOT",
+                "child": {
+                  "nodeId": "master_wealth_excluded_product_family",
+                  "type": "PREDICATE",
+                  "metricCode": "PRODUCT_FAMILY",
+                  "operator": "IN",
+                  "operand": {
+                    "kind": "LOV_SET",
+                    "lovKey": "product.family",
+                    "valueCodes": [
+                      "UNIT_TRUST",
+                      "GROUP_RENEWAL"
+                    ]
+                  },
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              },
+              {
+                "nodeId": "master_wealth_five_consecutive_all",
+                "type": "ALL",
+                "children": [
+                  {
+                    "nodeId": "master_wealth_five_consecutive_0",
+                    "type": "PREDICATE",
+                    "metricCode": "PREMIER_CONSECUTIVE_YEARS",
+                    "operator": "GTE",
+                    "operand": {
+                      "kind": "INTEGER",
+                      "value": 5
+                    },
+                    "context": {
+                      "periodId": "FULL"
+                    },
+                    "sourceCitationIds": [
+                      "ACC2026_05:p2:c-requirements"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "tierIds": [
+            "master_wealth"
+          ],
+          "selectionPolicy": {
+            "mode": "ALL_QUALIFIERS"
+          },
+          "rewardPolicy": {
+            "rewardCodes": [
+              "DIGITAL",
+              "BLAZER_FIRST_TIME",
+              "TROPHY",
+              "LAPEL_PIN",
+              "NAAP",
+              "ISSOSNE"
+            ],
+            "precedenceCode": "HIGHEST_ELIGIBLE"
+          },
+          "trackingPolicyIds": [
+            "issosne-tenure",
+            "issosne-tpc"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ],
+      "tiers": [
+        {
+          "tierId": "wealth_planner",
+          "code": "WEALTH_PLANNER",
+          "labelKey": "contest.award.wealthPlanner",
+          "order": 1,
+          "rewardCode": "LAPEL_PIN+ISSOSNE"
+        },
+        {
+          "tierId": "executive_wealth",
+          "code": "EXECUTIVE_WEALTH",
+          "labelKey": "contest.award.executiveWealth",
+          "order": 2,
+          "rewardCode": "LAPEL_PIN+NAAP+ISSOSNE"
+        },
+        {
+          "tierId": "senior_wealth",
+          "code": "SENIOR_WEALTH",
+          "labelKey": "contest.award.seniorWealth",
+          "order": 3,
+          "rewardCode": "DIGITAL+LAPEL_PIN+NAAP+ISSOSNE"
+        },
+        {
+          "tierId": "premier_wealth",
+          "code": "PREMIER_WEALTH",
+          "labelKey": "contest.award.premierWealth",
+          "order": 4,
+          "rewardCode": "DIGITAL+TROPHY+LAPEL_PIN+NAAP+ISSOSNE"
+        },
+        {
+          "tierId": "master_wealth",
+          "code": "MASTER_WEALTH",
+          "labelKey": "contest.award.masterWealth",
+          "order": 5,
+          "rewardCode": "DIGITAL+BLAZER_FIRST_TIME+TROPHY+LAPEL_PIN+NAAP+ISSOSNE"
+        }
+      ],
+      "periods": [
+        {
+          "periodId": "FULL",
+          "labelKey": "contest.period.FULL",
+          "order": 1
+        }
+      ],
+      "targets": [
+        {
+          "tierId": "wealth_planner",
+          "periodId": "FULL",
+          "state": "EXPLICIT",
+          "value": "125000.00"
+        },
+        {
+          "tierId": "executive_wealth",
+          "periodId": "FULL",
+          "state": "EXPLICIT",
+          "value": "250000.00"
+        },
+        {
+          "tierId": "senior_wealth",
+          "periodId": "FULL",
+          "state": "EXPLICIT",
+          "value": "375000.00"
+        },
+        {
+          "tierId": "premier_wealth",
+          "periodId": "FULL",
+          "state": "EXPLICIT",
+          "value": "500000.00"
+        },
+        {
+          "tierId": "master_wealth",
+          "periodId": "FULL",
+          "state": "NOT_APPLICABLE"
+        }
+      ],
+      "rewardPrecedenceCode": "HIGHEST_ELIGIBLE"
+    },
+    "calculation": {
+      "metricCode": "TPC",
+      "creditRate": "100.00",
+      "roundingCode": "HALF_UP_2",
+      "creditRules": [
+        {
+          "ruleId": "regular",
+          "metricCode": "TPC",
+          "productCode": "REGULAR_LIFE_TAKAFUL",
+          "rate": "100.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ]
+        },
+        {
+          "ruleId": "single",
+          "metricCode": "TPC",
+          "productCode": "SINGLE_PREMIUM",
+          "rate": "10.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ],
+          "capPctOfMetric": "25.00"
+        },
+        {
+          "ruleId": "psa",
+          "metricCode": "TPC",
+          "productCode": "PSA",
+          "rate": "10.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ],
+          "capPctOfMetric": "25.00"
+        },
+        {
+          "ruleId": "group_new",
+          "metricCode": "TPC",
+          "productCode": "GROUP_NEW_BUSINESS",
+          "rate": "100.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ],
+          "capPctOfMetric": "25.00"
+        },
+        {
+          "ruleId": "unit_trust",
+          "metricCode": "TPC",
+          "productCode": "UNIT_TRUST",
+          "rate": "0.00",
+          "include": false,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ]
+        }
+      ]
+    },
+    "rewards": {
+      "precedenceCode": "HIGHEST_ELIGIBLE",
+      "awardRules": [
+        {
+          "ruleId": "wealth_planner",
+          "labelKey": "contest.award.wealthPlanner",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "125000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "LAPEL_PIN",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "executive_wealth",
+          "labelKey": "contest.award.executiveWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC_IPR",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "250000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                },
+                {
+                  "metricCode": "IPR",
+                  "operator": "GTE",
+                  "value": "85.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "senior_wealth",
+          "labelKey": "contest.award.seniorWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC_IPR",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "375000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                },
+                {
+                  "metricCode": "IPR",
+                  "operator": "GTE",
+                  "value": "85.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "DIGITAL",
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "premier_wealth",
+          "labelKey": "contest.award.premierWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC_IPR",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "500000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                },
+                {
+                  "metricCode": "IPR",
+                  "operator": "GTE",
+                  "value": "85.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "DIGITAL",
+            "TROPHY",
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "master_wealth",
+          "labelKey": "contest.award.masterWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "FIVE_CONSECUTIVE",
+              "allOf": [
+                {
+                  "metricCode": "PREMIER_CONSECUTIVE_YEARS",
+                  "operator": "GTE",
+                  "value": 5,
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "DIGITAL",
+            "BLAZER_FIRST_TIME",
+            "TROPHY",
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ]
+    },
+    "governance": {
+      "frequencyCode": "DAILY",
+      "executionTime": "07:00",
+      "approvalRouteCode": "BUSINESS_DATA",
+      "trackingRules": [
+        {
+          "ruleId": "issosne-tenure",
+          "type": "CONTRACT_STATUS",
+          "effectiveTo": "2027-06-30",
+          "actionCode": "REQUIRE_24_MONTH_TENURE",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "issosne-tpc",
+          "type": "PRODUCTION",
+          "effectiveTo": "2027-06-30",
+          "actionCode": "REQUIRE_100000_TPC",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ]
+    },
+    "provenance": {
+      "effectiveCircularCode": "ACC2026_05",
+      "citations": [
+        {
+          "citationId": "ACC2026_05:p2:c-requirements",
+          "circularCode": "ACC2026_05",
+          "issuedAt": "2026-01-13",
+          "page": 2,
+          "section": "C Requirements",
+          "status": "ACTIVE"
+        },
+        {
+          "citationId": "ACC2026_05:p3:d-production-credit",
+          "circularCode": "ACC2026_05",
+          "issuedAt": "2026-01-13",
+          "page": 3,
+          "section": "D Production Credit",
+          "status": "ACTIVE"
+        },
+        {
+          "citationId": "ACC2026_05:p3:e-persistency",
+          "circularCode": "ACC2026_05",
+          "issuedAt": "2026-01-13",
+          "page": 3,
+          "section": "E Persistency",
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    "importedCircular": {
+      "sourceName": "ACC2026_05_2026 Prudential Wealth Planner.pdf",
+      "effectiveCircularCode": "ACC2026_05",
+      "citations": [
+        {
+          "citationId": "ACC2026_05:p2:c-requirements",
+          "circularCode": "ACC2026_05",
+          "issuedAt": "2026-01-13",
+          "page": 2,
+          "section": "C Requirements",
+          "status": "ACTIVE"
+        },
+        {
+          "citationId": "ACC2026_05:p3:d-production-credit",
+          "circularCode": "ACC2026_05",
+          "issuedAt": "2026-01-13",
+          "page": 3,
+          "section": "D Production Credit",
+          "status": "ACTIVE"
+        },
+        {
+          "citationId": "ACC2026_05:p3:e-persistency",
+          "circularCode": "ACC2026_05",
+          "issuedAt": "2026-01-13",
+          "page": 3,
+          "section": "E Persistency",
+          "status": "ACTIVE"
+        }
+      ],
+      "periods": [
+        {
+          "periodId": "FULL",
+          "labelKey": "contest.period.FULL",
+          "from": "2026-01-01",
+          "to": "2026-12-31"
+        }
+      ],
+      "audienceRules": [
+        {
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "include": true,
+          "entityCodes": [
+            "PAMB",
+            "PRUBSN_DIRECT"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AM",
+            "SAM"
+          ],
+          "include": false,
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "audienceCode": "ROOKIE",
+          "rankCodes": [
+            "AGENT"
+          ],
+          "include": true,
+          "contractFrom": "2025-10-01",
+          "contractTo": "2026-12-31",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ],
+      "awardRules": [
+        {
+          "ruleId": "wealth_planner",
+          "labelKey": "contest.award.wealthPlanner",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "125000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "LAPEL_PIN",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "executive_wealth",
+          "labelKey": "contest.award.executiveWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC_IPR",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "250000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                },
+                {
+                  "metricCode": "IPR",
+                  "operator": "GTE",
+                  "value": "85.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "senior_wealth",
+          "labelKey": "contest.award.seniorWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC_IPR",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "375000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                },
+                {
+                  "metricCode": "IPR",
+                  "operator": "GTE",
+                  "value": "85.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "DIGITAL",
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "premier_wealth",
+          "labelKey": "contest.award.premierWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "TPC_IPR",
+              "allOf": [
+                {
+                  "metricCode": "TPC",
+                  "operator": "GTE",
+                  "value": "500000.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ],
+                  "currency": "MYR"
+                },
+                {
+                  "metricCode": "IPR",
+                  "operator": "GTE",
+                  "value": "85.00",
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "DIGITAL",
+            "TROPHY",
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "master_wealth",
+          "labelKey": "contest.award.masterWealth",
+          "audienceCode": "PERSONAL",
+          "rankCodes": [
+            "AGENT",
+            "UM1",
+            "UM2"
+          ],
+          "options": [
+            {
+              "optionCode": "FIVE_CONSECUTIVE",
+              "allOf": [
+                {
+                  "metricCode": "PREMIER_CONSECUTIVE_YEARS",
+                  "operator": "GTE",
+                  "value": 5,
+                  "periodId": "FULL",
+                  "sourceCitationIds": [
+                    "ACC2026_05:p2:c-requirements"
+                  ]
+                }
+              ],
+              "sourceCitationIds": [
+                "ACC2026_05:p2:c-requirements"
+              ]
+            }
+          ],
+          "rewardCodes": [
+            "DIGITAL",
+            "BLAZER_FIRST_TIME",
+            "TROPHY",
+            "LAPEL_PIN",
+            "NAAP",
+            "ISSOSNE"
+          ],
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ],
+      "creditRules": [
+        {
+          "ruleId": "regular",
+          "metricCode": "TPC",
+          "productCode": "REGULAR_LIFE_TAKAFUL",
+          "rate": "100.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ]
+        },
+        {
+          "ruleId": "single",
+          "metricCode": "TPC",
+          "productCode": "SINGLE_PREMIUM",
+          "rate": "10.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ],
+          "capPctOfMetric": "25.00"
+        },
+        {
+          "ruleId": "psa",
+          "metricCode": "TPC",
+          "productCode": "PSA",
+          "rate": "10.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ],
+          "capPctOfMetric": "25.00"
+        },
+        {
+          "ruleId": "group_new",
+          "metricCode": "TPC",
+          "productCode": "GROUP_NEW_BUSINESS",
+          "rate": "100.00",
+          "include": true,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ],
+          "capPctOfMetric": "25.00"
+        },
+        {
+          "ruleId": "unit_trust",
+          "metricCode": "TPC",
+          "productCode": "UNIT_TRUST",
+          "rate": "0.00",
+          "include": false,
+          "sourceCitationIds": [
+            "ACC2026_05:p3:d-production-credit"
+          ]
+        }
+      ],
+      "trackingRules": [
+        {
+          "ruleId": "issosne-tenure",
+          "type": "CONTRACT_STATUS",
+          "effectiveTo": "2027-06-30",
+          "actionCode": "REQUIRE_24_MONTH_TENURE",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "ruleId": "issosne-tpc",
+          "type": "PRODUCTION",
+          "effectiveTo": "2027-06-30",
+          "actionCode": "REQUIRE_100000_TPC",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ],
+      "exclusions": [
+        {
+          "code": "FRAUD_MANIPULATION",
+          "labelKey": "contest.exclusion.fraud",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        },
+        {
+          "code": "CONTRACT_TERMINATED",
+          "labelKey": "contest.exclusion.terminated",
+          "sourceCitationIds": [
+            "ACC2026_05:p2:c-requirements"
+          ]
+        }
+      ],
+      "reviewState": "VERIFIED"
+    }
+  },
+  "expectedConfigurationChecksum": "63ab4900f65caa4c16076f3a5aabd5f92f54fcf83f81ef618188826f753adf39",
+  "catalogueVersion": "MY-2026.2",
+  "expectedAppliedConfigurationChecksum": "76d94399dfb2b40d310de3f112e79974c085a83dfc72d824a46623b2c05e8702"
+}

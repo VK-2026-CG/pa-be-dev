@@ -1,0 +1,46 @@
+{
+  "name": "pruaction-insights-service",
+  "version": "1.3.0",
+  "private": true,
+  "description": "PRUAction Insights domain service (Fastify) — stub data implementation of insights.v1 (spec repo: pruaction-spec)",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && mkdir -p dist/vendor/spec && cp -R vendor/spec/. dist/vendor/spec/",
+    "start": "node dist/src/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "sync:specs": "bash scripts/sync-specs.sh",
+    "handoff:validate": "node scripts/validate-handoffs.mjs",
+    "handoff:receipt": "node scripts/create-handoff-receipt.mjs",
+    "handoff:test": "bash scripts/test-handoff-e2e.sh",
+    "db:setup": "tsx scripts/db-setup.ts",
+    "db:setup:contests": "tsx scripts/db-setup-contests.ts",
+    "db:seed": "tsx scripts/db-seed.ts",
+    "db:seed:contests": "tsx scripts/db-seed-contests.ts",
+    "db:import:contests": "tsx scripts/import-contests.ts",
+    "db:audit:collections": "tsx scripts/db-audit-collections.ts",
+    "db:migrate:contest-instance": "tsx scripts/db-migrate-contest-instance.ts",
+    "db:cleanup:legacy": "tsx scripts/db-cleanup-legacy.ts",
+    "db:remove:migrated-contest-source": "tsx scripts/db-remove-migrated-contest-source.ts",
+    "db:reconcile:contest-data": "tsx scripts/db-reconcile-contest-data.ts",
+    "contest:create-from-json": "tsx scripts/create-contest-from-json.ts",
+    "db:ping": "tsx scripts/db-ping.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
+    "@azure/storage-blob": "^12.33.0",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/multipart": "^10.1.1",
+    "ajv": "^8.20.0",
+    "fastify": "^5.2.0",
+    "mongodb": "^7.5.0",
+    "openai": "^7.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
