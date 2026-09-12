@@ -1,0 +1,149 @@
+{
+  "meta": {
+    "traceId": "0000000000000000000000000000ca02",
+    "generatedAt": "2026-08-21T00:00:00Z",
+    "permissions": [
+      "contests:read",
+      "contests:write"
+    ]
+  },
+  "contest": {
+    "contestId": "contest_ca0001",
+    "code": "SYNTH_CA_01",
+    "nameKey": "contest.fixture.syntheticOne",
+    "status": "DRAFT",
+    "ownerRef": "user_ref_01",
+    "campaignStart": "2027-01-01",
+    "campaignEnd": "2027-12-31",
+    "audienceCodes": [
+      "PERSONAL"
+    ],
+    "ruleCount": 2,
+    "updatedAt": "2026-08-21T00:00:00Z",
+    "nav": {
+      "route": "/contest-admin/contests/contest_ca0001/versions/version_ca0001/edit/BASICS"
+    }
+  },
+  "versionId": "version_ca0001",
+  "revision": 3,
+  "etag": "\"revision-3\"",
+  "readOnly": false,
+  "catalogue": {
+    "version": "MY-2026.1",
+    "metrics": [
+      {"code":"TPC","labelKey":"contest.catalogue.metric.TPC","status":"ACTIVE","kind":"MONEY","currency":"MYR","operators":["GTE","GT","LTE","LT","EQ","NEQ","BETWEEN"]},
+      {"code":"CASE_COUNT","labelKey":"contest.catalogue.metric.CASE_COUNT","status":"ACTIVE","kind":"COUNT","operators":["GTE","GT","LTE","LT","EQ","NEQ","BETWEEN"]},
+      {"code":"IPR","labelKey":"contest.catalogue.metric.IPR","status":"ACTIVE","kind":"PERCENT","operators":["GTE","GT","LTE","LT","EQ","NEQ","BETWEEN"]},
+      {"code":"AGENT_LEVEL","labelKey":"contest.catalogue.metric.AGENT_LEVEL","status":"ACTIVE","kind":"DECIMAL","operandLovKey":"agent.level","operators":["EQ","NEQ","IN","NOT_IN","EXISTS"]}
+    ],
+    "lovs": [
+      {"key":"agent.level","version":1,"effectiveFrom":"2026-01-01","values":[
+        {"code":"ALL","labelKey":"contest.catalogue.agentLevel.ALL","status":"ACTIVE"},
+        {"code":"AGENT","labelKey":"contest.catalogue.agentLevel.AGENT","status":"ACTIVE"},
+        {"code":"UM1","labelKey":"contest.catalogue.agentLevel.UM1","status":"ACTIVE"},
+        {"code":"UM2","labelKey":"contest.catalogue.agentLevel.UM2","status":"ACTIVE"},
+        {"code":"AM","labelKey":"contest.catalogue.agentLevel.AM","status":"ACTIVE"},
+        {"code":"SAM","labelKey":"contest.catalogue.agentLevel.SAM","status":"ACTIVE"}
+      ]},
+      {"key":"qualifier.type","version":1,"effectiveFrom":"2026-01-01","values":[
+        {"code":"PERSONAL","labelKey":"contest.audience.PERSONAL","status":"ACTIVE"},
+        {"code":"DIRECT_UNIT","labelKey":"contest.audience.DIRECT_UNIT","status":"ACTIVE"},
+        {"code":"GROUP","labelKey":"contest.audience.GROUP","status":"ACTIVE"},
+        {"code":"INTRODUCER","labelKey":"contest.catalogue.qualifier.INTRODUCER","status":"ACTIVE"},
+        {"code":"VALIDATED_NEW_AGENT","labelKey":"contest.catalogue.qualifier.VALIDATED_NEW_AGENT","status":"ACTIVE"}
+      ]}
+    ]
+  },
+  "steps": [
+    {
+      "stepCode": "BASICS",
+      "status": "VALID",
+      "issueCount": 0,
+      "nav": {
+        "route": "/contest-admin/contests/contest_ca0001/versions/version_ca0001/edit/BASICS"
+      }
+    },
+    {
+      "stepCode": "AUDIENCE",
+      "status": "IN_PROGRESS",
+      "issueCount": 1,
+      "nav": {
+        "route": "/contest-admin/contests/contest_ca0001/versions/version_ca0001/edit/AUDIENCE"
+      }
+    },
+    {
+      "stepCode": "QUALIFICATION",
+      "status": "NOT_STARTED",
+      "issueCount": 0,
+      "nav": {
+        "route": "/contest-admin/contests/contest_ca0001/versions/version_ca0001/edit/QUALIFICATION"
+      }
+    }
+  ],
+  "activeStep": "AUDIENCE",
+  "configuration": {
+    "basics": {
+      "timezone": "Asia/Kuala_Lumpur"
+    },
+    "qualification": {
+      "routes": [
+        {"routeId":"route_personal","code":"PERSONAL_PRODUCTION","labelKey":"contest.route.personalProduction","order":1,"enabled":true,"tierIds":["tier_silver","tier_gold","tier_platinum"],"expression":{"nodeId":"root_all","type":"ALL","children":[
+          {"nodeId":"production_any","type":"ANY","minimumPass":1,"children":[
+            {"nodeId":"tpc_gate","type":"PREDICATE","metricCode":"TPC","operator":"GTE","operand":{"kind":"MONEY","value":"100000.00","currency":"MYR"}},
+            {"nodeId":"case_gate","type":"PREDICATE","metricCode":"CASE_COUNT","operator":"GTE","operand":{"kind":"INTEGER","value":10}}
+          ]},
+          {"nodeId":"ipr_gate","type":"PREDICATE","metricCode":"IPR","operator":"GTE","operand":{"kind":"PERCENT","value":"85.00"}}
+        ]}}
+      ],
+      "tiers": [
+        {"tierId":"tier_silver","code":"SILVER","labelKey":"contest.tier.silver","order":1,"rewardCode":"STAR_1"},
+        {"tierId":"tier_gold","code":"GOLD","labelKey":"contest.tier.gold","order":2,"rewardCode":"STAR_2"},
+        {"tierId":"tier_platinum","code":"PLATINUM","labelKey":"contest.tier.platinum","order":3,"rewardCode":"SUMMIT_2"}
+      ],
+      "periods": [
+        {"periodId":"H1","labelKey":"contest.period.H1","order":1},
+        {"periodId":"FULL","labelKey":"contest.period.FULL","order":2}
+      ],
+      "targets": [
+        {"tierId":"tier_silver","periodId":"H1","state":"EXPLICIT","value":"50000.00"},
+        {"tierId":"tier_silver","periodId":"FULL","state":"EXPLICIT","value":"100000.00"},
+        {"tierId":"tier_gold","periodId":"H1","state":"EXPLICIT","value":"100000.00"},
+        {"tierId":"tier_gold","periodId":"FULL","state":"EXPLICIT","value":"200000.00"},
+        {"tierId":"tier_platinum","periodId":"H1","state":"NOT_APPLICABLE"},
+        {"tierId":"tier_platinum","periodId":"FULL","state":"EXPLICIT","value":"350000.00"}
+      ],
+      "rewardPrecedenceCode":"HIGHEST_ONLY"
+    },
+    "calculation": {
+      "metricCode": "TPC",
+      "creditRate": "100.00",
+      "roundingCode": "HALF_UP_2"
+    },
+    "rewards": {
+      "precedenceCode": "HIGHEST_ONLY",
+      "packageCode": "SUMMIT_2"
+    },
+    "governance": {
+      "frequencyCode": "TWICE_DAILY",
+      "executionTime": "07:00",
+      "approvalRouteCode": "BUSINESS_DATA"
+    }
+  },
+  "validation": {
+    "blocking": true,
+    "issues": [
+      {
+        "issueId": "issue_ca0001",
+        "severity": "ERROR",
+        "code": "AUDIENCE_REQUIRED",
+        "path": "/audience/segments",
+        "messageKey": "contest.validation.audienceRequired",
+        "acknowledgementAllowed": false
+      }
+    ]
+  },
+  "autosave": {
+    "state": "SAVED",
+    "savedAt": "2026-08-21T00:00:00Z"
+  }
+}

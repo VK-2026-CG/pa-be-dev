@@ -11,6 +11,7 @@ import { registerSpecContestRoutes } from './contest/spec-routes.js';
 import { createContestBrochureStore, type ContestBrochureStore } from './contest/brochure-store.js';
 import { ContestBrochureImportService } from './contest/brochure-import.js';
 import { createBrochureInferenceProvider, type ContestBrochureInferenceProvider } from './contest/brochure-import-provider.js';
+import { registerBffRoutes } from './bff/index.js';
 
 const PERIODS = new Set(['MTD', 'QTD', 'YTD']);
 const BLS = new Set(['ALL', 'INSURANCE', 'TAKAFUL']);
@@ -80,6 +81,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
 
   app.get('/healthz', async () => ({ ok: true, service: 'pruaction-insights-service', spec: '1.3.0' }));
   registerSpecContestRoutes(app, specContestRepository,brochureStore,new ContestBrochureImportService(specContestRepository,brochureStore,inferenceProvider));
+  registerBffRoutes(app, source);
 
   app.get<{ Params: { agentId: string }; Querystring: LensQuery & { scope2?: string; codes?: string; listScope?: string } }>(
     '/insights/v1/agents/:agentId/metrics',

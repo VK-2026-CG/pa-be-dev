@@ -1,0 +1,389 @@
+{
+  "$schema": "../../screen-config.schema.json",
+  "configVersion": "2.2.0",
+  "country": "MY",
+  "module": "performance",
+  "screens": {
+    "dashboard": {
+      "screenId": "S-P4-01",
+      "scopeSwitcherEnabled": true,
+      "scopes": {
+        "SELF": {
+          "features": {
+            "basisToggle": {
+              "visible": true
+            },
+            "recommendations": {
+              "enabled": true,
+              "aiPanel": true,
+              "nav": {
+                "route": "insights/recommendations"
+              }
+            }
+          },
+          "quickLinks": [
+            {
+              "id": "MILESTONES",
+              "iconToken": "icon.insights.milestones",
+              "nav": {
+                "route": "insights/milestones"
+              },
+              "order": 1,
+              "visible": true
+            },
+            {
+              "id": "INTRODUCER_DRILLDOWN",
+              "iconToken": "icon.insights.introducer",
+              "nav": {
+                "route": "insights/introducer-drilldown"
+              },
+              "order": 2,
+              "visible": true
+            },
+            {
+              "id": "COMP_BEN",
+              "iconToken": "icon.insights.compben",
+              "nav": {
+                "route": "insights/comp-ben"
+              },
+              "order": 3,
+              "visible": true
+            },
+            {
+              "id": "LEADERBOARD",
+              "iconToken": "icon.insights.leaderboard",
+              "nav": {
+                "route": "insights/leaderboard"
+              },
+              "order": 4,
+              "visible": true
+            }
+          ],
+          "metricTracking": {
+            "periodOptions": [
+              "MTD",
+              "QTD",
+              "YTD"
+            ],
+            "defaultPeriod": "QTD",
+            "businessLineTabs": [
+              "ALL",
+              "INSURANCE",
+              "TAKAFUL"
+            ],
+            "defaultBusinessLine": "ALL",
+            "priorityCards": {
+              "maxCount": 4,
+              "widget": "w.metric.card",
+              "widgetVariant": "compact",
+              "cardOverrides": {
+                "PTPC": {
+                  "showGoal": false
+                }
+              }
+            },
+            "focusCards": {
+              "visible": true,
+              "addEnabled": true,
+              "maxCount": 6,
+              "widget": "w.metric.card",
+              "widgetVariant": "simple"
+            }
+          },
+          "milestones": {
+            "visible": true,
+            "addEnabled": true,
+            "setGoalEnabled": true,
+            "programs": [
+              "MDRT_SERIES",
+              "STAR_CLUB"
+            ],
+            "widget": "w.milestone.card",
+            "widgetVariant": "three-measure"
+          },
+          "moreActions": [
+            {
+              "id": "SET_GOALS",
+              "iconToken": "icon.insights.flag",
+              "nav": {
+                "route": "insights/set-goals"
+              },
+              "order": 1
+            },
+            {
+              "id": "CUSTOMIZE_METRICS",
+              "iconToken": "icon.insights.customize",
+              "nav": {
+                "route": "insights/customize-metrics"
+              },
+              "order": 2
+            },
+            {
+              "id": "HISTORICAL_DATA",
+              "iconToken": "icon.insights.history",
+              "nav": {
+                "route": "insights/history"
+              },
+              "order": 3
+            }
+          ],
+          "footerLinks": [
+            {
+              "id": "VIEW_MOC",
+              "iconToken": "icon.insights.moc",
+              "nav": {
+                "route": "insights/moc"
+              },
+              "order": 1,
+              "visible": true
+            }
+          ]
+        },
+        "TEAM": {
+          "features": {
+            "basisToggle": {
+              "visible": false
+            },
+            "teamViewToggle": {
+              "visible": true,
+              "default": "DIRECT"
+            },
+            "recommendations": {
+              "enabled": true,
+              "aiPanel": true,
+              "nav": {
+                "route": "insights/recommendations"
+              }
+            }
+          },
+          "quickLinks": [
+            {
+              "id": "MILESTONES",
+              "iconToken": "icon.insights.milestones",
+              "nav": {
+                "route": "insights/milestones"
+              },
+              "order": 1,
+              "visible": true
+            },
+            {
+              "id": "TEAM_DRILLDOWN",
+              "iconToken": "icon.insights.team",
+              "nav": {
+                "route": "insights/team-drilldown"
+              },
+              "order": 2,
+              "visible": true
+            },
+            {
+              "id": "LEADERBOARD",
+              "iconToken": "icon.insights.leaderboard",
+              "nav": {
+                "route": "insights/leaderboard"
+              },
+              "order": 3,
+              "visible": true
+            }
+          ],
+          "metricTracking": {
+            "periodOptions": [
+              "MTD",
+              "QTD",
+              "YTD"
+            ],
+            "defaultPeriod": "YTD",
+            "businessLineTabs": [
+              "ALL",
+              "INSURANCE",
+              "TAKAFUL"
+            ],
+            "defaultBusinessLine": "ALL",
+            "priorityCards": {
+              "maxCount": 9,
+              "widget": "w.metric.card",
+              "widgetVariant": "compact",
+              "cardOverrides": {
+                "PTPC": {
+                  "showGoal": false
+                }
+              }
+            },
+            "focusCards": {
+              "visible": true,
+              "addEnabled": true,
+              "maxCount": 6,
+              "widget": "w.metric.card",
+              "widgetVariant": "simple"
+            }
+          },
+          "milestones": {
+            "visible": true,
+            "addEnabled": true,
+            "setGoalEnabled": true,
+            "programs": [
+              "MDRT_SERIES",
+              "STAR_CLUB"
+            ],
+            "widget": "w.milestone.card",
+            "widgetVariant": "three-measure"
+          },
+          "moreActions": [
+            {
+              "id": "SET_GOALS",
+              "iconToken": "icon.insights.flag",
+              "nav": {
+                "route": "insights/set-goals"
+              },
+              "order": 1
+            },
+            {
+              "id": "CUSTOMIZE_METRICS",
+              "iconToken": "icon.insights.customize",
+              "nav": {
+                "route": "insights/customize-metrics"
+              },
+              "order": 2
+            },
+            {
+              "id": "HISTORICAL_DATA",
+              "iconToken": "icon.insights.history",
+              "nav": {
+                "route": "insights/history"
+              },
+              "order": 3
+            }
+          ],
+          "footerLinks": []
+        }
+      }
+    },
+    "metricDetail": {
+      "screenId": "S-P4-02",
+      "sectionOrder": [
+        "gauge.primary",
+        "bars.primary",
+        "threshold.primary",
+        "comparison.primary",
+        "variant.with-repricing",
+        "penders.primary",
+        "breakdown.without-repricing",
+        "breakdown.with-repricing"
+      ],
+      "sections": [
+        {
+          "id": "gauge.primary",
+          "widget": "w.metric-detail.gauge",
+          "widgetVariant": "donut-270",
+          "order": 1,
+          "visible": true
+        },
+        {
+          "id": "bars.primary",
+          "widget": "w.metric-detail.bar-comparison",
+          "widgetVariant": "auto",
+          "order": 2,
+          "visible": true
+        },
+        {
+          "id": "threshold.primary",
+          "widget": "w.metric-detail.threshold-gauge",
+          "widgetVariant": "arc-180",
+          "order": 3,
+          "visible": true
+        },
+        {
+          "id": "comparison.primary",
+          "widget": "w.metric-detail.comparison",
+          "widgetVariant": "stacked-rows",
+          "order": 4,
+          "visible": true
+        },
+        {
+          "id": "variant.with-repricing",
+          "widget": "w.metric-detail.variant-value",
+          "widgetVariant": "single-row",
+          "order": 5,
+          "visible": true
+        },
+        {
+          "id": "penders.primary",
+          "widget": "w.metric-detail.penders",
+          "widgetVariant": "single-row",
+          "order": 6,
+          "visible": true
+        },
+        {
+          "id": "breakdown.without-repricing",
+          "widget": "w.metric-detail.breakdown-table",
+          "widgetVariant": "scroll-x",
+          "order": 7,
+          "visible": true
+        },
+        {
+          "id": "breakdown.with-repricing",
+          "widget": "w.metric-detail.breakdown-table",
+          "widgetVariant": "scroll-x",
+          "order": 8,
+          "visible": true
+        }
+      ],
+      "historyLinkEnabled": true
+    },
+    "history": {
+      "screenId": "S-P4-03",
+      "tabs": {
+        "SELF": [
+          "TPC",
+          "CASE_COUNT",
+          "FYP",
+          "FYC"
+        ],
+        "TEAM": [
+          "TPC",
+          "CASE_COUNT",
+          "FYP",
+          "FYC",
+          "MANPOWER",
+          "ACTIVITY_RATIO",
+          "PRODUCTIVITY",
+          "AVERAGE_CASE_SIZE",
+          "NEW_RECRUIT_CONTRACTED"
+        ]
+      },
+      "windows": [
+        "CURRENT_YEAR",
+        "VS_LAST_YEAR",
+        "VS_LAST_2_YEARS"
+      ],
+      "defaultWindow": "VS_LAST_2_YEARS",
+      "maxYearsBack": 4
+    },
+    "customize": {
+      "screenId": "S-P4-04",
+      "scopes": {
+        "SELF": {
+          "priority": {
+            "min": 4,
+            "max": 4,
+            "editable": false
+          },
+          "focus": {
+            "min": 0,
+            "max": 6
+          }
+        },
+        "TEAM": {
+          "priority": {
+            "min": 9,
+            "max": 9,
+            "editable": false
+          },
+          "focus": {
+            "min": 0,
+            "max": 6
+          }
+        }
+      }
+    }
+  }
+}

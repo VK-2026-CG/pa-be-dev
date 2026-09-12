@@ -18,6 +18,7 @@
     "db:setup:contests": "tsx scripts/db-setup-contests.ts",
     "db:seed": "tsx scripts/db-seed.ts",
     "db:seed:contests": "tsx scripts/db-seed-contests.ts",
+    "export:contests": "tsx scripts/export-imported-contests.ts",
     "db:import:contests": "tsx scripts/import-contests.ts",
     "db:audit:collections": "tsx scripts/db-audit-collections.ts",
     "db:migrate:contest-instance": "tsx scripts/db-migrate-contest-instance.ts",
