@@ -40,6 +40,28 @@ const VALIDATORS: Record<string, object> = {
       scope: { enum: ['SELF', 'TEAM'] },
       teamView: { enum: ['-', 'DIRECT', 'GROUP'] },
       valueType: { enum: ['MONEY', 'COUNT', 'PERCENT', 'DECIMAL'] },
+      /*
+       * v1.4.0 (mongodb.md §7.12/§7.13): `values.collected` is NOT required. An
+       * absent or null source measure yields no collected value — it is never
+       * zero-filled — and the metric resolves through the `dataState` rules, so a
+       * document with `dataState` != OK must validate. (This repo stores the
+       * API-shaped body under `payload`; `values` is declared here for pipeline-
+       * written docs that follow the C1 table directly.)
+       */
+      values: { bsonType: 'object', additionalProperties: true },
+      dataState: { enum: ['OK', 'PROCESSING', 'EMPTY'], description: 'Absent ⇒ OK (contract default)' },
+      notices: {
+        bsonType: 'array',
+        items: {
+          bsonType: 'object', required: ['code', 'severity'],
+          properties: {
+            code: { bsonType: 'string' },
+            severity: { enum: ['INFO', 'WARNING'] },
+            params: { bsonType: 'object' },
+          },
+          additionalProperties: true,
+        },
+      },
       order: { bsonType: 'int' },
       context: { bsonType: 'object' },
       payload: { bsonType: 'object', description: 'API-shaped MetricSnapshot (list item)' },

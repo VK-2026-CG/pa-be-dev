@@ -1,5 +1,5 @@
 import type {
-  MetricCardVM, MilestoneCardVM, PerformanceDashboardVM, QuickLinkVM,
+  MetricCardVM, MilestoneCardVM, NoticeVM, PerformanceDashboardVM, QuickLinkVM,
   RecommendationsEntryVM, Scope,
 } from '../../../vendor/spec/performance-vm.js';
 import type { DomainApi } from '../domain-client.js';
@@ -8,24 +8,37 @@ import { isLeader } from '../persona.js';
 import { CONFIG, dashboardScopeConfig } from '../config.js';
 import { buildMeta, mapChange, periodOptionsMeta, type DomainChange, type LensInput } from './shared.js';
 
+type DataState = NonNullable<MetricCardVM['dataState']>;
+
 interface DomainSnapshot {
   metricCode: string;
   valueType: MetricCardVM['valueType'];
   variant?: 'WITHOUT_REPRICING' | 'WITH_REPRICING';
-  collected: MetricCardVM['value'];
+  /** Absent when `dataState !== 'OK'` — never zero-filled or synthesized (C1 §7.12). */
+  dataState?: DataState;
+  notices?: NoticeVM[];
+  collected?: MetricCardVM['value'];
   penders?: MetricCardVM['value'];
-  goal: { state: 'SET' | 'NOT_SET'; target?: MetricCardVM['value']; progressPct?: number };
+  goal?: { state: 'SET' | 'NOT_SET'; target?: MetricCardVM['value']; progressPct?: number };
   comparison?: DomainChange;
 }
 
 function card(snap: DomainSnapshot, lens: LensInput, showGoal: boolean): MetricCardVM {
+  // Domain item without `dataState` ⇒ OK (back-compat default, C1 §7.13).
+  const dataState: DataState = snap.dataState ?? 'OK';
+  const ok = dataState === 'OK';
   return {
     metricCode: snap.metricCode,
     valueType: snap.valueType,
     ...(snap.variant ? { variant: snap.variant } : {}),
-    value: snap.collected,
+    // Non-OK keeps metricCode/valueType/showGoal/nav so the card still renders and
+    // navigates; `value` is omitted rather than zero-filled. OK cards are emitted
+    // exactly as before (dataState omitted ⇒ the contract's OK default).
+    ...(ok ? {} : { dataState }),
+    ...(ok && snap.collected ? { value: snap.collected } : {}),
+    ...(snap.notices?.length ? { notices: snap.notices } : {}),
     showGoal,
-    ...(snap.goal ? { goal: snap.goal } : {}),
+    ...(ok && snap.goal ? { goal: snap.goal } : {}),
     ...(snap.comparison ? { delta: mapChange(snap.comparison) } : {}),
     nav: {
       route: 'insights/metric-detail',

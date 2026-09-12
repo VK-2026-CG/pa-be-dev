@@ -8,6 +8,14 @@ export type Variant = 'WITHOUT_REPRICING' | 'WITH_REPRICING';
 export type Sentiment = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
 export type TrendDirection = 'UP' | 'DOWN' | 'FLAT';
 export type ScalarKind = 'MONEY' | 'COUNT' | 'PERCENT' | 'DECIMAL';
+/**
+ * Read-time data state (insights.v1 `dataState`, mongodb.md §7.7 / §7.13).
+ * OK ⇒ a value is present. PROCESSING ⇒ tenant batch in flight. EMPTY ⇒ no
+ * approved upstream source, or batch complete with no data. Never zero-filled.
+ */
+export type DataState = 'OK' | 'PROCESSING' | 'EMPTY';
+/** Data-gap banner shared by metric detail and dashboard cards (OpenAPI `Notice`). */
+export interface Notice { code: string; severity: 'INFO' | 'WARNING'; params?: Record<string, string> }
 
 export type MetricScalar =
   | { kind: 'MONEY'; amount: string; currency: string }
@@ -31,9 +39,16 @@ export interface SnapshotContext {
 }
 export interface MetricSnapshot {
   metricCode: string; valueType: ScalarKind; variant?: Variant;
-  collected: MetricScalar; penders?: MetricScalar;
+  /**
+   * v1.4.0: `collected` and `goal` left `required` in insights.v1.yaml — they are
+   * present only when `dataState = OK`. A non-OK item keeps `metricCode`/`valueType`
+   * so the dashboard renders a card state instead of dropping the metric (§7.13).
+   * `dataState` absent ⇒ OK (back-compat default).
+   */
+  dataState?: DataState; notices?: Notice[];
+  collected?: MetricScalar; penders?: MetricScalar;
   subMeasures?: Array<{ measureCode: string; value: MetricScalar }>;
-  goal: GoalProgress; comparison?: Change; asOfDate: string;
+  goal?: GoalProgress; comparison?: Change; asOfDate: string;
 }
 export interface MetricSnapshotList { context: SnapshotContext; items: MetricSnapshot[] }
 
@@ -51,8 +66,8 @@ export interface BarComparison {
 }
 export interface MetricDetail {
   metricCode: string; valueType: ScalarKind; context: SnapshotContext;
-  dataState: 'OK' | 'PROCESSING' | 'EMPTY';
-  notices?: Array<{ code: string; severity: 'INFO' | 'WARNING'; params?: Record<string, string> }>;
+  dataState: DataState;
+  notices?: Notice[];
   primary?: VariantValue; altVariants?: VariantValue[];
   comparison?: { current: MetricScalar; prior: MetricScalar; priorYear: number; change: Change };
   threshold?: Threshold; breakdowns?: BreakdownTable[]; barComparison?: BarComparison;
@@ -77,8 +92,17 @@ export interface MetricCapabilities {
   threshold: boolean; history: boolean; barComparison?: boolean; memberTable?: boolean;
 }
 export interface SegmentOverride { included?: boolean; category?: 'PRIORITY' | 'FOCUS'; defaultSelected?: boolean; defaultOrder?: number }
+/**
+ * Source availability (mongodb.md §4.1, v1.4.0) — independent of `capabilities`:
+ * capabilities say what a metric *may* express, availability says whether an
+ * approved upstream source can populate it. `UNBACKED` metrics must surface via
+ * `dataState`, never as a synthesized or zero-filled value. Authoritative
+ * readiness lives in source-mapping.md §6.
+ */
+export type Availability = 'BACKED' | 'UNBACKED' | 'CANDIDATE';
 export interface MetricDefinition {
   metricCode: string; valueType: ScalarKind; currency?: string;
+  availability?: Availability;
   category: 'PRIORITY' | 'FOCUS'; defaultSelected: boolean; defaultOrder: number; customizable: boolean;
   scopes: Scope[];
   scopeOverrides?: Partial<Record<Scope, { category?: 'PRIORITY' | 'FOCUS'; defaultSelected?: boolean; defaultOrder?: number }>>;

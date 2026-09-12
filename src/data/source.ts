@@ -12,14 +12,14 @@
 import type { Db, Document } from 'mongodb';
 import { COLL, getDb } from '../db/mongo.js';
 import { AGENTS, type AgentRecord } from './registry.js';
-import { CATALOG, effectiveCatalog } from './catalog.js';
+import { CATALOG, effectiveCatalog, type EffectiveDef } from './catalog.js';
 import {
   ANCHOR_YEAR, contextFor, metricDetail, metricList, metricSeries, milestones, type Lens,
 } from './values.js';
 import { getPreferences, putPreferences, type PrefError } from './preferences.js';
 import { recommendations, recordFeedback } from './recommendations.js';
 import type {
-  Basis, MetricDetail, MetricPreferences, MetricSeries, MetricSnapshotList,
+  Basis, MetricDetail, MetricPreferences, MetricSeries, MetricSnapshot, MetricSnapshotList,
   MilestoneProgressList, Scope,
 } from '../types.js';
 import type { RecommendationListPayload } from './recommendations.js';
@@ -67,7 +67,7 @@ class MemorySource implements DataSource {
 /* ── Mongo-backed reads (C1 collections; see scripts/db-seed.ts) ───────── */
 const tv = (l: Lens) => (l.scope === 'SELF' ? '-' : (l.teamView ?? 'DIRECT'));
 
-class MongoSource implements DataSource {
+export class MongoSource implements DataSource {
   readonly kind = 'mongo' as const;
   constructor(private db: Db) {}
 
@@ -84,16 +84,41 @@ class MongoSource implements DataSource {
     if (codes?.length) q.metricCode = { $in: codes };
     const docs = await this.db.collection(COLL.snapshots).find(q).sort({ order: 1 }).toArray();
     if (docs.length === 0) return undefined;
+    // Catalog order (effOrder-sorted) — Map preserves insertion order.
     const cat = new Map(effectiveCatalog(l.scope, l.basis).map((d) => [d.metricCode, d]));
-    const items = docs
-      .filter((d) => {
-        const def = cat.get(d.metricCode as string);
-        if (!def) return false;
-        if (listScope === 'ALL') return true;
-        return def.effCategory === listScope;
-      })
-      .map((d) => d.payload);
+    const inScope = (def: EffectiveDef) => listScope === 'ALL' || def.effCategory === listScope;
+
+    const present = new Set<string>();
+    const items: MetricSnapshot[] = [];
+    for (const d of docs) {
+      const def = cat.get(d.metricCode as string);
+      if (!def || !inScope(def)) continue;
+      present.add(def.metricCode);
+      items.push(d.payload as MetricSnapshot); // verbatim — pipelines own the payload shape
+    }
+
+    /*
+     * A requested-but-absent metric is no longer dropped (mongodb.md §7.13): the card
+     * is emitted with `metricCode`/`valueType` (and therefore its nav) intact and NO
+     * collected value, so the UI renders a data state instead of the metric silently
+     * vanishing. An absent/null source measure is never zero-filled or synthesized
+     * (§7.12).
+     *
+     * §7.7 would resolve "absent while the tenant batch is in flight" to PROCESSING,
+     * but that derivation needs the pipeline `batch_control` collection, which does
+     * not exist in this repo (source-mapping.md OQ-PA-09). Per §7.13, where that
+     * collection is unavailable the state resolves to EMPTY — so we never claim
+     * PROCESSING here.
+     */
     const first = docs[0]!;
+    const asOfDate = (first.context?.asOfDate ?? first.asOfDateStr ?? '') as string;
+    for (const def of cat.values()) {
+      if (present.has(def.metricCode) || !inScope(def)) continue;
+      if (codes?.length && !codes.includes(def.metricCode)) continue; // only what was asked for
+      // Placeholders trail the materialized rows, leaving the pipeline `order` sort untouched.
+      items.push({ metricCode: def.metricCode, valueType: def.valueType, dataState: 'EMPTY', asOfDate });
+    }
+
     return { context: first.context, items } as MetricSnapshotList;
   }
 

@@ -2,7 +2,7 @@
  * PRUAction — Performance (P4) View Models
  * Contract C3: Next.js BFF → UI (CDK widgets)
  *
- * @version 1.4.0  (desktop layout, screenshot-derived — see CHANGES below)
+ * @version 1.5.0  (card-level data states — see CHANGES below)
  * @module bff/types/performance-vm
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -241,7 +241,16 @@ export interface MetricCardVM {
   valueType: MetricScalar['kind'];
   /** Shown as subtitle when present — i18n: insights.variant.{variant}. */
   variant?: Variant;
-  value: MetricScalar;
+  /**
+   * OK ⇒ `value` present. PROCESSING (batch in flight) / EMPTY (no approved
+   * upstream source, or batch complete with no data) ⇒ `value` absent and the
+   * widget renders a compact state. Defaults to OK when omitted. C1 §7.13.
+   */
+  dataState?: MetricDetailVM['dataState'];
+  /** Absent when `dataState !== 'OK'` — never zero-filled or synthesized. */
+  value?: MetricScalar;
+  /** Per-card data-gap banners, same shape as the detail screen's. */
+  notices?: NoticeVM[];
   /** Goal row + progress bar. Widget hides both when `showGoal` = false (config, e.g. PTPC in MY). */
   showGoal: boolean;
   goal?: GoalVM;
