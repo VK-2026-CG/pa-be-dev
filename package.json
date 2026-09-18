@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && mkdir -p dist/vendor/spec && cp -R vendor/spec/. dist/vendor/spec/",
+    "build": "node scripts/build.mjs",
     "start": "node dist/src/server.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -26,7 +26,8 @@
     "db:remove:migrated-contest-source": "tsx scripts/db-remove-migrated-contest-source.ts",
     "db:reconcile:contest-data": "tsx scripts/db-reconcile-contest-data.ts",
     "contest:create-from-json": "tsx scripts/create-contest-from-json.ts",
-    "db:ping": "tsx scripts/db-ping.ts"
+    "db:ping": "tsx scripts/db-ping.ts",
+    "db:import:performance": "tsx scripts/import-performance-mocks.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

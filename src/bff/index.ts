@@ -14,6 +14,6 @@ import { registerContestAdminRoutes } from './routes/contest-admin.js';
 export function registerBffRoutes(app: FastifyInstance, source: DataSource): void {
   const insightsDomain = createInsightsDomain(source);
   initContestDomainClient(app);
-  registerPerformanceRoutes(app, insightsDomain);
+  registerPerformanceRoutes(app, insightsDomain, source);
   registerContestAdminRoutes(app);
 }

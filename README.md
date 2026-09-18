@@ -1,8 +1,10 @@
 # pruaction-insights-service + contest configurator backend
 
 Fastify implementation of the PRUAction **Insights domain API**
-(`insights/v1`) with deterministic **stub data** — no database. Contract:
-`vendor/spec/insights.v1.yaml` (v1.3.0, synced from the `pruaction-spec` repo).
+(`insights/v1`) with direct reads from **three Performance Mongo collections**.
+Contract: `vendor/spec/insights.v1.yaml` (v1.4.0, pinned by
+`vendor/spec/INSIGHTS_CONTRACT_COMMIT`). See [the direct-source guide](docs/performance-direct-source.md).
+The previous Performance Mongo read-model adapter and seed mappings are removed.
 
 ## Agent workflow
 
@@ -30,8 +32,12 @@ npm run typecheck
 npm run build && npm start
 ```
 
-## Identity (stub JWT)
-Send `x-agent-id` (default `A1001`). Personas:
+## Identity (development only, not production JWT)
+
+Mongo mode requires an explicit `x-agent-id` from the configured mock allowlist
+for both domain and BFF requests. It never aliases imported identities to old
+personas or merges agents across files. The following identities apply **only to
+the isolated offline regression fixture engine**, not the Mongo API:
 
 | agentId | level | purpose |
 |---|---|---|
@@ -91,13 +97,11 @@ not submit, approve, or publish any contest.
 
 Draft mutation requires `If-Match: "<resourceVersion>"`.
 
-The synthetic source preserves the five existing Insights agent IDs and creates
-12 deterministic 2026 transactions per agent. `db:seed` also materializes these
-as the C1 `source_snapshots`, `agent_snapshot_staging`, and
-`production_snapshot_staging` collections. Canonical staging excludes names and
-all prohibited identity/contact/demographic fields; money is BSON Decimal128.
+The former cross-domain synthetic seeder is retired. `db:seed:contests` fails
+closed rather than reading deleted Performance mock mappings or pretending these
+files are approved Contest inputs. Governed Contest runtime/imports are unchanged.
 
-## Stub-data model
+## Offline regression fixture model (not Mongo mode)
 `src/data/values.ts` scales mock-sourced base figures with **rational
 multipliers** per dimension (period, business line, scope, teamView, basis),
 so every filter combination is stable and visibly distinct — e.g. TPC YTD/ALL
@@ -106,37 +110,33 @@ SCHEME×0.5 with a re-composed catalog and goals SET (OQ-20 placeholder).
 
 ## MongoDB Atlas (Mongo mode)
 
-The service has two data sources behind one seam (`src/data/source.ts`):
-the deterministic in-memory engine (default — tests/smoke need no DB), and
-MongoDB, enabled whenever `MONGODB_URI` is set (a repo-root `.env` is
-auto-loaded; see `.env.example`).
+Mongo mode reads only `my_production`, `my_mapa`, `my_persistency` in
+`pa_performance_PAMB-dev`. It requires NODE_ENV development/test, MY deployment,
+the exact configured database and an explicit identity allowlist. No legacy Mongo
+adapter remains. Static catalogue/config and temporary in-memory preferences are
+retained; unavailable milestones/recommendations/history are not fabricated.
 
-One-time setup against your Atlas cluster:
+Resident records need **no import or reseed**. The database defaults to
+`pa_performance_PAMB-dev`; `MONGODB_PERFORMANCE_URI` may supply an independent
+read-only connection without changing Contest. Exact source paths, BSON numeric
+compatibility, metadata checks and no-record 404 behavior are documented in the
+direct-source guide. Development authorization guards remain in place.
 
-```bash
-npm run db:ping    # connectivity check (Atlas Network Access must allow your IP)
-npm run db:setup    # creates Insights collections only
-npm run db:setup:contests # creates governed Contest collections in MONGODB_CONTEST_DB
-npm run db:seed    # materializes the deterministic engine into Atlas (idempotent upserts)
-npm run db:seed:contests # derives a published synthetic contest from existing Mongo agents
-npm run dev        # boots in Mongo mode: "data source: MongoDB (insights)"
-```
+`db:setup` provisions only these three schemas and indexes. `db:seed` is an alias
+for `db:import:performance`: supply all three external file paths, dry-run first,
+then `--apply`. It no longer generates data. Existing identical documents are
+skipped, conflicts abort and inserts are transactional. Existing database contents
+are not deleted. See [configuration/import/API examples](docs/performance-direct-source.md).
 
-`npm run db:seed -- --dry-run` prints document counts without connecting
-(972 snapshots, 900 series docs, 10 milestone rows, 13 definitions,
-2 milestone ladders, 7 recommendation docs). Document shape: unique keys +
-lineage per `pruaction-spec/domains/insights/data/mongodb.md`; the engine's
-API-shaped bodies sit under `payload`/`detailPayload` (a production pipeline
-would flatten values to Decimal128 per C1 — noted in the seeder header).
-In Mongo mode the two service-written aggregates persist to
-`metric_preferences` and `recommendation_feedback`. Tests and the app's
-`smoke.sh` pin `MONGODB_URI=""` so they always exercise the in-memory engine.
-`.env` is gitignored — never commit credentials.
+Offline tests explicitly select `INSIGHTS_DATA_SOURCE=memory` and need no DB.
+Memory is never a fallback after a Mongo error. `.env`, `.env.local` and local
+mock identity files are ignored; never commit credentials or raw sample records.
 
 Each country is a physically isolated deployment with its own FE, backend,
 MongoDB instance, storage, credentials and hostnames. Within that instance,
-`MONGODB_DB=insights` and `MONGODB_CONTEST_DB=contests` are independent and
-Contest never falls back to the Insights database. Migration and audit commands:
+`MONGODB_PERFORMANCE_DB` and `MONGODB_CONTEST_DB` are independent. `MONGODB_DB`
+remains only for explicit legacy maintenance commands, not Performance requests.
+Contest never falls back to the Performance database. Migration and audit commands:
 
 ```bash
 npm run db:audit:collections

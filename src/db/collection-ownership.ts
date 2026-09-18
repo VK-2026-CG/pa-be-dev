@@ -1,8 +1,6 @@
 import { COLL } from './mongo.js';
 
-export const INSIGHTS_COLLECTIONS = [COLL.snapshots, COLL.series, COLL.milestones, COLL.metricDefs, COLL.milestoneDefs, COLL.preferences, COLL.recommendations, COLL.recoFeedback] as const;
-
-export const DEVELOPMENT_SOURCE_COLLECTIONS = [COLL.mockAgents, COLL.mockProduction] as const;
+export const PERFORMANCE_COLLECTIONS = [COLL.production, COLL.mapa, COLL.persistency] as const;
 
 export const CONTEST_COLLECTIONS = [
   COLL.contests, COLL.contestVersions, COLL.brochures, COLL.contestImportJobs,

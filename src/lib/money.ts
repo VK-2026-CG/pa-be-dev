@@ -11,6 +11,25 @@ export function fromCents(c: bigint): string {
   const i = a / 100n; const f = a % 100n;
   return `${neg ? '-' : ''}${i}.${f.toString().padStart(2, '0')}`;
 }
+
+/** Source double -> decimal cents using its decimal spelling, not float arithmetic. */
+export function sourceMoney(value: number | string): string {
+  const input = String(value);
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(input);
+  if (!match || (typeof value === 'number' && !Number.isFinite(value))) throw new Error('Invalid source money');
+  const fraction = match[3] ?? '';
+  const exponent = Number(match[4] ?? 0);
+  if (Math.abs(exponent) > 100) throw new Error('Source money exceeds supported precision');
+  const coefficient = BigInt(match[2]! + fraction);
+  const shift = 2 + exponent - fraction.length;
+  const divisor = shift < 0 ? 10n ** BigInt(-shift) : 1n;
+  let cents = shift >= 0 ? coefficient * 10n ** BigInt(shift) : coefficient / divisor;
+  if (shift < 0 && 2n * (coefficient % divisor) >= divisor) cents += 1n;
+  if (match[1]) cents = -cents;
+  const result = fromCents(cents);
+  if (!/^-?\d{1,15}\.\d{2}$/.test(result)) throw new Error('Source money exceeds API range');
+  return result;
+}
 /** Multiply by a rational num/den with half-up rounding — keeps everything integral. */
 export function mulRatio(dec: string, num: number, den: number): string {
   const c = toCents(dec) * BigInt(num);

@@ -39,7 +39,7 @@ function card(snap: DomainSnapshot, lens: LensInput, showGoal: boolean): MetricC
     ...(snap.notices?.length ? { notices: snap.notices } : {}),
     showGoal,
     ...(ok && snap.goal ? { goal: snap.goal } : {}),
-    ...(snap.comparison ? { delta: mapChange(snap.comparison) } : {}),
+    ...(ok && snap.comparison ? { delta: mapChange(snap.comparison) } : {}),
     nav: {
       route: 'insights/metric-detail',
       params: {
@@ -157,7 +157,7 @@ export async function composeDashboard(
       businessLineOptions: cfg.metricTracking.businessLineTabs,
       basis: lens.basis,
       basisToggleVisible: Boolean(cfg.features?.basisToggle?.visible), // config ∧ segment entitlement (stub: true — OQ-20)
-      periodOptionsMeta: periodOptionsMeta(asOfDate, cfg.metricTracking.periodOptions),
+      periodOptionsMeta: periodOptionsMeta(metrics.context.period?.endDate ?? asOfDate, cfg.metricTracking.periodOptions),
       scope: lens.scope,
       ...(lens.scope === 'TEAM' ? { teamView: lens.teamView ?? 'DIRECT' } : {}),
       teamViewToggleVisible:

@@ -27,27 +27,15 @@ are real and tested — never remove them to "make something work".
 
 ## MongoDB Atlas (Mongo mode)
 
-The service has two data sources behind one seam (`src/data/source.ts`):
-the deterministic in-memory engine (default — tests/smoke need no DB), and
-MongoDB, enabled whenever `MONGODB_URI` is set (a repo-root `.env` is
-auto-loaded; see `.env.example`).
+Mongo-backed Performance uses only `my_production`, `my_mapa`, `my_persistency`
+in `pa_performance_PAMB-dev` (SPEC-2026-002 development profile). Old collection
+mappings are removed. Read `docs/performance-direct-source.md` before source work.
+`db:setup` provisions the three source schemas; `db:seed` delegates to the guarded
+file importer. Static catalogue/config and temporary preferences remain; missing
+support data is not fabricated. Contest runtime/storage stays independent.
 
-One-time setup against your Atlas cluster:
-
-```bash
-npm run db:ping    # connectivity check (Atlas Network Access must allow your IP)
-npm run db:setup   # creates the C1 collections + $jsonSchema validators + unique indexes
-npm run db:seed    # materializes the deterministic engine into Atlas (idempotent upserts)
-npm run dev        # boots in Mongo mode: "data source: MongoDB (insights)"
-```
-
-`npm run db:seed -- --dry-run` prints document counts without connecting
-(972 snapshots, 900 series docs, 10 milestone rows, 13 definitions,
-2 milestone ladders, 7 recommendation docs). Document shape: unique keys +
-lineage per `pruaction-spec/domains/insights/data/mongodb.md`; the engine's
-API-shaped bodies sit under `payload`/`detailPayload` (a production pipeline
-would flatten values to Decimal128 per C1 — noted in the seeder header).
-In Mongo mode the two service-written aggregates persist to
-`metric_preferences` and `recommendation_feedback`. Tests and the app's
-`smoke.sh` pin `MONGODB_URI=""` so they always exercise the in-memory engine.
-`.env` is gitignored — never commit credentials.
+Mongo identity requires explicit allowlist + `x-agent-id`; existing A1001/L3001
+personas above are for offline regression fixtures only. Tests select memory mode
+explicitly. Source mode never falls back to synthetic or old Mongo data. Credentials,
+local allowlists and raw records must not be committed. No production-ready claim
+may be made from the still-Draft Spec work item.

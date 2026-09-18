@@ -97,7 +97,7 @@ export async function composeHistory(
 
   const idx = cfg.windows.indexOf(window);
   return {
-    meta: buildMeta('S-P4-03', '2026-07-27'),
+    meta: buildMeta('S-P4-03', series.context?.asOfDate ?? '2026-07-27'),
     tabs,
     moreTabs,
     metricCode,

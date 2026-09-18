@@ -1,0 +1,2 @@
+# Preserve checksum-pinned source evidence across Windows/Linux checkouts.
+performance-source.schema.json -text

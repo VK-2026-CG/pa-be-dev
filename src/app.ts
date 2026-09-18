@@ -5,6 +5,7 @@ import { findAgent, type AgentRecord } from './data/registry.js';
 import { CATALOG, effectiveCatalog } from './data/catalog.js';
 import { ANCHOR_YEAR, contextFor, type Lens } from './data/values.js';
 import type { DataSource } from './data/source.js';
+import { PerformanceSourceNotFound } from './data/performance-record.js';
 import type { Basis, BusinessLine, PeriodType, Problem, Scope, TeamView } from './types.js';
 import { SpecContestRepository } from './contest/spec-repository.js';
 import { registerSpecContestRoutes } from './contest/spec-routes.js';
@@ -27,12 +28,19 @@ function problem(reply: FastifyReply, status: number, code: string, title: strin
 interface Caller { agent: AgentRecord }
 
 /** Stub auth: trusts x-agent-id / x-tenant headers (the BFF's stub JWT). */
-function caller(req: FastifyRequest, reply: FastifyReply): Caller | null {
+function callerFor(req: FastifyRequest, reply: FastifyReply, resolveAgent: typeof findAgent, ownIdentityOnly = false): Caller | null {
+  if (ownIdentityOnly && (!req.headers['x-agent-id'] || (req.headers['x-tenant'] && req.headers['x-tenant'] !== 'MY'))) {
+    void problem(reply, 401, 'INS-4010', 'Development identity required'); return null;
+  }
   const agentId = (req.headers['x-agent-id'] as string | undefined) ?? 'A1001';
-  const agent = findAgent(agentId);
+  const agent = resolveAgent(agentId);
   if (!agent) {
     void problem(reply, 401, 'INS-4010', 'Unknown caller identity');
     return null;
+  }
+  const target = (req.params as { agentId?: string } | undefined)?.agentId;
+  if (ownIdentityOnly && target && target !== agent.agentId) {
+    void problem(reply, 403, 'INS-4030', 'Agent may only read own data'); return null;
   }
   return { agent };
 }
@@ -42,10 +50,10 @@ interface LensQuery {
 }
 
 /** Parse + authorize the standard lens params. Returns null after replying on error. */
-function lens(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply): (Lens & Caller) | null {
-  const c = caller(req, reply);
+function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply, resolveAgent: typeof findAgent, ownIdentityOnly = false): (Lens & Caller) | null {
+  const c = callerFor(req, reply, resolveAgent, ownIdentityOnly);
   if (!c) return null;
-  const pathAgent = findAgent(req.params.agentId);
+  const pathAgent = resolveAgent(req.params.agentId);
   if (!pathAgent) { void problem(reply, 404, 'INS-4040', 'Unknown agent for tenant'); return null; }
   if (pathAgent.agentId !== c.agent.agentId && c.agent.level === 'P4') {
     void problem(reply, 403, 'INS-4030', 'Agent may only read own data'); return null;
@@ -75,11 +83,18 @@ function lens(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: s
 }
 
 export function buildApp(source: DataSource, specContestRepository = new SpecContestRepository(),brochureStore:ContestBrochureStore=createContestBrochureStore(),inferenceProvider:ContestBrochureInferenceProvider=createBrochureInferenceProvider()) {
+  const resolveAgent = source.findAgent?.bind(source) ?? findAgent;
+  const caller = (req: FastifyRequest, reply: FastifyReply) => callerFor(req, reply, resolveAgent, source.ownIdentityOnly);
+  const lens = (req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply) => lensFor(req, reply, resolveAgent, source.ownIdentityOnly);
   const app = Fastify({ logger: false });
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof PerformanceSourceNotFound) return problem(reply, error.status, error.code, error.title);
+    return reply.send(error); // Preserve Fastify's existing handling for other routes.
+  });
   void app.register(cors, { origin: true });
   void app.register(multipart);
 
-  app.get('/healthz', async () => ({ ok: true, service: 'pruaction-insights-service', spec: '1.3.0' }));
+  app.get('/healthz', async () => ({ ok: true, service: 'pruaction-insights-service', spec: '1.4.0' }));
   registerSpecContestRoutes(app, specContestRepository,brochureStore,new ContestBrochureImportService(specContestRepository,brochureStore,inferenceProvider));
   registerBffRoutes(app, source);
 
@@ -125,7 +140,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     '/insights/v1/agents/:agentId/milestones',
     async (req, reply) => {
       const c = caller(req, reply); if (!c) return;
-      if (!findAgent(req.params.agentId)) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      if (!resolveAgent(req.params.agentId)) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       // Milestones are personal, scope-invariant (AC-P4-01-12/-20, OQ-10).
       return source.milestones(c.agent);
     },
@@ -140,7 +155,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     '/insights/v1/agents/:agentId/metric-preferences',
     async (req, reply) => {
       const c = caller(req, reply); if (!c) return;
-      const agent = findAgent(req.params.agentId);
+      const agent = resolveAgent(req.params.agentId);
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       const basis = (req.query.basis ?? 'STANDARD') as Basis;
@@ -153,7 +168,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     '/insights/v1/agents/:agentId/metric-preferences',
     async (req, reply) => {
       const c = caller(req, reply); if (!c) return;
-      const agent = findAgent(req.params.agentId);
+      const agent = resolveAgent(req.params.agentId);
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       const basis = (req.query.basis ?? 'STANDARD') as Basis;
@@ -173,7 +188,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     '/insights/v1/agents/:agentId/recommendations',
     async (req, reply) => {
       const c = caller(req, reply); if (!c) return;
-      const agent = findAgent(req.params.agentId);
+      const agent = resolveAgent(req.params.agentId);
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       return source.recommendations(agent, scope);
@@ -184,7 +199,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     '/insights/v1/agents/:agentId/recommendations/:recommendationId/feedback',
     async (req, reply) => {
       const c = caller(req, reply); if (!c) return;
-      const agent = findAgent(req.params.agentId);
+      const agent = resolveAgent(req.params.agentId);
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const rating = req.body?.rating;
       if (rating !== 'UP' && rating !== 'DOWN') {

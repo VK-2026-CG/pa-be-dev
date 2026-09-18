@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Scope, TeamView } from '../../vendor/spec/performance-vm.js';
 import { DEFAULT_PERSONA, PERSONA_HEADER, personaById, isLeader, type Persona } from './persona.js';
 import type { LensInput } from './compose/shared.js';
+import type { DataSource } from '../data/source.js';
 
 /**
  * Resolve the calling persona from the `x-persona` request header (the SPA now
@@ -9,7 +10,16 @@ import type { LensInput } from './compose/shared.js';
  * travel implicitly). Falls back to DEFAULT_PERSONA exactly as the cookie did
  * — same (unverified) trust level as before, just a different transport.
  */
-export function getPersona(request: FastifyRequest): Persona {
+export function getPersona(request: FastifyRequest, source?: DataSource): Persona {
+  if (source?.ownIdentityOnly) {
+    const id = request.headers['x-agent-id'];
+    const agent = typeof id === 'string' ? source.findAgent?.(id) : undefined;
+    if (!agent || (request.headers['x-tenant'] && request.headers['x-tenant'] !== 'MY')) {
+      throw Object.assign(new Error('Unknown development identity'), { statusCode: 401, code: 'INS-4010' });
+    }
+    return { id: agent.level === 'P2' ? 'LEADER_P2' : agent.level === 'P3' ? 'LEADER_P3' : 'AGENT_P4',
+      agentId: agent.agentId, level: agent.level, label: 'Development mock identity' };
+  }
   const header = request.headers[PERSONA_HEADER];
   const value = Array.isArray(header) ? header[0] : header;
   return personaById(value ?? DEFAULT_PERSONA);

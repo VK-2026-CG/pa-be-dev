@@ -57,27 +57,19 @@ Problem codes asserted · inbound handoff validated · backend receipt updated.
 
 ## MongoDB Atlas (Mongo mode)
 
-The service has two data sources behind one seam (`src/data/source.ts`):
-the deterministic in-memory engine (default — tests/smoke need no DB), and
-MongoDB, enabled whenever `MONGODB_URI` is set (a repo-root `.env` is
-auto-loaded; see `.env.example`).
+The requester-approved development profile (SPEC-2026-002) now reads only
+`my_production`, `my_mapa`, and `my_persistency` in `pa_performance_PAMB-dev`.
+The legacy Performance Mongo adapter/constants/seeder have been removed. Never
+reintroduce a fallback to old collections or synthetic values in Mongo requests.
+Use `docs/performance-direct-source.md` for exact mapping, privacy and configuration.
 
-One-time setup against your Atlas cluster:
+`db:setup` provisions only the three source schemas; `db:import:performance`
+(also `db:seed`) imports explicit files, dry-run by default and insert-only on
+`--apply`. No raw personal data is vendored. Preferences are temporary memory;
+missing support data is empty. Contest runtime/storage remains independent.
 
-```bash
-npm run db:ping    # connectivity check (Atlas Network Access must allow your IP)
-npm run db:setup   # creates the C1 collections + $jsonSchema validators + unique indexes
-npm run db:seed    # materializes the deterministic engine into Atlas (idempotent upserts)
-npm run dev        # boots in Mongo mode: "data source: MongoDB (insights)"
-```
-
-`npm run db:seed -- --dry-run` prints document counts without connecting
-(972 snapshots, 900 series docs, 10 milestone rows, 13 definitions,
-2 milestone ladders, 7 recommendation docs). Document shape: unique keys +
-lineage per `pruaction-spec/domains/insights/data/mongodb.md`; the engine's
-API-shaped bodies sit under `payload`/`detailPayload` (a production pipeline
-would flatten values to Decimal128 per C1 — noted in the seeder header).
-In Mongo mode the two service-written aggregates persist to
-`metric_preferences` and `recommendation_feedback`. Tests and the app's
-`smoke.sh` pin `MONGODB_URI=""` so they always exercise the in-memory engine.
-`.env` is gitignored — never commit credentials.
+Tests explicitly select `INSIGHTS_DATA_SOURCE=memory`, `MONGODB_URI=""` and
+`NODE_ENV=test`; this preserves offline regression fixtures, not old DB mappings.
+Source mode is development/test only and requires a configured identity allowlist.
+No production readiness or COMPLETE handoff is implied by live mock verification.
+`.env`, `.env.local`, and local allowlists are ignored — never commit credentials.

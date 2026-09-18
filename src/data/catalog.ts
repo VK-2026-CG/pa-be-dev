@@ -15,11 +15,9 @@ const cap = (o: Partial<MetricDefinition['capabilities']>): MetricDefinition['ca
  * stays unbacked regardless of a metric's own availability (source-mapping.md
  * OQ-PA-07) — the overrides below remain a placeholder, not a mapping.
  *
- * `availability` mirrors §4.1: whether an approved upstream source can populate the
- * metric. It is independent of `capabilities` and does NOT gate the stub engine —
- * the 9 UNBACKED metrics keep returning synthetic values in dev/demo until a
- * pipeline exists (pending product decision); only the Mongo-backed path resolves
- * a missing document to `dataState: 'EMPTY'`.
+ * Legacy `availability` annotations are not consulted by the three-collection
+ * adapter. Readiness is determined per source value/lens; absent values are EMPTY.
+ * This module supplies static catalogue definitions, never a Mongo collection.
  *
  * APE and API are catalogued in the spec as `CANDIDATE` but are deliberately NOT
  * in this runtime catalogue: §4.1 requires that they MUST NOT be enabled in a

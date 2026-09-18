@@ -10,7 +10,7 @@ interface DomainDetail {
   metricCode: string;
   valueType: MetricDetailVM['sections'][number] extends never ? never : 'MONEY' | 'COUNT' | 'PERCENT' | 'DECIMAL';
   context: {
-    period: { type: LensInput['period'] };
+    period: { type: LensInput['period']; startDate?: string; endDate?: string };
     businessLine: LensInput['businessLine'];
     basis: LensInput['basis'];
     scope: LensInput['scope'];
@@ -38,7 +38,7 @@ function anchorYearOf(asOfDate: string): number { return Number(asOfDate.slice(0
  * (AC-P4-02-01/02); unknown config ids are skipped (AC-P4-02-07).
  */
 function buildSection(id: string, d: DomainDetail): MetricDetailSectionVM | null {
-  const year = anchorYearOf(d.context.asOfDate);
+  const year = anchorYearOf(d.context.period.endDate ?? d.context.asOfDate);
   switch (id) {
     case 'gauge.primary': {
       if (!d.primary || d.threshold || d.barComparison) return null;

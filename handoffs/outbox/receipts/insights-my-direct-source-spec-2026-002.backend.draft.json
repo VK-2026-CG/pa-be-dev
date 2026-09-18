@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-my-direct-source-spec-2026-002.backend",
+  "handoffId": "insights-my-direct-source-spec-2026-002",
+  "specId": "SPEC-2026-002",
+  "consumer": "backend",
+  "status": "IN_PROGRESS",
+  "specCommit": null,
+  "implementation": { "repository": "PruactionBackend", "commit": null, "dirty": true },
+  "validation": [
+    { "command": "npm test", "status": "PASS", "summary": "159 tests, including 30 source/value/connection tests; isolated fixtures and mocked connections, no test Mongo writes." },
+    { "command": "npm run typecheck", "status": "PASS", "summary": "Strict source/test TypeScript check." },
+    { "command": "npm run build", "status": "PASS", "summary": "Cross-platform build; compiled server boot and imported-value read verified on temporary port 4601." },
+    { "command": "db:import:performance dry-run/apply/repeat dry-run", "status": "PASS", "summary": "Applied 5 production + 1 MAPA + 6 persistency records; all 12 satisfy exact BSON schemas; repeat proposes zero inserts." },
+    { "command": "Live HTTP domain and BFF verification on port 4600", "status": "PASS", "summary": "Three source scenarios, expected values, reporting years, privacy, missing/unsupported state and identity guards; see docs/performance-direct-validation.md." },
+    { "command": "Read-only resident-record/API comparison", "status": "PASS", "summary": "10 authorized identities, 30 API requests, 87 metric values compared with existing records; database counts unchanged at 5/1/6. No import/setup/write in this round." },
+    { "command": "Frontend npm run test:mock", "status": "PASS", "summary": "6 mobile/desktop tests passed against the updated live source API." }
+  ],
+  "operationCoverage": [
+    { "operationId": "listAgentMetrics", "status": "IMPLEMENTED", "evidence": "Direct three-collection adapter plus API/BFF tests and live verification." },
+    { "operationId": "getMetricDetail", "status": "IMPLEMENTED", "evidence": "Primary/alternate/threshold or EMPTY; no invented comparisons or breakdowns." },
+    { "operationId": "getMetricSeries", "status": "IMPLEMENTED", "evidence": "Existing contract with null history cells; approved unavailable behavior." },
+    { "operationId": "listMetricDefinitions", "status": "UNCHANGED", "evidence": "Static catalogue; no Mongo metric-definition collection." },
+    { "operationId": "listMilestoneProgress", "status": "IMPLEMENTED", "evidence": "Empty support list, source watermark; no old collection fallback." },
+    { "operationId": "getMetricPreferences", "status": "IMPLEMENTED", "evidence": "Existing catalogue defaults and volatile in-memory state." },
+    { "operationId": "putMetricPreferences", "status": "IMPLEMENTED", "evidence": "Existing validation with volatile memory storage; no old collection writes." },
+    { "operationId": "listRecommendations", "status": "IMPLEMENTED", "evidence": "Empty support list; no invented narrative/amounts." },
+    { "operationId": "submitRecommendationFeedback", "status": "IMPLEMENTED", "evidence": "Existing not-found behavior for nonexistent recommendations; no write store." }
+  ],
+  "acceptanceCriteria": [
+    { "id": "AC-PA-DIRECT-01", "status": "PASS", "evidence": "test/performance-source.test.ts environment, database, country and allowlist tests." },
+    { "id": "AC-PA-DIRECT-02", "status": "PASS", "evidence": "Normalization/redaction tests and live 12/12 schema validation." },
+    { "id": "AC-PA-DIRECT-03", "status": "PASS", "evidence": "Replay/conflict/equivalence tests; repeat import 0 inserts." },
+    { "id": "AC-PA-DIRECT-04", "status": "PASS", "evidence": "PTD/null/zero/cents tests and production HTTP checks." },
+    { "id": "AC-PA-DIRECT-05", "status": "PASS", "evidence": "MAPA mapping tests and GROUP HTTP checks." },
+    { "id": "AC-PA-DIRECT-06", "status": "PASS", "evidence": "Fraction/bonus/period tests and 88% live result." },
+    { "id": "AC-PA-DIRECT-07", "status": "PASS", "evidence": "Disjoint identity/lens isolation and EMPTY checks." },
+    { "id": "AC-PA-DIRECT-08", "status": "PASS", "evidence": "Selection/BFF year tests and live 2025 periods with 2026 watermarks." },
+    { "id": "AC-PA-DIRECT-09", "status": "PASS", "evidence": "Auth/scope unit/API tests plus live cross-agent and missing identity checks." },
+    { "id": "AC-PA-DIRECT-10", "status": "PASS", "evidence": "Support/history/preferences no-fabrication/no-extra-collection tests." },
+    { "id": "AC-PA-DIRECT-11", "status": "PASS", "evidence": "BFF projection/privacy tests and live response inspection." },
+    { "id": "AC-PA-DIRECT-18", "status": "PASS", "evidence": "performance-read.test.ts schema path checks and performance-source.test.ts exact-key/projection checks." },
+    { "id": "AC-PA-DIRECT-19", "status": "PASS", "evidence": "Decimal128/Long exact money and safe numeric mapping tests." },
+    { "id": "AC-PA-DIRECT-20", "status": "PASS", "evidence": "Fractional/unsafe/nonfinite/boolean/malformed values rejected without loss of usable sibling cards." },
+    { "id": "AC-PA-DIRECT-21", "status": "PASS", "evidence": "No-row domain/BFF 404 INS-4040 tests; no invented watermark." },
+    { "id": "AC-PA-DIRECT-22", "status": "PASS", "evidence": "Calendar/period/UTC metadata validation and sanitized driver-error tests." },
+    { "id": "AC-PA-DIRECT-23", "status": "PASS", "evidence": "performance-connection.test.ts proves dedicated Performance URI/client isolation and explicit-empty rejection." },
+    { "id": "AC-PA-DIRECT-24", "status": "PASS", "evidence": "Repeat read of changed in-memory Mongo document fixture updates response without import/restart." }
+  ],
+  "migrations": [
+    { "name": "Approved development source import", "status": "APPLIED", "evidence": "pa_performance_PAMB-dev: production 5, MAPA 1, persistency 6; strict validators/indexes; no deletes or overwrites." },
+    { "name": "Production deployment", "status": "BLOCKED", "evidence": "Development profile only; production IAM and business mapping approvals remain open." },
+    { "name": "0.3.0 existing-collection read hardening", "status": "NOT_REQUIRED", "evidence": "No import, seed, database writes, collection or validator changes. Existing data read directly." }
+  ],
+  "gaps": [
+    "Requester-approved development exercise only; no immutable READY handoff or committed clean implementation exists.",
+    "Production IAM/source semantics and UX approvals remain outstanding; temporary preferences and unavailable support data are not production implementations.",
+    "Frontend development sample integration is covered by its separate receipt; production identity integration is still outstanding."
+  ],
+  "updatedAt": "2026-09-18T19:53:00Z"
+}

@@ -7,13 +7,15 @@ import { composeMetricDetail } from '../compose/metric-detail.js';
 import { composeHistory } from '../compose/history.js';
 import { CONFIG } from '../config.js';
 import { isLeader } from '../persona.js';
-import { getPersona, mapDomainError, parseLens, problem } from '../bff.js';
+import { getPersona as resolvePersona, mapDomainError, parseLens, problem } from '../bff.js';
+import type { DataSource } from '../../data/source.js';
 
 function scopeOf(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>): Scope {
   return (req.query.scope ?? 'SELF') as Scope;
 }
 
-export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainApi): void {
+export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainApi, source?: DataSource): void {
+  const getPersona = (request: FastifyRequest) => resolvePersona(request, source);
   app.get('/api/bff/v1/performance/dashboard', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
     const persona = getPersona(req);
     const lens = parseLens(req.query, persona, reply);

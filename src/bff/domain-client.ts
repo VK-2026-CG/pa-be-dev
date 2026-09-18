@@ -16,8 +16,8 @@ export class DomainError extends Error {
   }
 }
 
-function agentOrThrow(agentId: string) {
-  const agent = findAgent(agentId);
+function agentForSource(source: DataSource, agentId: string) {
+  const agent = source.findAgent ? source.findAgent(agentId) : findAgent(agentId);
   if (!agent) throw new DomainError(404, 'INS-4040', 'Unknown agent for tenant');
   return agent;
 }
@@ -37,6 +37,7 @@ export interface LensParams {
 }
 
 export function createInsightsDomain(source: DataSource) {
+  const agentOrThrow = (id: string) => agentForSource(source, id);
   return {
     // These payloads cross into the BFF composition layer (`src/bff/compose/*`), which — like the
     // former HTTP domain-client — treats them loosely (`any`) rather than binding to the domain's

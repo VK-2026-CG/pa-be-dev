@@ -8,13 +8,9 @@
 import { describe, it, expect } from 'vitest';
 process.env.MONGODB_URI = ''; // tests always run the in-memory engine
 
-import type { Db } from 'mongodb';
 import { composeDashboard } from '../src/bff/compose/dashboard.js';
-import { MongoSource } from '../src/data/source.js';
 import type { DomainApi } from '../src/bff/domain-client.js';
 import type { Persona } from '../src/bff/persona.js';
-import type { AgentRecord } from '../src/data/registry.js';
-import type { Lens } from '../src/data/values.js';
 
 const P4: Persona = { id: 'AGENT_P4', agentId: 'A1001', level: 'P4', label: 'P4' };
 const SELF_LENS = { period: 'YTD', businessLine: 'ALL', basis: 'STANDARD', scope: 'SELF' } as const;
@@ -97,67 +93,5 @@ describe('dashboard cards — dataState (S-P4-01, C1 §7.13)', () => {
   });
 });
 
-/* ── MongoSource: a requested-but-absent snapshot doc resolves to EMPTY ──── */
-
-const fakeDb = (docs: unknown[]) => ({
-  collection: () => ({ find: () => ({ sort: () => ({ toArray: async () => docs }) }) }),
-}) as unknown as Db;
-
-const AGENT: AgentRecord = { agentId: 'A1001', tenant: 'MY', level: 'P4', name: 'Aisyah Rahman' };
-const LENS: Lens = { period: 'YTD', businessLine: 'ALL', basis: 'STANDARD', scope: 'SELF' };
-
-describe('MongoSource.metricList — absent documents (C1 §7.13, OQ-PA-09)', () => {
-  it('emits EMPTY items for catalogued metrics with no snapshot doc, instead of dropping them', async () => {
-    const src = new MongoSource(fakeDb([
-      { metricCode: 'TPC', order: 1, context: CONTEXT, payload: okSnap('TPC') },
-    ]));
-
-    const list = (await src.metricList(AGENT, LENS, 'PRIORITY'))!;
-    expect(list.context).toEqual(CONTEXT);
-
-    // SELF/STANDARD priority catalog = TPC, PTPC, CASE_COUNT, FYP. Only TPC materialized.
-    expect(list.items.map((i) => i.metricCode).sort())
-      .toEqual(['CASE_COUNT', 'FYP', 'PTPC', 'TPC']);
-
-    const byCode = new Map(list.items.map((i) => [i.metricCode, i]));
-    // Present doc: payload returned verbatim, untouched.
-    expect(byCode.get('TPC')).toEqual(okSnap('TPC'));
-    expect(byCode.get('TPC')!.dataState).toBeUndefined();
-
-    for (const code of ['PTPC', 'CASE_COUNT', 'FYP']) {
-      const item = byCode.get(code)!;
-      // EMPTY, never PROCESSING — `batch_control` does not exist here (OQ-PA-09).
-      expect(item.dataState).toBe('EMPTY');
-      expect(item.collected).toBeUndefined();
-      expect(item.goal).toBeUndefined();
-      expect(item.valueType).toBeTruthy();
-      expect(item.asOfDate).toBe('2026-07-27');
-    }
-  });
-
-  it('materialized rows keep their pipeline `order` sort; placeholders trail them', async () => {
-    const src = new MongoSource(fakeDb([
-      { metricCode: 'FYP', order: 1, context: CONTEXT, payload: okSnap('FYP') },
-      { metricCode: 'TPC', order: 2, context: CONTEXT, payload: okSnap('TPC') },
-    ]));
-
-    const list = (await src.metricList(AGENT, LENS, 'PRIORITY'))!;
-    expect(list.items.map((i) => i.metricCode)).toEqual(['FYP', 'TPC', 'PTPC', 'CASE_COUNT']);
-    expect(list.items.slice(0, 2).every((i) => i.dataState === undefined)).toBe(true);
-  });
-
-  it('only fills in the codes that were requested', async () => {
-    const src = new MongoSource(fakeDb([
-      { metricCode: 'TPC', order: 1, context: CONTEXT, payload: okSnap('TPC') },
-    ]));
-
-    const list = (await src.metricList(AGENT, LENS, 'ALL', ['TPC', 'FYC']))!;
-    expect(list.items.map((i) => i.metricCode)).toEqual(['TPC', 'FYC']);
-    expect(list.items[1]!.dataState).toBe('EMPTY');
-  });
-
-  it('no documents at all still returns undefined (404 semantics unchanged)', async () => {
-    const src = new MongoSource(fakeDb([]));
-    expect(await src.metricList(AGENT, LENS, 'PRIORITY')).toBeUndefined();
-  });
-});
+// Legacy snapshot-adapter tests were replaced by the direct-source contract tests
+// in performance-source.test.ts; the BFF rendering contract above is preserved.

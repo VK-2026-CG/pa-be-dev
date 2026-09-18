@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PRUAction — Insights Domain API
-  version: 1.3.0
+  version: 1.4.0
   description: |
     Domain API for the **Insights** bounded context (agent performance):
     metric snapshots, metric detail, historical series, milestone progress,
@@ -48,6 +48,15 @@ info:
       with different goals / metric set / ordering — wire values unchanged);
       `MetricDefinition.segmentOverrides`; `teamView=GROUP` gated to P2-level
       leaders (403 for P3).
+    - **1.4.0** (upstream source onboarding): `MetricSnapshot.dataState`
+      (OK|PROCESSING|EMPTY, default OK) and `MetricSnapshot.notices[]`, so a
+      catalogued metric with no approved upstream source is returned as a
+      renderable card state instead of being omitted. **`collected` and `goal`
+      leave `required`** — they are present only when `dataState = OK`, so
+      clients MUST tolerate their absence. The inline detail notice shape is
+      extracted to the shared `Notice` schema (no shape change). Catalogue
+      gains APE and API; see `data/source-mapping.md` (C0) for field lineage
+      and metric readiness.
   contact:
     name: Insights Domain Team
   x-domain: insights
@@ -857,13 +866,27 @@ components:
     # ---------- Metrics ----------
     MetricSnapshot:
       type: object
-      required: [metricCode, valueType, collected, goal, asOfDate]
+      required: [metricCode, valueType, asOfDate]
       properties:
         metricCode: { $ref: '#/components/schemas/MetricCode' }
         valueType: { $ref: '#/components/schemas/ScalarKind' }
         variant:
           allOf: [{ $ref: '#/components/schemas/Variant' }]
           description: Present when the metric supports repricing (TPC, PTPC).
+        dataState:
+          type: string
+          description: >-
+            OK ⇒ `collected` and `goal` are present. PROCESSING ⇒ batch in
+            flight. EMPTY ⇒ no approved upstream source, or batch complete with
+            no data. Defaults to OK when omitted (1.4.0). A non-OK item keeps
+            `metricCode`/`valueType` so the dashboard can render a card state
+            rather than dropping the metric; `collected` is never zero-filled.
+          enum: [OK, PROCESSING, EMPTY]
+          default: OK
+        notices:
+          type: array
+          description: Per-metric data-gap banners (e.g. a missing product feed).
+          items: { $ref: '#/components/schemas/Notice' }
         collected: { $ref: '#/components/schemas/MetricScalar' }
         penders: { $ref: '#/components/schemas/MetricScalar' }
         subMeasures:
@@ -880,6 +903,23 @@ components:
         goal: { $ref: '#/components/schemas/GoalProgress' }
         comparison: { $ref: '#/components/schemas/Change' }
         asOfDate: { type: string, format: date }
+
+    Notice:
+      type: object
+      description: >-
+        Data-quality banner shared by metric detail and dashboard cards
+        (extracted to a component in 1.4.0; shape unchanged).
+      required: [code, severity]
+      properties:
+        code:
+          type: string
+          description: 'i18n key suffix (insights.notice.{code}), e.g. PRODUCT_DATA_MISSING.'
+          x-extensible-enum: true
+        severity: { type: string, enum: [INFO, WARNING] }
+        params:
+          type: object
+          additionalProperties: { type: string }
+          description: 'i18n interpolation values, e.g. {"productCode": "CREDIT_POINTS"}.'
 
     MetricSnapshotList:
       type: object
@@ -969,19 +1009,7 @@ components:
         notices:
           type: array
           description: Dismissible data-quality banners on the detail screen.
-          items:
-            type: object
-            required: [code, severity]
-            properties:
-              code:
-                type: string
-                description: 'i18n key suffix (insights.notice.{code}), e.g. PRODUCT_DATA_MISSING.'
-                x-extensible-enum: true
-              severity: { type: string, enum: [INFO, WARNING] }
-              params:
-                type: object
-                additionalProperties: { type: string }
-                description: 'i18n interpolation values, e.g. {"productCode": "CREDIT_POINTS"}.'
+          items: { $ref: '#/components/schemas/Notice' }
         primary:
           allOf: [{ $ref: '#/components/schemas/VariantValue' }]
           description: Default-variant value; `variant` omitted for non-repricing metrics.

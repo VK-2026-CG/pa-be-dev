@@ -1,16 +1,19 @@
 /**
- * MongoDB (Atlas) connection for the insights service.
+ * Separate Performance/Contest databases, with an optional dedicated Performance client.
  *
  * Config via env (a `.env` in the repo root is auto-loaded — no dep):
  *   MONGODB_URI  mongodb+srv://user:pass@cluster.../  (enables Mongo mode)
- *   MONGODB_DB   database name, default "insights"
+ *   MONGODB_PERFORMANCE_DB pa_performance_PAMB-dev (Performance reads)
+ *   MONGODB_PERFORMANCE_URI optional dedicated Performance connection
+ *   MONGODB_DB legacy migration source only; not used by Performance requests
  *
- * When MONGODB_URI is unset the service runs on the in-memory deterministic
- * engine (tests and local dev need no database).
+ * Only the explicit offline/test source path uses the in-memory engine; a
+ * configured Performance source never falls back after a connection failure.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MongoClient, type Db } from 'mongodb';
+import { performanceConnection, PERFORMANCE_READ_TIMEOUT_MS } from '../config/performance.js';
 
 function loadDotEnv(): void {
   for (const file of ['.env', '.env.local']) {
@@ -31,41 +34,62 @@ export const DB_NAME = process.env.MONGODB_DB ?? 'insights';
 export const CONTEST_DB_NAME = process.env.MONGODB_CONTEST_DB ?? 'contests';
 
 let client: MongoClient | null = null;
+let connection: Promise<MongoClient> | null = null;
+let performanceClient: MongoClient | null = null;
+let performanceConnectionPromise: Promise<MongoClient> | null = null;
 
-export async function getDb(): Promise<Db> {
+async function connect(): Promise<MongoClient> {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI not set');
-  if (!client) {
+  if (!connection) {
     client = new MongoClient(process.env.MONGODB_URI, {
       appName: 'pruaction-insights-service',
       serverSelectionTimeoutMS: 8000,
     });
-    await client.connect();
+    connection = client.connect().catch(async error => {
+      await client?.close(); client = null; connection = null;
+      throw error;
+    });
   }
-  return client.db(DB_NAME);
+  return connection;
+}
+
+/** Legacy maintenance commands only. Performance runtime never calls this. */
+export async function getDb(): Promise<Db> {
+  return (await connect()).db(DB_NAME);
 }
 
 export async function getContestDb(): Promise<Db> {
-  await getDb();
-  return client!.db(CONTEST_DB_NAME);
+  return (await connect()).db(CONTEST_DB_NAME);
+}
+
+/** Separate named Performance source database; never changes Contest storage. */
+export async function getPerformanceDb(): Promise<Db> {
+  const { database, uri } = performanceConnection();
+  if (process.env.MONGODB_PERFORMANCE_URI === undefined) return (await connect()).db(database);
+  if (!performanceConnectionPromise) {
+    const dedicated = new MongoClient(uri, {
+      appName: 'pruaction-performance-source', serverSelectionTimeoutMS: PERFORMANCE_READ_TIMEOUT_MS,
+    });
+    performanceClient = dedicated;
+    performanceConnectionPromise = dedicated.connect().catch(async () => {
+      await dedicated.close(); performanceClient = null; performanceConnectionPromise = null;
+      throw new Error('Performance database connection failed');
+    });
+  }
+  return (await performanceConnectionPromise).db(database);
 }
 
 export async function closeDb(): Promise<void> {
-  if (client) { await client.close(); client = null; }
+  const clients = [client, performanceClient];
+  client = null; connection = null; performanceClient = null; performanceConnectionPromise = null;
+  await Promise.all(clients.filter((item): item is MongoClient => item !== null).map(item => item.close()));
 }
 
-/** Collection names — contract C1 (pruaction-spec mongodb.md). */
+/** Performance source collections plus independently owned Contest collections. */
 export const COLL = {
-  snapshots: 'metric_snapshots',
-  series: 'metric_series',
-  milestones: 'milestone_progress',
-  metricDefs: 'metric_definitions',
-  milestoneDefs: 'milestone_definitions',
-  preferences: 'metric_preferences',
-  recommendations: 'recommendations',
-  recoFeedback: 'recommendation_feedback',
+  production: 'my_production', mapa: 'my_mapa', persistency: 'my_persistency',
   contests: 'contests', contestVersions: 'contest_versions',
   audit: 'audit_events',
-  mockAgents: 'mock_agent_master', mockProduction: 'mock_production_transactions',
   brochures: 'contest_brochures',
   contestImportJobs: 'contest_import_jobs',
   ruleDefinitions: 'rule_definitions', ruleVersions: 'rule_versions',

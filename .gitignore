@@ -24,6 +24,8 @@ coverage
 *.lcov
 
 *.env
+.env.local
+data/performance-mocks/
 data/contest-imports/*.receipt.json
 
 # nyc test coverage
