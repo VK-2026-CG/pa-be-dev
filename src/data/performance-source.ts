@@ -18,7 +18,11 @@ const periodRank = (row: Document): number => performanceRecordMetadata(row).ran
 export class PerformanceSource implements DataSource {
   readonly kind = 'performance' as const;
   readonly ownIdentityOnly = true;
-  constructor(private readonly db: Db, private readonly agents: Map<string, AgentRecord>) {
+  constructor(
+    private readonly db: Db,
+    private readonly agents: Map<string, AgentRecord>,
+    private readonly log: (msg: string) => void = () => {},
+  ) {
     if (db.databaseName !== PERFORMANCE_DB) throw new Error('Invalid Performance source database');
   }
   findAgent = (id: string): AgentRecord | undefined => this.agents.get(id);
@@ -41,6 +45,7 @@ export class PerformanceSource implements DataSource {
         // Driver messages can expose hosts, query arguments or credentials.
         throw new Error('Performance source read failed');
       }
+      this.log(`performance read: agent=${agent.agentId} collection=${name} aggregation=${aggregation ?? 'none'} found=${Boolean(docs[0])}`);
       if (docs[0]) performanceRecordMetadata(docs[0]);
       return [name, docs[0]] as const;
     }));

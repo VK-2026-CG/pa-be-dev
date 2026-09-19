@@ -52,7 +52,7 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
   const agents = performanceProfile();
   const db = await getPerformanceDb();
   log('data source: direct Performance Mongo DEVELOPMENT profile (three collections only)');
-  return new PerformanceSource(db, agents);
+  return new PerformanceSource(db, agents, log);
 }
 
 export { AGENTS, ANCHOR_YEAR, CATALOG, contextFor };
