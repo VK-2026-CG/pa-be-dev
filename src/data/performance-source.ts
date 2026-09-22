@@ -9,6 +9,7 @@ import { sourceMetricScalar } from './performance-values.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
 import type { Lens } from './values.js';
 import type { Basis, MetricDetail, MetricScalar, MetricSeries, MetricSnapshot, Scope, SnapshotContext } from '../types.js';
+import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 
 type Rows = Partial<Record<PerformanceCollection, Document>>;
 const at = (row: Document | undefined, path: string): unknown => path.split('.').reduce<unknown>((v, key) => v && typeof v === 'object' ? (v as Document)[key] : undefined, row);
@@ -103,10 +104,17 @@ export class PerformanceSource implements DataSource {
     const { rows, context } = await this.selection(agent, lens);
     const collected = this.value(def, rows, lens);
     const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
+    // v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC. No collection here
+    // materializes this yet (mongodb.md v1.7.0 D-19) — mock-sourced until it does, same
+    // interim source as the stub engine in values.ts; never derived from a money field.
+    const pendersCaseCount = collected && def.capabilities.repricing && lens.scope === 'TEAM'
+      ? mockTeamPendersCaseCount(code, lens.teamView ?? 'DIRECT')
+      : undefined;
     return { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),
       ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING' as const, collected: alt }] } : {}),
-      ...(collected && def.threshold ? { threshold: def.threshold } : {}) };
+      ...(collected && def.threshold ? { threshold: def.threshold } : {}),
+      ...(pendersCaseCount !== undefined ? { pendersCaseCount } : {}) };
   }
   async metricSeries(agent: AgentRecord, code: string, lens: Lens, anchorYear: number, yearsBack: number): Promise<MetricSeries | undefined> {
     const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);

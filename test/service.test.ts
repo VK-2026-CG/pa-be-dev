@@ -78,7 +78,7 @@ describe('scope/level gating (D-14)', () => {
 });
 
 describe('metric detail (S-P4-02)', () => {
-  it('TPC: primary+penders, comparison, WITH_REPRICING alt, 2 breakdowns w/o CREDIT_POINTS + notice, totals sum rows', async () => {
+  it('TPC: primary+penders, comparison, WITH_REPRICING alt, 2 breakdowns with computed CREDIT_POINTS, totals sum rows (AC-P4-02-33)', async () => {
     const res = await app.inject({ url: '/insights/v1/agents/A1001/metrics/TPC', headers: H('A1001') });
     const d = res.json();
     expect(d.dataState).toBe('OK');
@@ -86,13 +86,40 @@ describe('metric detail (S-P4-02)', () => {
     expect(d.altVariants[0]).toMatchObject({ variant: 'WITH_REPRICING', collected: { amount: '120000.00' } });
     expect(d.comparison).toMatchObject({ prior: { amount: '78740.00' }, priorYear: 2025 });
     expect(d.breakdowns).toHaveLength(2);
+    // v1.8.0 (AC-P4-02-35): exactly one column, matching the request's businessLine (ALL here, no param supplied).
+    expect(d.breakdowns[0].columns).toEqual(['ALL']);
     const rows = d.breakdowns[0].rows;
-    expect(rows.map((r: any) => r.productCode)).not.toContain('CREDIT_POINTS');
-    expect(d.notices[0]).toMatchObject({ code: 'PRODUCT_DATA_MISSING', params: { productCode: 'CREDIT_POINTS' } });
-    const insTotal = rows.reduce((acc: number, r: any) => acc + Number(r.cells[0].value.amount), 0);
-    expect(Number(d.breakdowns[0].totals[0].value.amount)).toBeCloseTo(insTotal, 2);
+    expect(d.notices).toBeUndefined();
     const psa = rows.find((r: any) => r.productCode === 'PSA');
     expect(psa.weightPct).toBe(10);
+    // v1.7.0 (AC-P4-02-33): CREDIT_POINTS is now pipeline-computed, not a PRODUCT_DATA_MISSING gap.
+    const single = rows.find((r: any) => r.productCode === 'SINGLE_PREMIUM');
+    const credit = rows.find((r: any) => r.productCode === 'CREDIT_POINTS');
+    expect(credit.weightPct).toBe(10);
+    const insTotal = rows.reduce((acc: number, r: any) => acc + Number(r.cells[0].value.amount), 0);
+    expect(Number(d.breakdowns[0].totals[0].value.amount)).toBeCloseTo(insTotal, 2);
+    // Credit Point (ALL/combined column) = 10%×Single + 10%×PSA, capped at 25% of Linked+Regular+PSA+Single for that column.
+    const core = rows.filter((r: any) => r.productCode !== 'CREDIT_POINTS')
+      .reduce((acc: number, r: any) => acc + Number(r.cells[0].value.amount), 0);
+    const uncapped = 0.1 * Number(single.cells[0].value.amount) + 0.1 * Number(psa.cells[0].value.amount);
+    expect(Number(credit.cells[0].value.amount)).toBeCloseTo(Math.min(uncapped, 0.25 * core), 2);
+  });
+
+  it('TPC breakdown: single column follows businessLine, and ALL equals INSURANCE+TAKAFUL summed (AC-P4-02-35)', async () => {
+    const get = async (businessLine: string) => {
+      const res = await app.inject({ url: `/insights/v1/agents/A1001/metrics/TPC?businessLine=${businessLine}`, headers: H('A1001') });
+      return res.json().breakdowns[0];
+    };
+    const [all, ins, tak] = await Promise.all([get('ALL'), get('INSURANCE'), get('TAKAFUL')]);
+    expect(all.columns).toEqual(['ALL']);
+    expect(ins.columns).toEqual(['INSURANCE']);
+    expect(tak.columns).toEqual(['TAKAFUL']);
+    for (let i = 0; i < all.rows.length; i++) {
+      const combined = Number(ins.rows[i].cells[0].value.amount) + Number(tak.rows[i].cells[0].value.amount);
+      expect(Number(all.rows[i].cells[0].value.amount)).toBeCloseTo(combined, 2);
+    }
+    const combinedTotal = Number(ins.totals[0].value.amount) + Number(tak.totals[0].value.amount);
+    expect(Number(all.totals[0].value.amount)).toBeCloseTo(combinedTotal, 2);
   });
 
   it('PERSISTENCY_Y1 carries its own threshold 85 GTE; Y2 → 80 (AC-P4-02-15)', async () => {

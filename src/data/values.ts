@@ -6,6 +6,7 @@
  */
 import { addDec, mulRatio, pctChange, toCents } from '../lib/money.js';
 import { effectiveCatalog, findDef } from './catalog.js';
+import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 import type {
   BarComparison, Basis, BreakdownTable, BusinessLine, Change, GoalProgress,
   MetricDetail, MetricScalar, MetricSeries, MetricSnapshot, MetricSnapshotList,
@@ -142,6 +143,22 @@ function pendersFor(code: string, l: Lens): MetricScalar | undefined {
   return scalar('COUNT', null, scaleInt(b.penders, l));
 }
 
+/**
+ * v1.7.0 (ARVIJ-157 AC-P4-02-32): TEAM-scope Penders case count for
+ * MONEY-primary metrics with repricing (TPC/PTPC) — a case count, distinct
+ * from and never derived from `pendersFor`'s MONEY value above. Sourced from
+ * the interim mock in `./mocks/team-penders.ts` until the pipeline
+ * materializes `values.pendersCaseCount` in `metric_snapshots` (mongodb.md
+ * v1.7.0 D-19); SELF never gets this — Self's Penders stays the money amount
+ * inside the gauge legend (AC-P4-02-31).
+ */
+function teamPendersCaseCountFor(code: string, l: Lens): number | undefined {
+  if (l.scope !== 'TEAM') return undefined;
+  const def = findDef(code);
+  if (!def?.capabilities.repricing) return undefined;
+  return mockTeamPendersCaseCount(code, l.teamView ?? 'DIRECT');
+}
+
 /** Scheme agents "have different goals" (D-13): goals are SET under SCHEME, NOT_SET under STANDARD (Set Goals flow pending — roadmap §7b). */
 function goalFor(code: string, l: Lens, current: MetricScalar): GoalProgress {
   const def = findDef(code);
@@ -200,37 +217,63 @@ export function metricList(l: Lens, scopeFilter: 'PRIORITY' | 'FOCUS' | 'ALL', c
   return { context: contextFor(l), items: defs.map((d) => snapshotFor(d.metricCode, l)) };
 }
 
-const PRODUCTS_TPC = ['LINKED_PREMIUM', 'REGULAR_PREMIUM', 'PSA', 'SINGLE_PREMIUM', 'CREDIT_POINTS'];
+const PRODUCTS_TPC = ['LINKED_PREMIUM', 'REGULAR_PREMIUM', 'PSA', 'SINGLE_PREMIUM'];
 const PRODUCTS_PTPC = [...PRODUCTS_TPC, 'UNIT_TRUST', 'GROUP_PREMIUM'];
 const PRODUCT_BASE: Record<string, string> = {
   LINKED_PREMIUM: '12345.00', REGULAR_PREMIUM: '14000.00', PSA: '15007.00',
-  SINGLE_PREMIUM: '20000.00', CREDIT_POINTS: '12500.00', UNIT_TRUST: '10000.00', GROUP_PREMIUM: '10000.00',
+  SINGLE_PREMIUM: '20000.00', UNIT_TRUST: '10000.00', GROUP_PREMIUM: '10000.00',
 };
-const WEIGHTED = new Set(['PSA', 'SINGLE_PREMIUM']);
+const WEIGHTED = new Set(['PSA', 'SINGLE_PREMIUM', 'CREDIT_POINTS']);
 
-function breakdown(code: string, variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING', l: Lens, missing: Set<string>): BreakdownTable {
-  const products = (code === 'PTPC' ? PRODUCTS_PTPC : PRODUCTS_TPC).filter((p) => !missing.has(p));
-  const columns: BusinessLine[] = ['INSURANCE', 'TAKAFUL'];
+/**
+ * v1.7.0 (ARVIJ-19/157 AC-P4-02-33, mongodb.md D-19): CREDIT_POINTS is now
+ * pipeline-computed rather than a `PRODUCT_DATA_MISSING` placeholder, per
+ * variant and per business-line column: A = Linked+Regular+PSA+Single for
+ * that column (the "core" premium total); B = 10%×Single + 10%×PSA (same
+ * column); Credit Point = B when B < 25%×A, else capped at 25%×A. Applies to
+ * both scopes and both variants — confirmed with product for this revision.
+ */
+function creditPointCell(cellAmount: (productCode: string) => string): string {
+  const a = addDec(
+    addDec(cellAmount('LINKED_PREMIUM'), cellAmount('REGULAR_PREMIUM')),
+    addDec(cellAmount('PSA'), cellAmount('SINGLE_PREMIUM')),
+  );
+  const b = addDec(mulRatio(cellAmount('SINGLE_PREMIUM'), 1, 10), mulRatio(cellAmount('PSA'), 1, 10));
+  const cap = mulRatio(a, 1, 4);
+  return toCents(b) < toCents(cap) ? b : cap;
+}
+
+/**
+ * v1.8.0 (AC-P4-02-35): the breakdown table has exactly one column, equal to
+ * the request's own `businessLine` — never a fixed [INSURANCE, TAKAFUL] pair.
+ * `BL_R.ALL` is already the combined Insurance+Takaful ratio by construction
+ * (`BL_R.INSURANCE` + `BL_R.TAKAFUL` sum to `BL_R.ALL`), so requesting the
+ * `ALL` column directly yields the combined total — no separate summing step.
+ */
+function breakdown(code: string, variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING', l: Lens): BreakdownTable {
+  const products = code === 'PTPC' ? PRODUCTS_PTPC : PRODUCTS_TPC;
+  const columns: BusinessLine[] = [l.businessLine];
   const varRatio: Ratio = variant === 'WITH_REPRICING' ? [6, 5] : [1, 1];
+  const cellAmount = (productCode: string): string => mulRatio(scaleDec(PRODUCT_BASE[productCode]!, l), varRatio[0], varRatio[1]);
   const rows = products.map((productCode) => ({
     productCode,
     ...(WEIGHTED.has(productCode) ? { weightPct: 10 } : {}),
-    cells: columns.map((businessLine) => {
-      const cellLens: Lens = { ...l, businessLine };
-      const amount = mulRatio(scaleDec(PRODUCT_BASE[productCode]!, cellLens), varRatio[0], varRatio[1]);
-      return { businessLine, value: { kind: 'MONEY', amount, currency: 'MYR' } as MetricScalar };
-    }),
+    cells: [{ businessLine: l.businessLine, value: { kind: 'MONEY', amount: cellAmount(productCode), currency: 'MYR' } as MetricScalar }],
   }));
-  const totals = columns.map((businessLine, ci) => ({
-    businessLine,
+  rows.push({
+    productCode: 'CREDIT_POINTS', weightPct: 10,
+    cells: [{ businessLine: l.businessLine, value: { kind: 'MONEY', amount: creditPointCell(cellAmount), currency: 'MYR' } as MetricScalar }],
+  });
+  const totals = [{
+    businessLine: l.businessLine,
     value: {
       kind: 'MONEY' as const, currency: 'MYR',
       amount: rows.reduce((acc, r) => {
-        const cell = r.cells[ci]!;
+        const cell = r.cells[0]!;
         return cell.value.kind === 'MONEY' ? addDec(acc, cell.value.amount) : acc;
       }, '0.00'),
     },
-  }));
+  }];
   return { variant, columns, rows, totals };
 }
 
@@ -298,11 +341,12 @@ export function metricDetail(code: string, l: Lens, demoState?: 'EMPTY' | 'PROCE
   }
   if (def.capabilities.threshold && def.threshold) base.threshold = def.threshold;
   if (def.capabilities.breakdown) {
-    const missing = new Set(['CREDIT_POINTS']); // pipeline gap demo — matches the P4 uplift notice
-    base.breakdowns = [breakdown(code, 'WITHOUT_REPRICING', l, missing), breakdown(code, 'WITH_REPRICING', l, missing)];
-    base.notices = [{ code: 'PRODUCT_DATA_MISSING', severity: 'WARNING', params: { productCode: 'CREDIT_POINTS' } }];
+    // v1.7.0 (AC-P4-02-33): CREDIT_POINTS is now pipeline-computed — no more PRODUCT_DATA_MISSING notice for it.
+    base.breakdowns = [breakdown(code, 'WITHOUT_REPRICING', l), breakdown(code, 'WITH_REPRICING', l)];
   }
   if (def.capabilities.barComparison) base.barComparison = barComparisonFor(code, l);
+  const pendersCaseCount = teamPendersCaseCountFor(code, l);
+  if (pendersCaseCount !== undefined) base.pendersCaseCount = pendersCaseCount;
   return base;
 }
 

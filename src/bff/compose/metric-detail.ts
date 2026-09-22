@@ -24,6 +24,8 @@ interface DomainDetail {
   comparison?: { current: any; prior: any; priorYear: number; change: DomainChange };
   threshold?: { value: number; comparator: 'GTE' | 'LTE' };
   breakdowns?: Array<{ variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING'; columns: any[]; rows: any[]; totals: any[] }>;
+  /** v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). Absent at scope=SELF. */
+  pendersCaseCount?: number;
   barComparison?: {
     years: number[]; axis?: { unitCode?: string };
     measures: Array<{ measureCode?: string; points: Array<{ year: number; value: any; change?: DomainChange }> }>;
@@ -92,8 +94,16 @@ function buildSection(id: string, d: DomainDetail): MetricDetailSectionVM | null
       return { type: 'VARIANT_VALUE', id, variant: alt.variant, periodLabelYear: year, value: alt.collected };
     }
     case 'penders.primary': {
-      if (!d.primary?.penders || d.primary.collected.kind !== 'COUNT') return null;
-      return { type: 'PENDERS', id, periodLabelYear: year, value: d.primary.penders };
+      // COUNT-primary metrics (CASE_COUNT): Penders is the primary's own COUNT value.
+      if (d.primary?.penders && d.primary.collected.kind === 'COUNT') {
+        return { type: 'PENDERS', id, periodLabelYear: year, value: d.primary.penders };
+      }
+      // v1.7.0 (AC-P4-02-32): MONEY-primary metrics with repricing (TPC/PTPC) emit this
+      // section only at scope=TEAM, as a case count distinct from the gauge's MONEY penders.
+      if (d.pendersCaseCount !== undefined) {
+        return { type: 'PENDERS', id, periodLabelYear: year, value: { kind: 'COUNT', value: d.pendersCaseCount } };
+      }
+      return null;
     }
     case 'breakdown.without-repricing':
     case 'breakdown.with-repricing': {

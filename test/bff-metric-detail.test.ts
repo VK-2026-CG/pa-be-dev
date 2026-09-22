@@ -7,13 +7,33 @@ process.env.MONGODB_URI = ''; // tests always run the in-memory engine
 const app = buildApp(await createSource());
 
 describe('BFF metric detail (S-P4-02)', () => {
-  it('TPC: section order + notice + 2 breakdowns (AC-P4-02-01/03)', async () => {
+  it('TPC SELF: section order + 2 breakdowns, no Penders card, no CREDIT_POINTS notice (AC-P4-02-01/03/31/33)', async () => {
     const d = await getJson(app, 'AGENT_P4', `${BFF}/performance/metrics/TPC`);
     expect(d.sections.map((s: any) => s.type)).toEqual(
       ['GAUGE', 'COMPARISON', 'VARIANT_VALUE', 'BREAKDOWN', 'BREAKDOWN'],
     );
-    expect(d.notices[0].code).toBe('PRODUCT_DATA_MISSING');
+    expect(d.notices).toBeUndefined();
+    const breakdown = d.sections.find((s: any) => s.type === 'BREAKDOWN');
+    expect(breakdown.rows.map((r: any) => r.productCode)).toContain('CREDIT_POINTS');
+    // v1.8.0 (AC-P4-02-35): single column, matching the (default ALL) businessLine.
+    expect(breakdown.columns).toEqual(['ALL']);
     expect(d.historyNav.route).toBe('insights/history');
+  });
+
+  it('TPC breakdown column follows the businessLine filter (AC-P4-02-35)', async () => {
+    const d = await getJson(app, 'AGENT_P4', `${BFF}/performance/metrics/TPC?businessLine=INSURANCE`);
+    const breakdown = d.sections.find((s: any) => s.type === 'BREAKDOWN');
+    expect(breakdown.columns).toEqual(['INSURANCE']);
+    expect(breakdown.rows[0].cells).toHaveLength(1);
+  });
+
+  it('TPC TEAM: Penders card is a COUNT, sum-of-agents value, distinct from the gauge money penders (AC-P4-02-32)', async () => {
+    const d = await getJson(app, 'LEADER_P2', `${BFF}/performance/metrics/TPC?scope=TEAM`);
+    expect(d.sections.map((s: any) => s.type)).toEqual(
+      ['GAUGE', 'COMPARISON', 'VARIANT_VALUE', 'PENDERS', 'BREAKDOWN', 'BREAKDOWN'],
+    );
+    const penders = d.sections.find((s: any) => s.type === 'PENDERS');
+    expect(penders.value.kind).toBe('COUNT');
   });
 
   it('MANPOWER (TEAM): grouped bars + axis + ABS chips (AC-P4-02-10/11)', async () => {

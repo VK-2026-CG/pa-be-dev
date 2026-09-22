@@ -71,6 +71,8 @@ export interface MetricDetail {
   primary?: VariantValue; altVariants?: VariantValue[];
   comparison?: { current: MetricScalar; prior: MetricScalar; priorYear: number; change: Change };
   threshold?: Threshold; breakdowns?: BreakdownTable[]; barComparison?: BarComparison;
+  /** v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). Absent at scope=SELF. */
+  pendersCaseCount?: number;
 }
 export interface SeriesPoint { month: number; value: MetricScalar | null }
 export interface YearSeries { year: number; points: SeriesPoint[] }
