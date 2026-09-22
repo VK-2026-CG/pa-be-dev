@@ -42,7 +42,7 @@ function scaleInt(base: number, l: Lens): number {
 
 /** Base YTD/ALL/SELF/STANDARD figures per metric (mock-sourced). */
 const MONEY_BASE: Record<string, { collected: string; prior: string; penders: string }> = {
-  TPC: { collected: '100000.00', prior: '78740.00', penders: '30000.00' },
+  TPC: { collected: '980000.00', prior: '879712.75', penders: '30000.00' },
   PTPC: { collected: '70000.00', prior: '95890.00', penders: '21000.00' },
   FYP: { collected: '360000.00', prior: '283460.00', penders: '54000.00' },
   FYC: { collected: '180000.00', prior: '141730.00', penders: '30000.00' },

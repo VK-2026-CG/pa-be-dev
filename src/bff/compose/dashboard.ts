@@ -23,7 +23,9 @@ interface DomainSnapshot {
   comparison?: DomainChange;
 }
 
-function card(snap: DomainSnapshot, lens: LensInput, showGoal: boolean): MetricCardVM {
+function card(
+  snap: DomainSnapshot, lens: LensInput, showGoal: boolean, valueDisplay?: MetricCardVM['valueDisplay'],
+): MetricCardVM {
   // Domain item without `dataState` ⇒ OK (back-compat default, C1 §7.13).
   const dataState: DataState = snap.dataState ?? 'OK';
   const ok = dataState === 'OK';
@@ -38,6 +40,7 @@ function card(snap: DomainSnapshot, lens: LensInput, showGoal: boolean): MetricC
     ...(ok && snap.collected ? { value: snap.collected } : {}),
     ...(snap.notices?.length ? { notices: snap.notices } : {}),
     showGoal,
+    ...(valueDisplay ? { valueDisplay } : {}),
     ...(ok && snap.goal ? { goal: snap.goal } : {}),
     ...(ok && snap.comparison ? { delta: mapChange(snap.comparison) } : {}),
     nav: {
@@ -91,7 +94,7 @@ export async function composeDashboard(
     .map((c) => byCode.get(c))
     .filter((s): s is DomainSnapshot => Boolean(s))
     .slice(0, maxPriority)
-    .map((s) => card(s, lens, overrides[s.metricCode]?.showGoal ?? true));
+    .map((s) => card(s, lens, overrides[s.metricCode]?.showGoal ?? true, overrides[s.metricCode]?.valueDisplay));
   const prioritySet = new Set(priorityMetrics.map((c) => c.metricCode));
 
   // Focus row: selected focus codes (prefs, else service defaults) that came back and aren't priority. Never goals.

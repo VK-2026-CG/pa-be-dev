@@ -6,7 +6,7 @@ export interface QuickLinkCfg { id: string; iconToken: string; nav: { route: str
 export interface MoreActionCfg { id: string; iconToken: string; nav: { route: string }; order: number }
 export interface CardRowCfg {
   visible?: boolean; addEnabled?: boolean; maxCount?: number; widget: string; widgetVariant?: string;
-  cardOverrides?: Record<string, { showGoal?: boolean }>;
+  cardOverrides?: Record<string, { showGoal?: boolean; valueDisplay?: 'FULL' | 'COMPACT' }>;
 }
 export interface DashboardScopeCfg {
   features?: {

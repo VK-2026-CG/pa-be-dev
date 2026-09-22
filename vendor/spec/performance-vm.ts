@@ -253,6 +253,11 @@ export interface MetricCardVM {
   notices?: NoticeVM[];
   /** Goal row + progress bar. Widget hides both when `showGoal` = false (config, e.g. PTPC in MY). */
   showGoal: boolean;
+  /**
+   * MONEY/COUNT abbreviation for this card only (v1.5.9). Config-driven via
+   * `cardOverrides.{METRIC_CODE}.valueDisplay`; defaults to FULL when absent.
+   */
+  valueDisplay?: 'FULL' | 'COMPACT';
   goal?: GoalVM;
   delta?: DeltaVM;
   nav: RouteRef;                           // → S-P4-02 with current filter context

@@ -79,6 +79,9 @@
               "cardOverrides": {
                 "PTPC": {
                   "showGoal": false
+                },
+                "TPC": {
+                  "valueDisplay": "COMPACT"
                 }
               }
             },
@@ -205,6 +208,9 @@
               "cardOverrides": {
                 "PTPC": {
                   "showGoal": false
+                },
+                "TPC": {
+                  "valueDisplay": "COMPACT"
                 }
               }
             },
