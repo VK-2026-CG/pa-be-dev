@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { composeDashboard } from '../src/bff/compose/dashboard.js';
 import { composeMetricDetail } from '../src/bff/compose/metric-detail.js';
 import { composeCustomize } from '../src/bff/compose/customize.js';
+import { CONFIG } from '../src/bff/config.js';
 import type { DomainApi } from '../src/bff/domain-client.js';
 import type { Persona } from '../src/bff/persona.js';
 
@@ -72,6 +73,27 @@ describe('composeDashboard (S-P4-01)', () => {
     expect(vm.meta).toMatchObject({ screenId: 'S-P4-01', country: 'MY', asOfDate: '2026-07-27', partial: false });
   });
 
+  it('composes the scope-specific quick-link rail without Introducer in SELF (AC-P4-01-63/64)', async () => {
+    const selfVm = await composeDashboard(stubApi(), P2, SELF_LENS);
+    expect(selfVm.quickLinks.map((link) => link.id)).toEqual([
+      'MILESTONES',
+      'COMP_BEN',
+      'LEADERBOARD',
+    ]);
+    expect(selfVm.quickLinks.some((link) => link.id === 'INTRODUCER_DRILLDOWN')).toBe(false);
+
+    const teamVm = await composeDashboard(
+      stubApi(),
+      P2,
+      { ...SELF_LENS, scope: 'TEAM', teamView: 'DIRECT' },
+    );
+    expect(teamVm.quickLinks.map((link) => link.id)).toEqual([
+      'MILESTONES',
+      'TEAM_DRILLDOWN',
+      'LEADERBOARD',
+    ]);
+  });
+
   it('focus row = selected focus metrics only, cards never show goals (AC-P4-01-17)', async () => {
     const vm = await composeDashboard(stubApi(), P4, SELF_LENS);
     expect(vm.focusMetrics.items.map((c) => c.metricCode)).toEqual(['FYC', 'PERSISTENCY_CY']);
@@ -96,6 +118,31 @@ describe('composeDashboard (S-P4-01)', () => {
     const self = await composeDashboard(stubApi(), P2, SELF_LENS);
     expect(self.filters.teamView).toBeUndefined();
     expect(self.filters.basisToggleVisible).toBe(true);
+  });
+
+  it('View sheet exposes Direct/Group in SELF and TEAM only for entitled P2 users (AC-P4-01-65)', async () => {
+    for (const scope of ['SELF', 'TEAM'] as const) {
+      const p2 = await composeDashboard(stubApi(), P2, { ...SELF_LENS, scope });
+      expect(p2.scopeSwitcher?.teamViewOptions).toEqual(['DIRECT', 'GROUP']);
+      const p3 = await composeDashboard(stubApi(), P3, { ...SELF_LENS, scope });
+      expect(p3.scopeSwitcher?.teamViewOptions).toBeUndefined();
+    }
+    const p4 = await composeDashboard(stubApi(), P4, SELF_LENS);
+    expect(p4.scopeSwitcher).toBeUndefined();
+  });
+
+  it('View sheet capability respects the TEAM feature config even in SELF (AC-P4-01-65)', async () => {
+    const toggle = CONFIG.screens.dashboard.scopes.TEAM!.features!.teamViewToggle!;
+    const previous = toggle.visible;
+    try {
+      toggle.visible = false;
+      for (const scope of ['SELF', 'TEAM'] as const) {
+        const vm = await composeDashboard(stubApi(), P2, { ...SELF_LENS, scope });
+        expect(vm.scopeSwitcher?.teamViewOptions).toBeUndefined();
+      }
+    } finally {
+      toggle.visible = previous;
+    }
   });
 
   it('MTD/QTD/YTD sheet meta comes BFF-computed from asOfDate (AC-P4-01-23)', async () => {
