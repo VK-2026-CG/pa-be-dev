@@ -32,21 +32,12 @@
               "visible": true
             },
             {
-              "id": "INTRODUCER_DRILLDOWN",
-              "iconToken": "icon.insights.introducer",
-              "nav": {
-                "route": "insights/introducer-drilldown"
-              },
-              "order": 2,
-              "visible": true
-            },
-            {
               "id": "COMP_BEN",
               "iconToken": "icon.insights.compben",
               "nav": {
                 "route": "insights/comp-ben"
               },
-              "order": 3,
+              "order": 2,
               "visible": true
             },
             {
@@ -55,7 +46,7 @@
               "nav": {
                 "route": "insights/leaderboard"
               },
-              "order": 4,
+              "order": 3,
               "visible": true
             }
           ],

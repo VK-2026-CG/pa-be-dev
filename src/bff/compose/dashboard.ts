@@ -1,6 +1,6 @@
 import type {
   MetricCardVM, MilestoneCardVM, NoticeVM, PerformanceDashboardVM, QuickLinkVM,
-  RecommendationsEntryVM, Scope,
+  RecommendationsEntryVM, Scope, TeamView,
 } from '../../../vendor/spec/performance-vm.js';
 import type { DomainApi } from '../domain-client.js';
 import type { Persona } from '../persona.js';
@@ -167,7 +167,15 @@ export async function composeDashboard(
         lens.scope === 'TEAM' && Boolean(cfg.features?.teamViewToggle?.visible) && persona.level === 'P2',
     },
     ...(leader && CONFIG.screens.dashboard.scopeSwitcherEnabled
-      ? { scopeSwitcher: { current: lens.scope, options: scopes.map((scope) => ({ scope })) } }
+      ? {
+          scopeSwitcher: {
+            current: lens.scope,
+            options: scopes.map((scope) => ({ scope })),
+            ...(persona.level === 'P2' && CONFIG.screens.dashboard.scopes.TEAM?.features?.teamViewToggle?.visible
+              ? { teamViewOptions: ['DIRECT', 'GROUP'] as TeamView[] }
+              : {}),
+          },
+        }
       : {}),
     quickLinks: [...cfg.quickLinks].filter((l) => l.visible).sort((a, b) => a.order - b.order).map(toQuickLink),
     recommendations,

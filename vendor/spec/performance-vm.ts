@@ -228,6 +228,9 @@ export interface DashboardFiltersVM {
 /** Header persona switcher (avatar dropdown, top-right). Absent for non-leaders. */
 export interface ScopeSwitcherVM {
   current: Scope;
+  /** P2 + TEAM config capability, also supplied in SELF for staged selection.
+   * Absent means no Direct/Group selector; API authorization is unchanged. */
+  teamViewOptions?: TeamView[];
   options: Array<{
     scope: Scope;                          // i18n: insights.scope.{SELF|TEAM}
     /** Secondary lines in the dropdown item (name / unit), pre-resolved. */
