@@ -1,14 +1,17 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Scope, TeamView } from '../../vendor/spec/performance-vm.js';
-import { DEFAULT_PERSONA, PERSONA_HEADER, personaById, isLeader, type Persona } from './persona.js';
+import { DEFAULT_PERSONA, PERSONA_HEADER, PERSONAS, personaById, isLeader, type Persona } from './persona.js';
 import type { LensInput } from './compose/shared.js';
 import type { DataSource } from '../data/source.js';
 
 /**
  * Resolve the calling persona from the `x-persona` request header (the SPA now
  * runs cross-origin, so the pre-migration `pa_persona` cookie can no longer
- * travel implicitly). Falls back to DEFAULT_PERSONA exactly as the cookie did
- * — same (unverified) trust level as before, just a different transport.
+ * travel implicitly). A missing header falls back to DEFAULT_PERSONA exactly
+ * as the cookie did — same (unverified) trust level as before, just a
+ * different transport. A header present but not one of the known PersonaIds
+ * (e.g. a typo like `LEADER_P4`) is rejected rather than silently defaulted,
+ * so a misconfigured client fails loudly instead of quietly running as P2.
  */
 export function getPersona(request: FastifyRequest, source?: DataSource): Persona {
   if (source?.ownIdentityOnly) {
@@ -22,6 +25,9 @@ export function getPersona(request: FastifyRequest, source?: DataSource): Person
   }
   const header = request.headers[PERSONA_HEADER];
   const value = Array.isArray(header) ? header[0] : header;
+  if (value !== undefined && !PERSONAS.some((p) => p.id === value)) {
+    throw Object.assign(new Error(`Unknown x-persona: ${value}`), { statusCode: 401, code: 'BFF-4011' });
+  }
   return personaById(value ?? DEFAULT_PERSONA);
 }
 

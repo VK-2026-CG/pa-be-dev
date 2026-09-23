@@ -132,17 +132,6 @@ export async function composeMetricDetail(
         .filter((s): s is MetricDetailSectionVM => s !== null)
     : [];
 
-  const historyTabs = CONFIG.screens.history.tabs[lens.scope] ?? [];
-  const historyNav = cfg.historyLinkEnabled !== false && historyTabs.includes(metricCode)
-    ? {
-        route: 'insights/history',
-        params: {
-          metricCode, scope: lens.scope, businessLine: lens.businessLine, basis: lens.basis,
-          ...(lens.teamView ? { teamView: lens.teamView } : {}),
-        },
-      }
-    : undefined;
-
   return {
     meta: buildMeta('S-P4-02', d.context.asOfDate),
     context: {
@@ -157,6 +146,5 @@ export async function composeMetricDetail(
     dataState: d.dataState,
     ...(d.notices?.length ? { notices: d.notices } : {}),
     sections,
-    ...(historyNav ? { historyNav } : {}),
   };
 }

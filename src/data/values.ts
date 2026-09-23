@@ -118,8 +118,10 @@ function valuePair(code: string, l: Lens): Pair {
   if (kind === 'PERCENT') {
     const b = PERCENT_BASE[code] ?? PERCENT_BASE.PERSISTENCY_CY!;
     const pp = round1(b.current - b.prior);
+    const pct = b.prior === 0 ? 0 : round1(((b.current - b.prior) / b.prior) * 100);
     const change: Change = {
-      basis: 'LAST_YEAR', direction: directionFor(pp), sentiment: sentimentFor(code, pp), pp,
+      basis: 'LAST_YEAR', direction: directionFor(pp), sentiment: sentimentFor(code, pp),
+      ...(display === 'PCT' ? { pct } : { pp }),
     };
     return { current: scalar('PERCENT', null, b.current), prior: scalar('PERCENT', null, b.prior), change };
   }
@@ -135,6 +137,11 @@ function valuePair(code: string, l: Lens): Pair {
 function pendersFor(code: string, l: Lens): MetricScalar | undefined {
   const def = findDef(code);
   if (!def?.capabilities.penders) return undefined;
+  // v1.10.0 (AC-P4-02-37, ARVIJ-20): CASE_COUNT SELF gets no Penders exposure at
+  // all — not in the gauge legend, not as its own KPI card (that section is
+  // itself built from this same value for COUNT-primary metrics) — narrower
+  // than TPC/PTPC SELF, which keeps a MONEY figure in the gauge legend.
+  if (code === 'CASE_COUNT' && l.scope === 'SELF') return undefined;
   if (def.valueType === 'MONEY') {
     const b = MONEY_BASE[code] ?? MONEY_BASE.TPC!;
     return scalar('MONEY', scaleDec(b.penders, l), null);
@@ -217,11 +224,21 @@ export function metricList(l: Lens, scopeFilter: 'PRIORITY' | 'FOCUS' | 'ALL', c
   return { context: contextFor(l), items: defs.map((d) => snapshotFor(d.metricCode, l)) };
 }
 
+// v1.9.0 (ARVIJ-106/157 AC-P4-02-36): PTPC's product-category breakdown is the
+// same 5-product set as TPC — UNIT_TRUST/GROUP_PREMIUM are not part of PTPC's
+// definition. PRODUCT_BASE keeps their base amounts (spec keeps the codes
+// documented as reserved/unused) but `breakdown()` below no longer reads them
+// for either metric.
 const PRODUCTS_TPC = ['LINKED_PREMIUM', 'REGULAR_PREMIUM', 'PSA', 'SINGLE_PREMIUM'];
-const PRODUCTS_PTPC = [...PRODUCTS_TPC, 'UNIT_TRUST', 'GROUP_PREMIUM'];
+// v1.11.0 (ARVIJ-107/165 AC-P4-02-40): FYP reactivates the old 7-product set
+// TPC/PTPC moved away from in v1.9.0 (UNIT_TRUST/GROUP_PREMIUM included), with
+// CREDIT_POINTS as a plain weighted row in-list — not TPC/PTPC's separately
+// appended, capped `creditPointCell()` row.
+const PRODUCTS_FYP = ['LINKED_PREMIUM', 'REGULAR_PREMIUM', 'PSA', 'SINGLE_PREMIUM', 'CREDIT_POINTS', 'UNIT_TRUST', 'GROUP_PREMIUM'];
 const PRODUCT_BASE: Record<string, string> = {
   LINKED_PREMIUM: '12345.00', REGULAR_PREMIUM: '14000.00', PSA: '15007.00',
   SINGLE_PREMIUM: '20000.00', UNIT_TRUST: '10000.00', GROUP_PREMIUM: '10000.00',
+  CREDIT_POINTS: '12000.00', // FYP only (plain row) -- TPC/PTPC compute CREDIT_POINTS via creditPointCell() instead
 };
 const WEIGHTED = new Set(['PSA', 'SINGLE_PREMIUM', 'CREDIT_POINTS']);
 
@@ -251,7 +268,11 @@ function creditPointCell(cellAmount: (productCode: string) => string): string {
  * `ALL` column directly yields the combined total — no separate summing step.
  */
 function breakdown(code: string, variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING', l: Lens): BreakdownTable {
-  const products = code === 'PTPC' ? PRODUCTS_PTPC : PRODUCTS_TPC;
+  const def = findDef(code);
+  // v1.11.0 (AC-P4-02-40): FYP uses the 7-product set (CREDIT_POINTS already
+  // in-list, plain weighted); TPC/PTPC keep their narrowed 5-code set with
+  // CREDIT_POINTS appended separately below via the capped formula.
+  const products = code === 'FYP' ? PRODUCTS_FYP : PRODUCTS_TPC;
   const columns: BusinessLine[] = [l.businessLine];
   const varRatio: Ratio = variant === 'WITH_REPRICING' ? [6, 5] : [1, 1];
   const cellAmount = (productCode: string): string => mulRatio(scaleDec(PRODUCT_BASE[productCode]!, l), varRatio[0], varRatio[1]);
@@ -260,10 +281,16 @@ function breakdown(code: string, variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING'
     ...(WEIGHTED.has(productCode) ? { weightPct: 10 } : {}),
     cells: [{ businessLine: l.businessLine, value: { kind: 'MONEY', amount: cellAmount(productCode), currency: 'MYR' } as MetricScalar }],
   }));
-  rows.push({
-    productCode: 'CREDIT_POINTS', weightPct: 10,
-    cells: [{ businessLine: l.businessLine, value: { kind: 'MONEY', amount: creditPointCell(cellAmount), currency: 'MYR' } as MetricScalar }],
-  });
+  // v1.7.0 (AC-P4-02-33, mongodb.md D-19): only TPC/PTPC (repricing-capable)
+  // get a separately appended, pipeline-computed capped CREDIT_POINTS row.
+  // FYP's CREDIT_POINTS row already came from PRODUCTS_FYP above as a plain
+  // weighted value -- must NOT also get this capped row (AC-P4-02-40).
+  if (def?.capabilities.repricing) {
+    rows.push({
+      productCode: 'CREDIT_POINTS', weightPct: 10,
+      cells: [{ businessLine: l.businessLine, value: { kind: 'MONEY', amount: creditPointCell(cellAmount), currency: 'MYR' } as MetricScalar }],
+    });
+  }
   const totals = [{
     businessLine: l.businessLine,
     value: {
@@ -342,7 +369,11 @@ export function metricDetail(code: string, l: Lens, demoState?: 'EMPTY' | 'PROCE
   if (def.capabilities.threshold && def.threshold) base.threshold = def.threshold;
   if (def.capabilities.breakdown) {
     // v1.7.0 (AC-P4-02-33): CREDIT_POINTS is now pipeline-computed — no more PRODUCT_DATA_MISSING notice for it.
-    base.breakdowns = [breakdown(code, 'WITHOUT_REPRICING', l), breakdown(code, 'WITH_REPRICING', l)];
+    // v1.11.0 (AC-P4-02-40): FYP has no repricing capability, so it never emits
+    // a WITH_REPRICING breakdown variant -- only metrics with repricing (TPC/PTPC) do.
+    base.breakdowns = def.capabilities.repricing
+      ? [breakdown(code, 'WITHOUT_REPRICING', l), breakdown(code, 'WITH_REPRICING', l)]
+      : [breakdown(code, 'WITHOUT_REPRICING', l)];
   }
   if (def.capabilities.barComparison) base.barComparison = barComparisonFor(code, l);
   const pendersCaseCount = teamPendersCaseCountFor(code, l);

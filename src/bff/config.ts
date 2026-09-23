@@ -31,7 +31,6 @@ export interface PerformanceConfig {
     metricDetail: {
       screenId: string; sectionOrder: string[];
       sections: Array<{ id: string; widget: string; widgetVariant?: string; order: number; visible: boolean }>;
-      historyLinkEnabled?: boolean;
     };
     history: {
       screenId: string; tabs: Partial<Record<Scope, string[]>>;

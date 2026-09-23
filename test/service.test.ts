@@ -127,7 +127,7 @@ describe('metric detail (S-P4-02)', () => {
     const y2 = (await app.inject({ url: '/insights/v1/agents/A1001/metrics/PERSISTENCY_Y2', headers: H('A1001') })).json();
     expect(y1.threshold).toEqual({ value: 85, comparator: 'GTE' });
     expect(y2.threshold).toEqual({ value: 80, comparator: 'GTE' });
-    expect(y1.comparison.change.pp).toBe(2);
+    expect(y1.comparison.change.pct).toBe(2.2);
     expect(y2.comparison.change.sentiment).toBe('NEGATIVE');
   });
 

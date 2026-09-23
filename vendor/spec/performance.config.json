@@ -56,7 +56,7 @@
               "QTD",
               "YTD"
             ],
-            "defaultPeriod": "QTD",
+            "defaultPeriod": "YTD",
             "businessLineTabs": [
               "ALL",
               "INSURANCE",
@@ -129,7 +129,7 @@
                 "route": "insights/moc"
               },
               "order": 1,
-              "visible": true
+              "visible": false
             }
           ]
         },
@@ -323,8 +323,7 @@
           "order": 8,
           "visible": true
         }
-      ],
-      "historyLinkEnabled": true
+      ]
     },
     "history": {
       "screenId": "S-P4-03",
