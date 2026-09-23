@@ -451,8 +451,6 @@ export interface MetricDetailVM {
   /** Data-gap banners above the first section (e.g. PRODUCT_DATA_MISSING). */
   notices?: NoticeVM[];
   sections: MetricDetailSectionVM[];
-  /** Deep link to S-P4-03 when the metric has history capability. */
-  historyNav?: RouteRef;
 }
 
 /* ──────────────────────── S-P4-03 · Historical Data ─────────────────────── */

@@ -177,15 +177,22 @@ describe('composeDashboard (S-P4-01)', () => {
 describe('composeMetricDetail (S-P4-02)', () => {
   const detailApi = (payload: object) => stubApi({ metricDetail: async () => payload });
 
-  it('orders sections per config and skips missing capabilities: FYP = gauge + comparison only (AC-P4-02-01/02)', async () => {
+  it('orders sections per config and skips missing capabilities: FYP = gauge + comparison + breakdown, no penders/variant sections (AC-P4-02-01/02/39/40)', async () => {
     const api = detailApi({
       metricCode: 'FYP', valueType: 'MONEY', context: CONTEXT, dataState: 'OK',
       primary: { collected: money('360000.00'), penders: money('54000.00') },
       comparison: { current: money('360000.00'), prior: money('283460.00'), priorYear: 2025, change: { basis: 'LAST_YEAR', direction: 'UP', sentiment: 'POSITIVE', pct: 27 } },
+      // v1.11.0 (AC-P4-02-40): FYP has no repricing capability, so only
+      // WITHOUT_REPRICING is ever built -- unlike TPC's pair below.
+      breakdowns: [
+        { variant: 'WITHOUT_REPRICING', columns: ['ALL'], rows: [], totals: [] },
+      ],
     });
     const vm = await composeMetricDetail(api, P4, 'FYP', SELF_LENS);
-    expect(vm.sections.map((s) => s.type)).toEqual(['GAUGE', 'COMPARISON']);
-    expect(vm.historyNav).toMatchObject({ route: 'insights/history', params: { metricCode: 'FYP' } });
+    expect(vm.sections.map((s) => s.type)).toEqual(['GAUGE', 'COMPARISON', 'BREAKDOWN']);
+    // AC-P4-02-39: no PENDERS section for FYP at any scope, even though
+    // `primary.penders` is present -- it stays gauge-legend-only money content.
+    expect(vm.sections.find((s) => s.type === 'PENDERS')).toBeUndefined();
   });
 
   it('TPC full stack in config order, with notices passthrough (v1.2.0)', async () => {
