@@ -7,7 +7,19 @@ import { CATALOG } from './catalog.js';
 import { ANCHOR_YEAR, contextFor, metricDetail, metricList, metricSeries, milestones, type Lens } from './values.js';
 import { getPreferences, putPreferences, type PrefError } from './preferences.js';
 import { recommendations, recordFeedback, type RecommendationListPayload } from './recommendations.js';
-import type { Basis, MetricDetail, MetricPreferences, MetricSeries, MetricSnapshotList, MilestoneProgressList, Scope } from '../types.js';
+import type {
+  Basis,
+  DrilldownBasis,
+  MetricDetail,
+  MetricPreferences,
+  MetricSeries,
+  MetricSnapshotList,
+  MilestoneProgressList,
+  Scope,
+  TeamMemberDashboard,
+  TeamMemberList,
+  TeamView,
+} from '../types.js';
 
 export interface DataSource {
   readonly kind: 'memory' | 'performance';
@@ -22,6 +34,12 @@ export interface DataSource {
     Promise<{ ok: true; prefs: MetricPreferences } | { ok: false; error: PrefError }>;
   recommendations(agent: AgentRecord, scope: Scope): Promise<RecommendationListPayload>;
   recordFeedback(agent: AgentRecord, recommendationId: string, rating: 'UP' | 'DOWN'): Promise<boolean>;
+  listTeamMembers(agent: AgentRecord, teamView: TeamView, basis: DrilldownBasis, query?: string): Promise<TeamMemberList>;
+  getTeamMemberDashboard(
+    agent: AgentRecord,
+    memberAgentId: string,
+    lens: Lens,
+  ): Promise<TeamMemberDashboard | undefined>;
 }
 
 /** Offline regression fixture engine only; never a Mongo read fallback. */
@@ -37,6 +55,55 @@ class MemorySource implements DataSource {
   }
   async recommendations(agent: AgentRecord, scope: Scope) { return recommendations(agent.agentId, scope); }
   async recordFeedback(agent: AgentRecord, id: string, rating: 'UP' | 'DOWN') { return recordFeedback(agent.agentId, id, rating); }
+  async listTeamMembers(_agent: AgentRecord, _teamView: TeamView, basis: DrilldownBasis, query?: string): Promise<TeamMemberList> {
+    const membersByBasis: Record<DrilldownBasis, Array<{ agentId: string; displayName: string; roleCode: string }>> = {
+      AGENT: [
+        { agentId: 'A1001', displayName: 'Aisyah Rahman', roleCode: 'AGENT' },
+        { agentId: 'A1002', displayName: 'Demo Empty', roleCode: 'AGENT' },
+        { agentId: 'A1003', displayName: 'Demo Processing', roleCode: 'AGENT' },
+      ],
+      AM: [
+        { agentId: 'L2001', displayName: 'Farid Ismail', roleCode: 'AM' },
+      ],
+      UM: [
+        { agentId: 'L3001', displayName: 'Mei Lin Tan', roleCode: 'UM' },
+      ],
+    };
+    const normalizedQuery = query?.trim().toLowerCase() ?? '';
+    const filtered = membersByBasis[basis]
+      .filter((m) => {
+        if (!normalizedQuery) return true;
+        return m.agentId.toLowerCase().includes(normalizedQuery) || m.displayName.toLowerCase().includes(normalizedQuery);
+      })
+      .map((m) => ({ ...m, hierarchyBasis: basis }));
+    return { asOfDate: '2026-07-27', items: filtered };
+  }
+
+  async getTeamMemberDashboard(_agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
+    const member = AGENTS.find((a) => a.agentId === memberAgentId);
+    if (!member) return undefined;
+    const list = await this.metricList(member, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
+    const selected = list.items
+      .filter((item) => item.metricCode === 'TPC' || item.metricCode === 'PTPC')
+      .slice(0, 2);
+    return {
+      member: {
+        agentId: member.agentId,
+        displayName: member.name,
+        hierarchyBasis: 'AGENT',
+        roleCode: member.level === 'P4' ? 'AGENT' : member.level === 'P3' ? 'AM' : 'UM',
+      },
+      context: {
+        period: list.context.period,
+        businessLine: list.context.businessLine,
+        basis: list.context.basis,
+        scope: 'SELF',
+        teamView: lens.teamView,
+        asOfDate: list.context.asOfDate,
+      },
+      metrics: selected,
+    };
+  }
 }
 
 export async function createSource(log: (msg: string) => void = () => {}): Promise<DataSource> {

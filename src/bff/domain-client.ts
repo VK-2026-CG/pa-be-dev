@@ -9,6 +9,7 @@ import type { DataSource } from '../data/source.js';
 import { findAgent } from '../data/registry.js';
 import { CATALOG } from '../data/catalog.js';
 import { ANCHOR_YEAR, type Lens } from '../data/values.js';
+import type { TeamMemberDashboard, TeamMemberList } from '../types.js';
 
 export class DomainError extends Error {
   constructor(public status: number, public code: string, public title: string) {
@@ -34,6 +35,26 @@ function lensOf(p: LensParams): Lens {
 
 export interface LensParams {
   period?: string; businessLine?: string; basis?: string; scope?: string; teamView?: string;
+}
+
+export interface TeamDrilldownParams {
+  teamView?: string;
+  /** Drilldown hierarchy axis (`AGENT|AM|UM`), distinct from Performance `basis`. */
+  basis?: string;
+  query?: string;
+  period?: string;
+  businessLine?: string;
+  performanceBasis?: string;
+}
+
+function teamDashboardLensOf(p: TeamDrilldownParams): Lens {
+  return {
+    period: (p.period ?? 'YTD') as Lens['period'],
+    businessLine: (p.businessLine ?? 'ALL') as Lens['businessLine'],
+    basis: (p.performanceBasis ?? 'STANDARD') as Lens['basis'],
+    scope: 'TEAM',
+    teamView: (p.teamView ?? 'DIRECT') as Lens['teamView'],
+  };
 }
 
 export function createInsightsDomain(source: DataSource) {
@@ -90,6 +111,26 @@ export function createInsightsDomain(source: DataSource) {
       const agent = agentOrThrow(agentId);
       const ok = await source.recordFeedback(agent, recommendationId, rating);
       if (!ok) throw new DomainError(404, 'INS-4042', 'Unknown recommendation');
+    },
+    listTeamMembers: async (_caller: string, agentId: string, p: TeamDrilldownParams): Promise<TeamMemberList> => {
+      const agent = agentOrThrow(agentId);
+      return source.listTeamMembers(
+        agent,
+        (p.teamView ?? 'DIRECT') as 'DIRECT' | 'GROUP',
+        (p.basis ?? 'AGENT') as 'AGENT' | 'AM' | 'UM',
+        p.query,
+      );
+    },
+    getTeamMemberDashboard: async (
+      _caller: string,
+      agentId: string,
+      memberAgentId: string,
+      p: TeamDrilldownParams,
+    ): Promise<TeamMemberDashboard> => {
+      const agent = agentOrThrow(agentId);
+      const detail = await source.getTeamMemberDashboard(agent, memberAgentId, teamDashboardLensOf(p));
+      if (!detail) throw new DomainError(404, 'INS-4040', 'Unknown team member for leader');
+      return detail;
     },
   };
 }

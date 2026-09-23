@@ -8,7 +8,19 @@ import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricP
 import { sourceMetricScalar } from './performance-values.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
 import type { Lens } from './values.js';
-import type { Basis, MetricDetail, MetricScalar, MetricSeries, MetricSnapshot, Scope, SnapshotContext } from '../types.js';
+import type {
+  Basis,
+  DrilldownBasis,
+  MetricDetail,
+  MetricScalar,
+  MetricSeries,
+  MetricSnapshot,
+  Scope,
+  SnapshotContext,
+  TeamMemberDashboard,
+  TeamMemberList,
+  TeamView,
+} from '../types.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 
 type Rows = Partial<Record<PerformanceCollection, Document>>;
@@ -139,4 +151,36 @@ export class PerformanceSource implements DataSource {
     return { items: [], generatedAt: `${asOfDate}T00:00:00Z` };
   }
   async recordFeedback() { return false; }
+
+  async listTeamMembers(agent: AgentRecord, _teamView: TeamView, basis: DrilldownBasis, query?: string): Promise<TeamMemberList> {
+    const base = [
+      { agentId: agent.agentId, displayName: agent.name, roleCode: basis },
+    ];
+    const normalized = query?.trim().toLowerCase() ?? '';
+    const items = base
+      .filter((m) => !normalized || m.agentId.toLowerCase().includes(normalized) || m.displayName.toLowerCase().includes(normalized))
+      .map((m) => ({ ...m, hierarchyBasis: basis }));
+    return { asOfDate: '2026-07-27', items };
+  }
+
+  async getTeamMemberDashboard(agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
+    if (memberAgentId !== agent.agentId) return undefined;
+    const list = await this.metricList(agent, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
+    return {
+      member: {
+        agentId: agent.agentId,
+        displayName: agent.name,
+        hierarchyBasis: 'AGENT',
+        roleCode: agent.level === 'P4' ? 'AGENT' : agent.level === 'P3' ? 'AM' : 'UM',
+      },
+      context: {
+        period: list.context.period,
+        businessLine: list.context.businessLine,
+        basis: list.context.basis,
+        scope: 'SELF',
+        asOfDate: list.context.asOfDate,
+      },
+      metrics: list.items,
+    };
+  }
 }

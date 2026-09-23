@@ -532,6 +532,46 @@ export interface SaveCustomizeRequest {
   focusMetricCodes: string[];              // final order, selected only
 }
 
+/* ──────────────────────── S-P4-07 · Team Drilldown ──────────────────────── */
+
+/** Hierarchy basis for S-P4-07 member listing; distinct from Performance `Basis`. */
+export type DrilldownBasis = 'AGENT' | 'AM' | 'UM';
+
+export interface TeamMemberVM {
+  agentId: string;
+  displayName: string;
+  hierarchyBasis: DrilldownBasis;
+  roleCode: string;
+}
+
+export interface TeamDrilldownFiltersVM {
+  scope: Scope;
+  teamView: TeamView;
+  basis: DrilldownBasis;
+  search?: string;
+}
+
+export interface TeamDrilldownSelectedMemberDashboardVM {
+  member: TeamMemberVM;
+  context: {
+    period: PeriodType;
+    businessLine: BusinessLine;
+    basis: Basis;
+    scope: Scope;
+    teamView: TeamView;
+    asOfDate: IsoDate;
+  };
+  /** Additive subset for S-P4-07 card preview composition. */
+  metrics: MetricCardVM[];
+}
+
+export interface TeamDrilldownVM {
+  meta: VMeta;
+  filters: TeamDrilldownFiltersVM;
+  members: TeamMemberVM[];
+  selectedMember?: TeamDrilldownSelectedMemberDashboardVM;
+}
+
 /* ───────────────────────────── Error envelope ───────────────────────────── */
 /**
  * BFF error responses use the same RFC 7807 shape as the domain (`Problem`),

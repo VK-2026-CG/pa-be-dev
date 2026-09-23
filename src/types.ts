@@ -4,6 +4,8 @@ export type BusinessLine = 'ALL' | 'INSURANCE' | 'TAKAFUL';
 export type Basis = 'STANDARD' | 'SCHEME';
 export type Scope = 'SELF' | 'TEAM';
 export type TeamView = 'DIRECT' | 'GROUP';
+/** Team Drilldown hierarchy axis (S-P4-07), distinct from performance `Basis`. */
+export type DrilldownBasis = 'AGENT' | 'AM' | 'UM';
 export type Variant = 'WITHOUT_REPRICING' | 'WITH_REPRICING';
 export type Sentiment = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
 export type TrendDirection = 'UP' | 'DOWN' | 'FLAT';
@@ -51,6 +53,24 @@ export interface MetricSnapshot {
   goal?: GoalProgress; comparison?: Change; asOfDate: string;
 }
 export interface MetricSnapshotList { context: SnapshotContext; items: MetricSnapshot[] }
+
+export interface TeamMember {
+  agentId: string;
+  displayName: string;
+  hierarchyBasis: DrilldownBasis;
+  roleCode: string;
+}
+
+export interface TeamMemberList {
+  asOfDate: string;
+  items: TeamMember[];
+}
+
+export interface TeamMemberDashboard {
+  member: TeamMember;
+  context: SnapshotContext;
+  metrics: MetricSnapshot[];
+}
 
 export interface VariantValue { variant: Variant; collected: MetricScalar; penders?: MetricScalar }
 export interface Threshold { value: number; comparator: 'GTE' | 'LTE' }

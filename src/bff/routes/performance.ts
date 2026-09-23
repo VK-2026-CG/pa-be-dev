@@ -5,6 +5,7 @@ import { composeDashboard } from '../compose/dashboard.js';
 import { composeCustomize } from '../compose/customize.js';
 import { composeMetricDetail } from '../compose/metric-detail.js';
 import { composeHistory } from '../compose/history.js';
+import { buildMeta } from '../compose/shared.js';
 import { CONFIG } from '../config.js';
 import { isLeader } from '../persona.js';
 import { getPersona as resolvePersona, mapDomainError, parseLens, problem } from '../bff.js';
@@ -12,6 +13,70 @@ import type { DataSource } from '../../data/source.js';
 
 function scopeOf(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>): Scope {
   return (req.query.scope ?? 'SELF') as Scope;
+}
+
+function cardFromSnapshot(
+  snap: {
+    metricCode: string;
+    valueType: 'MONEY' | 'COUNT' | 'PERCENT' | 'DECIMAL';
+    variant?: 'WITHOUT_REPRICING' | 'WITH_REPRICING';
+    dataState?: 'OK' | 'PROCESSING' | 'EMPTY';
+    notices?: Array<{ code: string; severity: 'INFO' | 'WARNING'; params?: Record<string, string> }>;
+    collected?: unknown;
+    goal?: unknown;
+    comparison?: {
+      basis: 'LAST_YEAR';
+      direction: 'UP' | 'DOWN' | 'FLAT';
+      sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+      pct?: number;
+      pp?: number;
+      abs?: unknown;
+    };
+    asOfDate?: string;
+  },
+  filters: {
+    period: string;
+    businessLine: string;
+    basis: string;
+    teamView: string;
+  },
+) {
+  const dataState = snap.dataState ?? 'OK';
+  const isOk = dataState === 'OK';
+  return {
+    metricCode: snap.metricCode,
+    valueType: snap.valueType,
+    ...(snap.variant ? { variant: snap.variant } : {}),
+    ...(isOk ? {} : { dataState }),
+    ...(isOk && snap.collected !== undefined ? { value: snap.collected } : {}),
+    ...(snap.notices?.length ? { notices: snap.notices } : {}),
+    showGoal: snap.metricCode !== 'PTPC',
+    ...(isOk && snap.goal !== undefined ? { goal: snap.goal } : {}),
+    ...(isOk && snap.comparison
+      ? {
+          delta: {
+            comparisonBasis: snap.comparison.basis,
+            direction: snap.comparison.direction,
+            sentiment: snap.comparison.sentiment,
+            display: snap.comparison.abs !== undefined ? 'ABS' : snap.comparison.pp !== undefined ? 'PP' : 'PCT',
+            ...(snap.comparison.pct !== undefined ? { pct: snap.comparison.pct } : {}),
+            ...(snap.comparison.pp !== undefined ? { pp: snap.comparison.pp } : {}),
+            ...(snap.comparison.abs !== undefined ? { abs: snap.comparison.abs } : {}),
+          },
+        }
+      : {}),
+    nav: {
+      route: 'insights/metric-detail',
+      params: {
+        metricCode: snap.metricCode,
+        period: filters.period,
+        businessLine: filters.businessLine,
+        basis: filters.basis,
+        scope: 'TEAM',
+        teamView: filters.teamView,
+      },
+    },
+  };
 }
 
 export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainApi, source?: DataSource): void {
@@ -85,6 +150,101 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
     try {
       await domain.feedback(persona.agentId, persona.agentId, req.params.recommendationId, rating);
       return reply.status(204).send();
+    } catch (e) {
+      return mapDomainError(reply, e);
+    }
+  });
+
+  app.get('/api/bff/v1/performance/team-drilldown', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
+    const persona = getPersona(req);
+    if (!isLeader(persona)) return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
+
+    const teamView = (req.query.teamView ?? 'DIRECT') as 'DIRECT' | 'GROUP';
+    if (teamView !== 'DIRECT' && teamView !== 'GROUP') return problem(reply, 400, 'BFF-4000', 'Invalid teamView', String(req.query.teamView));
+    if (teamView === 'GROUP' && persona.level !== 'P2') {
+      return problem(reply, 403, 'BFF-4031', 'teamView=GROUP requires a P2-level leader');
+    }
+
+    const hierarchyBasis = (req.query.basis ?? 'AGENT') as 'AGENT' | 'AM' | 'UM';
+    if (hierarchyBasis !== 'AGENT' && hierarchyBasis !== 'AM' && hierarchyBasis !== 'UM') {
+      return problem(reply, 400, 'BFF-4000', 'Invalid basis', String(req.query.basis));
+    }
+
+    const period = (req.query.period ?? 'YTD') as 'MTD' | 'QTD' | 'YTD';
+    if (period !== 'MTD' && period !== 'QTD' && period !== 'YTD') {
+      return problem(reply, 400, 'BFF-4000', 'Invalid period', String(req.query.period));
+    }
+    const businessLine = (req.query.businessLine ?? 'ALL') as 'ALL' | 'INSURANCE' | 'TAKAFUL';
+    if (businessLine !== 'ALL' && businessLine !== 'INSURANCE' && businessLine !== 'TAKAFUL') {
+      return problem(reply, 400, 'BFF-4000', 'Invalid businessLine', String(req.query.businessLine));
+    }
+    const performanceBasis = (req.query.performanceBasis ?? req.query.metricBasis ?? 'STANDARD') as 'STANDARD' | 'SCHEME';
+    if (performanceBasis !== 'STANDARD' && performanceBasis !== 'SCHEME') {
+      return problem(reply, 400, 'BFF-4000', 'Invalid performanceBasis', String(req.query.performanceBasis ?? req.query.metricBasis));
+    }
+
+    const search = req.query.query?.trim() || undefined;
+    const selectedAgentId = req.query.selectedAgentId?.trim() || undefined;
+
+    try {
+      const members = await domain.listTeamMembers(persona.agentId, persona.agentId, {
+        teamView,
+        basis: hierarchyBasis,
+        query: search,
+      });
+
+      let selectedMember: {
+        member: { agentId: string; displayName: string; hierarchyBasis: 'AGENT' | 'AM' | 'UM'; roleCode: string };
+        context: {
+          period: 'MTD' | 'QTD' | 'YTD';
+          businessLine: 'ALL' | 'INSURANCE' | 'TAKAFUL';
+          basis: 'STANDARD' | 'SCHEME';
+          scope: 'TEAM';
+          teamView: 'DIRECT' | 'GROUP';
+          asOfDate: string;
+        };
+        metrics: Array<ReturnType<typeof cardFromSnapshot>>;
+      } | undefined;
+
+      if (selectedAgentId) {
+        const dashboard = await domain.getTeamMemberDashboard(persona.agentId, persona.agentId, selectedAgentId, {
+          teamView,
+          basis: hierarchyBasis,
+          period,
+          businessLine,
+          performanceBasis,
+        });
+        selectedMember = {
+          member: dashboard.member,
+          context: {
+            period: dashboard.context.period.type,
+            businessLine: dashboard.context.businessLine,
+            basis: dashboard.context.basis,
+            scope: 'TEAM',
+            teamView,
+            asOfDate: dashboard.context.asOfDate,
+          },
+          metrics: dashboard.metrics.map((m) => cardFromSnapshot(m, {
+            period,
+            businessLine,
+            basis: performanceBasis,
+            teamView,
+          })),
+        };
+      }
+
+      const asOfDate = selectedMember?.context.asOfDate ?? members.asOfDate;
+      return {
+        meta: buildMeta('S-P4-07', asOfDate),
+        filters: {
+          scope: 'TEAM',
+          teamView,
+          basis: hierarchyBasis,
+          ...(search ? { search } : {}),
+        },
+        members: members.items,
+        ...(selectedMember ? { selectedMember } : {}),
+      };
     } catch (e) {
       return mapDomainError(reply, e);
     }
