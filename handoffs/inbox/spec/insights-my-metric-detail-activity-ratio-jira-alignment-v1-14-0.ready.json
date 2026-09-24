@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-activity-ratio-jira-alignment-v1-14-0",
+  "jiraId": "ARVIJ-160",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+    "dirty": false,
+    "version": "1.14.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/fixtures/metric-detail-activity-ratio.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "scripts/validate-fixtures.ts",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-13",
+    "AC-P4-02-48",
+    "AC-P4-02-49"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-48: flip ACTIVITY_RATIO catalog changeDisplay PP -> PCT (pa-be-dev src/data/catalog.ts) so every ACTIVITY_RATIO DeltaVM (dashboard card, detail comparison, S-P4-03 MoM display) carries display=PCT with pct populated. pct is the RELATIVE change of the ratio, (current - prior) / prior * 100, NOT the pp difference (72.4 vs 61.8 -> 18, not 11). pp may still be sent but is not rendered. Keep threshold {value: 90, comparator: GTE} and the THRESHOLD_GAUGE + COMPARISON section list unchanged.",
+        "AC-P4-02-49: round every ACTIVITY_RATIO YoY pct away from zero to an integer per widget-contracts.md section 2 R-PCT-ROUNDUP, computed from the exact unrounded ratio values with decimal arithmetic (stub values 95 vs 93 -> 2.15... -> 3). Do not invent behavior for prior=0 (OQ-54) or for S-P4-03 MoM deltas (OQ-56).",
+        "Update tests that assume PP for ACTIVITY_RATIO and add tests named after AC-P4-02-48/49 against metric-detail-activity-ratio.json (72.4 vs 61.8, pct 18)."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-48/49: no unit inference; ACTIVITY_RATIO now arrives with DeltaVM.display=PCT, so the comparison card, the dashboard Activity Ratio card and the S-P4-03 MoM header switch to % automatically via existing display-driven rendering. Render pct as-is; never re-round. The label key insights.comparison.activityRatioChange is unchanged (pa-fe-dev src/components/metrics.tsx). Remove any ACTIVITY_RATIO-specific pp assumptions.",
+        "Add unit/e2e tests named after AC-P4-02-48/49 against metric-detail-activity-ratio.json (expects '+18%', gauge arc NEGATIVE at 72.4 < 90 while the change tone is POSITIVE)."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is one Jira PDF (ARVIJ-160, Team only); the attached sign-off .eml was not read; the clone ARVIJ-536 (PBTB) was not reconciled.",
+    "Compatibility is declared ADDITIVE because no C2/C3/C4 schema changes and DeltaVM.display already drives units; however ACTIVITY_RATIO's rendered change moves from pp to a relative % on S-P4-01, S-P4-02 and S-P4-03.",
+    "OQ-63: ARVIJ-160 has a dated 19-Aug sign-off comment, but the changed (green) requirements rest only on the 10-Sep 'acknowledge ... please proceed'; Jira status Backlog.",
+    "OQ-64: the 90% threshold is not mentioned by ARVIJ-160; kept by requester decision pending product confirmation.",
+    "OQ-65: story editorial inconsistencies (Pre-condition Goal/Target unstruck; 'Change' vs 'Growth' label wording).",
+    "OQ-54 (extended): a 0% previous-year ratio makes the relative pct undefined; not specified.",
+    "OQ-56 (extended): cross-screen reach of the PCT flip without bumping S-P4-01/S-P4-03; AC-P4-03-10's pp example for ACTIVITY_RATIO is stale; MoM rounding unstated."
+  ],
+  "createdAt": "2026-09-24T00:00:00Z"
+}

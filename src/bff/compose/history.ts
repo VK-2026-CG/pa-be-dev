@@ -20,7 +20,10 @@ function scalarNumber(v: MetricScalar): number {
 /**
  * Build the MoM Delta column for the anchor year (D-11): Jan and months whose
  * own or previous value is null → null ("N/A"); unit follows the metric —
- * pp for PERCENT, abs for ABS-display metrics, pct otherwise (AC-P4-03-09/10/13).
+ * pp for PP-display PERCENT metrics, abs for ABS-display metrics, pct otherwise
+ * (AC-P4-03-09/10/13). ACTIVITY_RATIO is PCT since S-P4-02 v1.14.0 (AC-P4-02-48),
+ * PRODUCTIVITY since v1.15.0 (AC-P4-02-50), AVERAGE_CASE_SIZE since v1.16.0
+ * (AC-P4-02-52); MoM pct is not round-up rounded (OQ-56).
  */
 export function buildMomDeltas(points: Array<MetricScalar | null>, def: Pick<DomainDef, 'favourability' | 'changeDisplay' | 'valueType'>): Array<DeltaVM | null> {
   return points.map((value, i) => {
@@ -34,7 +37,7 @@ export function buildMomDeltas(points: Array<MetricScalar | null>, def: Pick<Dom
     const good = def.favourability === 'HIGHER_IS_BETTER' ? diff > 0 : diff < 0;
     const sentiment: DeltaVM['sentiment'] = diff === 0 ? 'NEUTRAL' : good ? 'POSITIVE' : 'NEGATIVE';
     const base: Omit<DeltaVM, 'display'> = { comparisonBasis: 'LAST_MONTH', direction, sentiment };
-    if (def.valueType === 'PERCENT') return { ...base, display: 'PP', pp: round1(diff) };
+    if (def.valueType === 'PERCENT' && def.changeDisplay === 'PP') return { ...base, display: 'PP', pp: round1(diff) };
     if (def.changeDisplay === 'ABS') {
       const abs: MetricScalar = value.kind === 'MONEY'
         ? { kind: 'MONEY', amount: `${diff < 0 ? '-' : ''}${Math.abs(diff).toFixed(2)}`, currency: value.currency }

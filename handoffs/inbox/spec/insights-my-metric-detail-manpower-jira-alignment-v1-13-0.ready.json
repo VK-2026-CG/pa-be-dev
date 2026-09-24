@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-manpower-jira-alignment-v1-13-0",
+  "jiraId": "ARVIJ-159",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+    "dirty": false,
+    "version": "1.13.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/fixtures/metric-detail-manpower.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-11",
+    "AC-P4-02-12",
+    "AC-P4-02-42",
+    "AC-P4-02-43",
+    "AC-P4-02-44",
+    "AC-P4-02-45"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-42/43: for MANPOWER emit barComparison with layout=STACKED, measures EXISTING_AGENTS then NEW_RECRUITS (no per-point change on segments), and totals[] (one per year; value = sum of the two measures; change vs previous year's total). Stop emitting OPENING/CLOSING for MANPOWER (pa-be-dev src/data/values.ts MANPOWER branches). Set comparison.primary current/prior and the snapshot's collected to Total Manpower. BLOCKED for real data on OQ-51: MAPA has manpowerTotal and newRecruits but no existing-agents field; do NOT derive existing = total - newRecruits without source-owner approval. Stub/mock values are acceptable behind the existing mock profile only.",
+        "AC-P4-02-44: flip MANPOWER catalog changeDisplay ABS -> PCT (pa-be-dev src/data/catalog.ts) so every MANPOWER DeltaVM (dashboard card, detail comparison, stacked totals) carries display=PCT with pct populated. abs may still be sent but is not rendered.",
+        "AC-P4-02-45: compute every MANPOWER YoY pct from exact integer counts and round away from zero to an integer per widget-contracts.md section 2 R-PCT-ROUNDUP (e.g. ceil(|delta|*100/prior) with sign; 7/18 -> 39; 10/110 -> 10). Use integer/decimal arithmetic, not floats. Do NOT apply the rule to TPC/PTPC/CASE_COUNT/FYP/FYC/APE/API. Do not invent behavior for prior=0 (OQ-54) or for S-P4-03 MoM deltas (OQ-56).",
+        "Regenerate/validate against the updated metric-detail-manpower.json fixture (25 vs 18, pct 39) and add tests named after AC-P4-02-42..45."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-42: add the stacked-bars face to w.metric-detail.bar-comparison when BarComparisonSectionVM.layout === 'STACKED' (C3 v1.6.0): one bar per year, EXISTING_AGENTS base + NEW_RECRUITS top in measures[] order, total label from totals[].value (never sum client-side), legend from insights.measure.{EXISTING_AGENTS,NEW_RECRUITS} (new en.json keys). layout absent/GROUPED keeps today's grouped/simple behavior (AC-P4-02-11 amended). Segment color tokens are unspecified (no approved baseline): use existing series tokens, no raw colors, and treat the visual as provisional.",
+        "AC-P4-02-43: in STACKED layout render the only delta chip from totals[].change; no chips on segments; none for the earliest year (AC-P4-02-12 amended).",
+        "AC-P4-02-44/45: no unit inference; MANPOWER now arrives with DeltaVM.display=PCT, so the comparison card, dashboard Manpower card and S-P4-03 MoM header switch to % automatically via existing display-driven rendering. Render pct as-is; do not re-round in formatPercent or anywhere else. Remove any MANPOWER-specific ABS assumptions (check pa-fe-dev src/components/metrics.tsx around the manpowerGrowth label branch; the label itself is unchanged).",
+        "Add unit/e2e tests named after AC-P4-02-42..45 against the updated metric-detail-manpower.json fixture."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is one Jira PDF (ARVIJ-159, Team only); the attached sign-off .eml was not read; the clone ARVIJ-535 (PBTB) was not reconciled. Visual/layout aspects of the stacked face fall under the existing 'Strict UX source approval is incomplete' blocker.",
+    "Compatibility is declared ADDITIVE because every C2/C3 schema change is optional (layout, totals) and DeltaVM.display already drives units; however MANPOWER's payload content changes (measure codes, PCT display, totals). A consumer that ignores layout would render the two segments as grouped bars with no chips: degraded, not crashing.",
+    "OQ-51 (blocking): no upstream existing-agents value; total-minus-new derivation not approved.",
+    "OQ-52: ARVIJ-159 has a dated 19-Aug sign-off comment, but all changed (green) requirements rest only on the 10-Sep 'acknowledge ... please proceed'; Jira status Backlog.",
+    "OQ-53: NEW_RECRUITS vs NEW_RECRUIT_CONTRACTED equivalence, MTD/QTD join boundary, AC7 typo reading.",
+    "OQ-54: zero previous-year total makes pct undefined; not specified.",
+    "OQ-55: AC12 'Manpower summary' read as filter-driven values, no new section.",
+    "OQ-56: cross-screen reach of the PCT flip (S-P4-01 card, S-P4-03 MoM header) without bumping those screens; MoM rounding unstated.",
+    "OQ-57: S-P4-02 1.12.0 reserved for the pending Persistency reconciliation (not in repo)."
+  ],
+  "createdAt": "2026-09-24T00:00:00Z"
+}

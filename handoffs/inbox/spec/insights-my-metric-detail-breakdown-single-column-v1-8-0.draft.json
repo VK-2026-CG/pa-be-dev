@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-breakdown-single-column-v1-8-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.8.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/fixtures/metric-detail-tpc.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/api/insights.v1.yaml",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-35"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-35: in src/data/values.ts's breakdown(), replace the hardcoded columns=['INSURANCE','TAKAFUL'] with columns=[l.businessLine], and compute each row's single cell using l directly (no per-column cellLens override). This applies to both TPC and PTPC (same function) — TPC's product list stays 5, PTPC's stays 7, only the column count changes for both.",
+        "creditPointCell()'s formula needs no change beyond receiving the single resolved column's amounts — BL_R.ALL is already the combined ratio by construction, so no separate combine-then-cap step is needed for the ALL case.",
+        "No PerformanceSource change — it does not build breakdowns at all today (pre-existing, documented, unrelated gap).",
+        "Update test/service.test.ts and test/bff-metric-detail.test.ts: assert exactly one column matching the request's businessLine, and that the ALL-filtered total equals the sum of the INSURANCE- and TAKAFUL-filtered totals for the same product."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "No component change expected: BreakdownTable (src/components/metrics.tsx) already maps s.columns/cells generically, and insights.businessLine.ALL ('Both') already exists for the column header.",
+        "Add e2e coverage in tests/e2e/metric-detail.spec.ts asserting the breakdown table renders exactly one column for TPC."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is a requester screenshot of the pre-fix (two-column) state, not a positive design approval of the one-column layout — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker."
+  ],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

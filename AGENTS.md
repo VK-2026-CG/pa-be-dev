@@ -72,4 +72,14 @@ Tests explicitly select `INSIGHTS_DATA_SOURCE=memory`, `MONGODB_URI=""` and
 `NODE_ENV=test`; this preserves offline regression fixtures, not old DB mappings.
 Source mode is development/test only and requires a configured identity allowlist.
 No production readiness or COMPLETE handoff is implied by live mock verification.
+
+**Dev mock fallback (approved exception, 2026-09-24).** `INSIGHTS_DEV_MOCK_FALLBACK=true`
+is the one sanctioned exception to "no synthetic values in Mongo requests". Off
+by default; honoured only in Performance source mode (itself development/test
+only). It fills **metric detail** parts the direct source cannot supply
+(`comparison`, `breakdowns`, or the whole body when Mongo has no value) from the
+stub engine (`mockFillDetail` in `src/data/values.ts`), never overwriting a real
+value, and logs `DEV MOCK fallback` for every fill. Never enable it in a shared
+or production-like environment, and never widen it beyond metric detail
+without a new ruling.
 `.env`, `.env.local`, and local allowlists are ignored — never commit credentials.

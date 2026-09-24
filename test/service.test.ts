@@ -49,8 +49,11 @@ describe('metrics list (S-P4-01)', () => {
     expect(body.items).toHaveLength(8);
     expect(body.context.teamView).toBe('DIRECT');
     const mp = body.items.find((i: any) => i.metricCode === 'MANPOWER');
-    expect(mp.subMeasures.map((m: any) => m.measureCode)).toEqual(['OPENING', 'CLOSING']);
-    expect(mp.comparison.abs.kind).toBe('COUNT');
+    // S-P4-02 v1.13.0 (AC-P4-02-42/44): Total Manpower split, change as %.
+    expect(mp.subMeasures.map((m: any) => m.measureCode)).toEqual(['EXISTING_AGENTS', 'NEW_RECRUITS']);
+    expect(mp.subMeasures[0].value.value + mp.subMeasures[1].value.value).toBe(mp.collected.value);
+    expect(mp.comparison.abs).toBeUndefined();
+    expect(Number.isInteger(mp.comparison.pct)).toBe(true);
   });
 });
 
@@ -127,17 +130,36 @@ describe('metric detail (S-P4-02)', () => {
     const y2 = (await app.inject({ url: '/insights/v1/agents/A1001/metrics/PERSISTENCY_Y2', headers: H('A1001') })).json();
     expect(y1.threshold).toEqual({ value: 85, comparator: 'GTE' });
     expect(y2.threshold).toEqual({ value: 80, comparator: 'GTE' });
-    expect(y1.comparison.change.pct).toBe(2.2);
-    expect(y2.comparison.change.sentiment).toBe('NEGATIVE');
   });
 
-  it('MANPOWER (TEAM) has grouped barComparison with ABS delta chips (AC-P4-02-11/12)', async () => {
+  it('persistency detail omits comparison at both scopes; ACTIVITY_RATIO keeps it (AC-P4-02-46)', async () => {
+    for (const code of ['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2']) {
+      const self = (await app.inject({ url: `/insights/v1/agents/A1001/metrics/${code}`, headers: H('A1001') })).json();
+      const team = (await app.inject({ url: `/insights/v1/agents/L2001/metrics/${code}?scope=TEAM`, headers: H('L2001') })).json();
+      expect(self.threshold).toBeDefined();
+      expect(self.comparison).toBeUndefined();
+      expect(team.threshold).toBeDefined();
+      expect(team.comparison).toBeUndefined();
+    }
+    const ar = (await app.inject({ url: '/insights/v1/agents/L2001/metrics/ACTIVITY_RATIO?scope=TEAM', headers: H('L2001') })).json();
+    expect(ar.threshold).toEqual({ value: 90, comparator: 'GTE' });
+    // v1.14.0 (AC-P4-02-48): ACTIVITY_RATIO's change is PCT now, not PP.
+    expect(ar.comparison.change.pct).toBeDefined();
+    expect(ar.comparison.change.pp).toBeUndefined();
+  });
+
+  it('MANPOWER (TEAM) has stacked barComparison with PCT chip on totals only (AC-P4-02-42/43/44)', async () => {
     const d = (await app.inject({ url: '/insights/v1/agents/L2001/metrics/MANPOWER?scope=TEAM', headers: H('L2001') })).json();
-    expect(d.barComparison.axis.unitCode).toBe('AGENTS');
-    expect(d.barComparison.measures).toHaveLength(2);
-    const closing = d.barComparison.measures[1];
-    expect(closing.points[0].change).toBeUndefined();
-    expect(closing.points[1].change.abs.kind).toBe('COUNT');
+    const bc = d.barComparison;
+    expect(bc.axis.unitCode).toBe('AGENTS');
+    expect(bc.layout).toBe('STACKED');
+    expect(bc.measures.map((m: any) => m.measureCode)).toEqual(['EXISTING_AGENTS', 'NEW_RECRUITS']);
+    for (const m of bc.measures) for (const p of m.points) expect(p.change).toBeUndefined();
+    expect(bc.totals).toHaveLength(bc.years.length);
+    expect(bc.totals[0].change).toBeUndefined();
+    expect(bc.totals[1].change.abs).toBeUndefined();
+    expect(Number.isInteger(bc.totals[1].change.pct)).toBe(true);
+    expect(bc.totals[1].value).toEqual(d.comparison.current);
   });
 
   it('NEW_RECRUIT_CONTRACTED bars exist in SELF too (v1.2.0 fix)', async () => {
@@ -146,10 +168,13 @@ describe('metric detail (S-P4-02)', () => {
     expect(d.barComparison.measures[0].measureCode).toBeUndefined();
   });
 
-  it('PRODUCTIVITY is DECIMAL with ABS change +0.4 (AC-P4-02-14)', async () => {
+  // v1.15.0 (AC-P4-02-50/51) supersedes the ABS "+0.4" change: relative %, rounded up.
+  it('PRODUCTIVITY is DECIMAL with a relative PCT change: 9.7 vs 9.3 ⇒ 5, not +0.4 (AC-P4-02-14/50/51)', async () => {
     const d = (await app.inject({ url: '/insights/v1/agents/L2001/metrics/PRODUCTIVITY?scope=TEAM', headers: H('L2001') })).json();
     expect(d.primary.collected).toMatchObject({ kind: 'DECIMAL', value: 9.7 });
-    expect(d.comparison.change.abs).toMatchObject({ kind: 'DECIMAL', value: 0.4 });
+    expect(d.comparison.prior).toMatchObject({ kind: 'DECIMAL', value: 9.3 });
+    expect(d.comparison.change).toMatchObject({ pct: 5, direction: 'UP', sentiment: 'POSITIVE' });
+    expect(d.comparison.change.abs).toBeUndefined();
   });
 
   it('demo agents drive designed dataStates (AC-P4-02-17/18)', async () => {
@@ -204,7 +229,8 @@ describe('definitions & preferences (S-P4-04)', () => {
     const c = (await app.inject({ url: '/insights/v1/metric-definitions', headers: H('A1001') })).json();
     expect(c.country).toBe('MY');
     const acs = c.items.find((d: any) => d.metricCode === 'AVERAGE_CASE_SIZE');
-    expect(acs.changeDisplay).toBe('ABS');
+    expect(acs.changeDisplay).toBe('PCT'); // v1.16.0, AC-P4-02-52 (was ABS)
+    expect(c.items.find((d: any) => d.metricCode === 'PRODUCTIVITY').changeDisplay).toBe('PCT'); // v1.15.0, AC-P4-02-50
     const nrc = c.items.find((d: any) => d.metricCode === 'NEW_RECRUIT_CONTRACTED');
     expect(nrc.category).toBe('FOCUS');
     expect(nrc.scopeOverrides?.TEAM?.category).toBeUndefined();

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-responsive-gauge-v1-3-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.3.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-21"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "In pa-fe-dev's src/cdk/metric-detail/MetricDetailMY.tsx, the sections[] switch currently wraps every section (including GAUGE and COMPARISON) in its own independent <div className=\"section\">. For metricCode TPC/PTPC only, detect a GAUGE section immediately followed by a COMPARISON section and render both inside one shared card container instead of two separate ones (title from the gauge section's variant, per AC-P4-02-21). Every other section type keeps its own independent card, unchanged.",
+        "Add the breakpoint rules for this combined card only in src/dls-stub/dls.css, following the existing .shell breakpoint pattern (already at 768px/1024px, matching common/ux/tokens/breakpoint.tokens.json breakpoint.tablet/breakpoint.desktop): below breakpoint.desktop, stack the GaugeDonut content above a horizontal divider above the ComparisonCard content; at breakpoint.desktop and above, place them in a two-column grid (gauge left, comparison right) with a vertical divider. No raw colors/sizes outside dls.css.",
+        "No VM, BFF route, or fixture changes — GaugeSectionVM and ComparisonSectionVM are unchanged; this is a pure rendering/CSS change in MetricDetailMY.tsx and dls.css.",
+        "Add a Playwright e2e test named after AC-P4-02-21 covering both TPC's mobile/tablet viewport (single column, horizontal divider) and desktop viewport (two columns, vertical divider); assert the two sections share one card container (e.g. same parent test id/role) rather than two.",
+        "Do not extend this combined-card treatment to FYP or CASE_COUNT (same gauge.primary+comparison.primary pairing per the screen spec's §1 matrix) — the spec's open question on that scope is unresolved."
+      ]
+    }
+  },
+  "openQuestions": [
+    "AC-P4-02-21 is evidenced only for TPC from three requester screenshots, not a Figma export or approved asset — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker, not a new one.",
+    "Whether FYP/CASE_COUNT (same gauge.primary+comparison.primary pairing) should adopt the same combined-card grouping is unresolved (README OQ-26).",
+    "Whether the screenshots' donut-less gauge face redefines w.metric-detail.gauge's donut-270 variant is unresolved (README OQ-27) — the frontend must keep rendering the existing donut visualization inside the gauge column until this is answered.",
+    "Ownership of the breadcrumb and collapsing left nav rail shown in the screenshots (host app shell vs a future Insights screen-chrome package) is unresolved (README OQ-28) and out of scope for this handoff."
+  ],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

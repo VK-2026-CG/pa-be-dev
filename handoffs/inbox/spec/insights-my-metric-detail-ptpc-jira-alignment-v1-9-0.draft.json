@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-ptpc-jira-alignment-v1-9-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.9.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/api/insights.v1.yaml",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-36"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-36: if any pipeline or stub already emits UNIT_TRUST/GROUP_PREMIUM breakdown rows for PTPC, stop emitting them — PTPC's productCode set is now specified as the same 5 codes as TPC (LINKED_PREMIUM, REGULAR_PREMIUM, PSA, SINGLE_PREMIUM, CREDIT_POINTS). No fixture or known implementation currently emits the two dropped codes for PTPC, so this is expected to be a no-op; verify against pa-be-dev's stub engine (metricDetail()) before closing.",
+        "No change to CREDIT_POINTS formula, Penders scope-gating, or Team Type filter behavior — AC-P4-02-31/32/33/34 already covered PTPC and are unaffected.",
+        "No change to the chart/gauge rendering path — the chart-design conflict remains open for both TPC and PTPC; do not add or remove any donut/segment rendering in this revision."
+      ]
+    },
+    "frontend": {
+      "required": false,
+      "requiredActions": []
+    }
+  },
+  "openQuestions": [
+    "OQ-42 (blocking, chart design): ARVIJ-106/164's surviving chart bullet is consistent with the shipped value-only gauge face (AC-P4-02-23), but this revision does not close the chart-design conflict for PTPC — it stays open exactly as it is for TPC (raised v1.7.0).",
+    "OQ-43: UNIT_TRUST/GROUP_PREMIUM are now orphaned product codes (no consuming metric) — kept documented in insights.v1.yaml as reserved/unused rather than removed.",
+    "OQ-44: ARVIJ-164's Jira status is 'Backlog' while ARVIJ-106 is 'In Development', despite both carrying the same signoff/re-signoff comments from the same approver — treated as equally authoritative evidence; flagged in case this reflects an intended build-sequencing decision."
+  ],
+  "createdAt": "2026-09-23T00:00:00Z"
+}

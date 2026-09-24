@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-productivity-jira-alignment-v1-15-0",
+  "jiraId": "ARVIJ-161",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+    "dirty": false,
+    "version": "1.15.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/fixtures/metric-detail-productivity.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "scripts/validate-fixtures.ts",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-13",
+    "AC-P4-02-50",
+    "AC-P4-02-51"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-50: flip PRODUCTIVITY catalog changeDisplay ABS -> PCT (pa-be-dev src/data/catalog.ts) so every PRODUCTIVITY DeltaVM (dashboard card, detail comparison, S-P4-03 MoM display) carries display=PCT with pct populated. pct is the RELATIVE change of the DECIMAL value, (current - prior) / prior * 100, NOT the absolute difference (9.7 vs 9.3 -> 5, not 0.4). abs may still be sent but is not rendered. Keep valueType DECIMAL, goal off, and the GAUGE + COMPARISON section list unchanged; do NOT add bars.primary / barComparison for PRODUCTIVITY (OQ-66 is unresolved).",
+        "AC-P4-02-51: round every PRODUCTIVITY YoY pct away from zero to an integer per widget-contracts.md section 2 R-PCT-ROUNDUP, computed from the exact unrounded DECIMAL values (not the 1-dp display values) with decimal arithmetic. Do not invent behavior for prior=0 (OQ-54) or for S-P4-03 MoM deltas (OQ-56).",
+        "Update tests that assume ABS '+0.4' for PRODUCTIVITY and add tests named after AC-P4-02-50/51 against metric-detail-productivity.json (9.7 vs 9.3, pct 5). Note: PRODUCTIVITY is availability UNBACKED in the pa-be-dev catalog; the flip does not change its source readiness (OQ-PA-12)."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-50/51: no unit inference; PRODUCTIVITY now arrives with DeltaVM.display=PCT, so the detail comparison card, the dashboard Productivity card and the S-P4-03 MoM header switch to % automatically via existing display-driven rendering. Render pct as-is; never re-round. Current/prior values stay DECIMAL via formatDecimal with no '%' suffix (AC-P4-02-14, AC-P4-01-38). The label key insights.comparison.productivityChange is unchanged. Remove any PRODUCTIVITY-specific ABS assumptions.",
+        "Do NOT switch the PRODUCTIVITY gauge.primary widget to a bar chart; ARVIJ-161 AC4's bar-chart requirement is logged as blocking OQ-66 pending a product/UX ruling.",
+        "Add unit/e2e tests named after AC-P4-02-50/51 against metric-detail-productivity.json (expects '+5%' with POSITIVE tone and UP direction; values render '9.7' / '9.3' without '%')."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is one Jira PDF (ARVIJ-161, Team only); the attached sign-off .eml was not read; the clone ARVIJ-537 (PBTB) was not reconciled.",
+    "Compatibility is declared ADDITIVE because no C2/C3/C4 schema changes and DeltaVM.display already drives units; however PRODUCTIVITY's rendered change moves from an absolute '+0.4' to a relative % on S-P4-01, S-P4-02 and S-P4-03.",
+    "OQ-66 (blocking for the chart only): ARVIJ-161 AC4 requires a bar chart; the A1 matrix keeps gauge.primary (DECIMAL, unevidenced donut-270). Not switched; product/UX ruling required.",
+    "OQ-67: ARVIJ-161 has a dated 19-Aug sign-off comment, but the green round-up and '(+/- %)' notes rest only on the 10-Sep 'acknowledge ... please proceed'; Jira status Backlog.",
+    "OQ-68: story editorial inconsistencies (Pre-condition Goal/Target unstruck; 'absolute' wording read as the input to the %; AC15 'AI Insights' has no S-P4-02 surface; AC14 Team Type bullets flattened).",
+    "OQ-54 (extended): a 0 previous-year productivity makes the relative pct undefined; not specified.",
+    "OQ-55 (extended): AC12/AC13 Productivity summary for Insurance/Takaful/Both read as the existing filter-driven value, not a new section.",
+    "OQ-56 (extended): cross-screen reach of the PCT flip without bumping S-P4-01/S-P4-03; MoM rounding unstated."
+  ],
+  "createdAt": "2026-09-24T00:00:00Z"
+}

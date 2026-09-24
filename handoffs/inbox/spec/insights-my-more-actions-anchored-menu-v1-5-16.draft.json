@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-more-actions-anchored-menu-v1-5-16",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.16"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-59",
+    "AC-P4-01-60",
+    "AC-P4-01-61",
+    "AC-P4-01-62"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "In src/components/chrome.tsx's MoreActionsSheet, render the menu variant (anchored popover) at breakpoint.tablet/desktop and keep the existing BottomSheet variant unchanged below breakpoint.tablet, using the already-added useIsTabletUp() hook (src/headless/index.tsx) for the split.",
+        "Reuse the existing MenuPopover primitive (src/dls-stub/index.tsx, already used by ScopePill for the header persona switcher's anchored menu) rather than building new chrome — anchor it right-edge-aligned below the '⋯' trigger, no dimmed backdrop, dismiss via outside click/Escape/row selection, no X control.",
+        "Row content (icons, labels, order) is driven by the same moreActions[] VM/config already in use — no changes to row rendering itself, only the surrounding chrome component.",
+        "Keep the 'Customize Metrics' row's tablet/desktop in-place-overlay behavior (AC-P4-01-58, already implemented) working unchanged inside the new anchored-menu chrome.",
+        "Add e2e coverage for the anchored-menu variant at desktop/tablet viewports: anchor position under the trigger, no backdrop-dim element present, outside-click and Escape both dismiss it, and mobile's existing bottom-sheet behavior (tests/e2e/performance.spec.ts's more-actions coverage) is unaffected.",
+        "No VM/API/BFF/config change required."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-22T00:00:00Z"
+}
