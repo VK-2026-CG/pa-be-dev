@@ -22,9 +22,10 @@ describe('BFF dashboard (S-P4-01)', () => {
     expect(d.milestones.items).toHaveLength(2);
   });
 
-  it('TEAM DIRECT: 9 cards, Group toggle visible for P2 (AC-P4-01-16)', async () => {
+  it('TEAM DIRECT: 8 cards, Group toggle visible for P2 (AC-P4-01-16)', async () => {
     const d = await getJson(app, 'LEADER_P2', `${BFF}/performance/dashboard?scope=TEAM`);
-    expect(d.priorityMetrics).toHaveLength(9);
+    expect(d.priorityMetrics).toHaveLength(8);
+    expect(d.priorityMetrics.map((c: any) => c.metricCode)).not.toContain('NEW_RECRUIT_CONTRACTED');
     expect(d.filters.teamView).toBe('DIRECT');
     expect(d.filters.teamViewToggleVisible).toBe(true);
     expect(d.filters.basisToggleVisible).toBe(false);

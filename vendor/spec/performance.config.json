@@ -193,7 +193,7 @@
             ],
             "defaultBusinessLine": "ALL",
             "priorityCards": {
-              "maxCount": 9,
+              "maxCount": 8,
               "widget": "w.metric.card",
               "widgetVariant": "compact",
               "cardOverrides": {
@@ -370,8 +370,8 @@
         },
         "TEAM": {
           "priority": {
-            "min": 9,
-            "max": 9,
+            "min": 8,
+            "max": 8,
             "editable": false
           },
           "focus": {

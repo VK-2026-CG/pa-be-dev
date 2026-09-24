@@ -43,10 +43,10 @@ describe('metrics list (S-P4-01)', () => {
     expect(body.items[0].goal.state).toBe('SET');
   });
 
-  it('TEAM/DIRECT for a leader returns 9 priority metrics incl. MAPA; MANPOWER has subMeasures', async () => {
+  it('TEAM/DIRECT for a leader returns 8 priority metrics incl. MAPA; MANPOWER has subMeasures', async () => {
     const res = await app.inject({ url: '/insights/v1/agents/L2001/metrics?scope=TEAM&listScope=PRIORITY', headers: H('L2001') });
     const body = res.json();
-    expect(body.items).toHaveLength(9);
+    expect(body.items).toHaveLength(8);
     expect(body.context.teamView).toBe('DIRECT');
     const mp = body.items.find((i: any) => i.metricCode === 'MANPOWER');
     expect(mp.subMeasures.map((m: any) => m.measureCode)).toEqual(['OPENING', 'CLOSING']);
@@ -206,15 +206,16 @@ describe('definitions & preferences (S-P4-04)', () => {
     const acs = c.items.find((d: any) => d.metricCode === 'AVERAGE_CASE_SIZE');
     expect(acs.changeDisplay).toBe('ABS');
     const nrc = c.items.find((d: any) => d.metricCode === 'NEW_RECRUIT_CONTRACTED');
-    expect(nrc.scopeOverrides.TEAM.category).toBe('PRIORITY');
+    expect(nrc.category).toBe('FOCUS');
+    expect(nrc.scopeOverrides?.TEAM?.category).toBeUndefined();
     const ptpc = c.items.find((d: any) => d.metricCode === 'PTPC');
     expect(ptpc.segmentOverrides.SCHEME.included).toBe(false);
   });
 
-  it('GET defaults → source DEFAULT with TEAM having 9 priority codes', async () => {
+  it('GET defaults → source DEFAULT with TEAM having 8 priority codes', async () => {
     const p = (await app.inject({ url: '/insights/v1/agents/L2001/metric-preferences?scope=TEAM', headers: H('L2001') })).json();
     expect(p.source).toBe('DEFAULT');
-    expect(p.priorityMetricCodes).toHaveLength(9);
+    expect(p.priorityMetricCodes).toHaveLength(8);
     expect(p.focusMetricCodes).toEqual(['FYC', 'PERSISTENCY_CY']);
   });
 

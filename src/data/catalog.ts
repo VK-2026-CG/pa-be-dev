@@ -66,7 +66,7 @@ export const CATALOG: MetricDefinition[] = [
     capabilities: cap({ history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'NEW_RECRUIT_CONTRACTED', availability: 'UNBACKED', valueType: 'COUNT', category: 'FOCUS', defaultSelected: false, defaultOrder: 5, customizable: true,
-    scopes: ['SELF', 'TEAM'], scopeOverrides: { TEAM: { category: 'PRIORITY', defaultOrder: 9, defaultSelected: true } },
+    scopes: ['SELF', 'TEAM'],
     favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
     capabilities: cap({ barComparison: true, history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },

@@ -30,8 +30,11 @@ export function putPreferences(
   for (const c of all) {
     if (!byCode.has(c)) return { ok: false, error: { code: 'INS-4224', detail: `Metric ${c} not in the ${scope} catalog` } };
   }
-  const lockedPriority = cat.filter((d) => d.effCategory === 'PRIORITY' && !d.customizable).map((d) => d.metricCode);
-  const min = lockedPriority.length; const max = lockedPriority.length; // MY: locked set, editable=false
+  // MY: the scope's whole priority set is locked (editable=false), including
+  // any metric a scope override promotes to PRIORITY while keeping its base
+  // `customizable: true` flag.
+  const lockedPriority = cat.filter((d) => d.effCategory === 'PRIORITY').map((d) => d.metricCode);
+  const min = lockedPriority.length; const max = lockedPriority.length;
   if (body.priorityMetricCodes.length < min || body.priorityMetricCodes.length > max) {
     return { ok: false, error: { code: 'INS-4221', detail: `Priority metrics must contain exactly ${min} entries for MY` } };
   }
