@@ -15,6 +15,9 @@ export async function composeCustomize(
   const defs: DomainDef[] = defsPayload.items;
   const eff = effectiveDefs(defs, scope, 'STANDARD');
   const byCode = new Map(eff.map((d) => [d.metricCode, d]));
+  const constraints = CONFIG.screens.customize.scopes[scope]
+    ?? CONFIG.screens.customize.scopes.SELF
+    ?? { priority: { min: 4, max: 4, editable: false }, focus: { min: 0, max: 6 } };
 
   const priorityOrder: string[] = prefs.priorityMetricCodes;
   const priority: CustomizeItemVM[] = priorityOrder
@@ -25,7 +28,7 @@ export async function composeCustomize(
         metricCode: c,
         ...(d.capabilities.repricing ? { variant: 'WITHOUT_REPRICING' as const } : {}),
         selected: true,
-        locked: !d.customizable,
+        locked: !constraints.priority.editable || !d.customizable,
         reorderable: true,
         order: i + 1,
       };
@@ -45,10 +48,6 @@ export async function composeCustomize(
     reorderable: true,
     order: i + 1,
   }));
-
-  const constraints = CONFIG.screens.customize.scopes[scope]
-    ?? CONFIG.screens.customize.scopes.SELF
-    ?? { priority: { min: 4, max: 4, editable: false }, focus: { min: 0, max: 6 } };
 
   return {
     meta: buildMeta('S-P4-04', '2026-07-27'),
