@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-filter-sheet-redesign-v1-5-14",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.14"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-54",
+    "AC-P4-01-55",
+    "AC-P4-01-56",
+    "AC-P4-01-57"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Implement the new `w.filter.sheet` (`grouped-radio` variant) combined Filter sheet on S-P4-01: title 'Filter & Selection' with X close, 'Product' and 'Time Period' sections as rounded-card radio-row lists (AC-P4-01-54, AC-P4-01-55).",
+        "Change the sheet's commit model from refetch-per-change to local staged state committed by a single full-width 'Apply' button (insights.common.apply), replacing the retired standalone 'Select' CTA for this sheet only (AC-P4-01-56).",
+        "Drop the periodOptionsMeta date-range subtitle from period rows inside this sheet; keep the VM field wired but unconsumed here (AC-P4-01-55).",
+        "Add the conditional third section for the Scheme/Group toggles when basisToggleVisible/teamViewToggleVisible is true, using switch rows in the same card convention (AC-P4-01-57); not exercised under current MY config defaults.",
+        "Leave w.filter.segmented and the standalone w.filter.period bottom-sheet variant unchanged for any other usage (e.g. S-P4-02).",
+        "Add one test per new AC id per AGENTS.md §4."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-21T00:00:00Z"
+}

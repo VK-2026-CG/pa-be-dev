@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-milestones-responsive-fix-v1-3-1",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "1.3.1" },
+  "changedArtifacts": [
+    "domains/insights/screens/MilestonesAndBenefits_S-P4-05/requirements/legacy-contract.md",
+    "domains/insights/screens/MilestonesAndBenefits_S-P4-05/screen.manifest.json",
+    "domains/insights/screens/screen-registry.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": ["AC-P4-05-06"],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Stop MilestonesMY (S-P4-05) from inheriting .shell's >=768px width bump: cap its own content at --screen-max, centered, at every breakpoint, so the mobile-measured benefit cards, segmented tabs and progress bar stay at their designed proportions instead of stretching edge-to-edge on tablet/desktop.",
+        "This is a regression fix only, not a new tablet/desktop design; the manifest blocker 'Responsive/state visual baselines are incomplete' remains open pending real UX baselines for a proper multi-column reflow."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

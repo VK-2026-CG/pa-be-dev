@@ -119,7 +119,10 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
   const agents = performanceProfile();
   const db = await getPerformanceDb();
   log('data source: direct Performance Mongo DEVELOPMENT profile (three collections only)');
-  return new PerformanceSource(db, agents, log);
+  // performanceProfile() above already refuses anything but development/test.
+  const devMockFallback = process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true';
+  if (devMockFallback) log('data source: DEV MOCK fallback ON — metric-detail gaps are filled with stub values');
+  return new PerformanceSource(db, agents, log, devMockFallback);
 }
 
 export { AGENTS, ANCHOR_YEAR, CATALOG, contextFor };

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-desktop-cards-v1-5-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "common/assets/MY/manifest.json",
+    ".gitattributes",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-23",
+    "AC-P4-02-27",
+    "AC-P4-02-28"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "BLOCKED PENDING OQ-29/OQ-30 — unchanged from the v1.4.0 handoff. AC-P4-02-27 pairs variant.with-repricing with penders.primary at breakpoint.desktop, but no metric emits both sections: penders.primary is gated on a COUNT primary in src/bff/compose/metric-detail.ts and repricing variants only exist on MONEY metrics (TPC/PTPC). Until the penders value source is confirmed, the two-column row has nothing to render and no backend change is authorized."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-23 amended: remove the breakpoint gate on the value-only gauge face in src/components/metrics.tsx — GaugeComparisonCard passes valueOnly unconditionally, so the TPC/PTPC combined card has no donut at any width. Standalone GaugeDonut (FYP, CASE_COUNT, PRODUCTIVITY, AVERAGE_CASE_SIZE) keeps the donut, unevidenced. The desktop e2e assertion added for v1.4.0 (which asserted the donut survived at >=1024px) must be inverted, not deleted.",
+        "AC-P4-02-28: render the comparison heading in the combined card's comparison half using the new key insights.detail.comparisonTitle, interpolating the current period (t('insights.detail.comparisonTitle', { period: t(`insights.period.${period}`) })). This needs context.period threaded from MetricDetailMY through GaugeComparisonCard. Re-vendor the spec first — the key only reaches the app via sync:specs.",
+        "AC-P4-02-22 completion: the back control gains its visible label from insights.common.back (added in v1.4.0, reaching the app with this revision's sync), keeping the existing aria-label.",
+        "AC-P4-02-27: in MetricDetailMY.tsx's section loop, add a second look-ahead alongside the existing GAUGE+COMPARISON pairing — when a VARIANT_VALUE is immediately followed by a PENDERS, wrap both in one .section-pair container. Emit the wrapper ONLY when both sections are present, so a lone section keeps rendering full-width (which is every metric today).",
+        "Add .section-pair to src/dls-stub/dls.css as a single-column grid that becomes two equal columns at min-width: 1024px, reusing the existing .shell/.gauge-comparison breakpoint convention. No new breakpoint values, no raw values outside dls.css.",
+        "No formatter change (README OQ-25 still blocking) and no nav/link/unit on the penders card (OQ-29/30 still blocking)."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is a requester-supplied MY desktop screenshot, not a Figma export — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker.",
+    "OQ-35: insights.detail.comparisonTitle is specified with {period} interpolation but only the YTD period is evidenced — confirm, or fix the heading to a literal \"YTD Comparison\".",
+    "OQ-36: AC-P4-02-27's two-column row cannot be exercised or tested until penders emission is unblocked (OQ-29/30); the layout ships unrendered.",
+    "OQ-37: the 2025 row reads 91% on both desktop screenshots and 800K on both mobile/tablet ones — a consistent split that contradicts ComparisonSectionVM.prior's type and the card's own +11.4% delta. Logged, not replicated.",
+    "OQ-25 (pre-existing, blocking): money abbreviation without a currency prefix remains unresolved and unimplemented.",
+    "Standalone gauges (FYP, CASE_COUNT, PRODUCTIVITY, AVERAGE_CASE_SIZE) keep donut-270 — the value-only face is evidenced only for TPC's combined card."
+  ],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-priority-metrics-single-column-v1-5-10",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.10"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-43"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Stop sharing CSS/markup between the Priority Metrics row and the Other Focus Metrics row in src/cdk/performance/PerformanceMY.tsx (both currently use CarouselRow with className=\"metric-grid\") — give Priority Metrics its own class (e.g. \"priority-grid\") so its below-1024px layout can differ from Other Focus Metrics' without touching the latter.",
+        "Below breakpoint.desktop (<1024px, covering both mobile and tablet), render the Priority Metrics row as a static vertical single-column list in src/dls-stub/dls.css: each card full width, stacked top to bottom in priorityMetrics[] order, wrapping to as many rows as needed. Remove the horizontal scroll-snap track, scroll-snap-type, and the pagination-dots affordance for this row below breakpoint.desktop — CarouselRow's dots render prop should likely not be used for Priority Metrics anymore below 1024px (re-evaluate whether CarouselRow is still the right building block for this row, or a plain vertical list container is simpler).",
+        "At breakpoint.desktop (>=1024px) the Priority Metrics row is unchanged — keep the existing 2-column CSS grid inside the collapsible MetricPanel exactly as today (AC-P4-01-39).",
+        "Other Focus Metrics (src/cdk/performance/PerformanceMY.tsx ~206-235, class \"metric-grid\") must be completely unaffected — verify it still renders the horizontal scroll-snap carousel below 1024px and the 2-column grid at >=1024px, unchanged.",
+        "No VM/config changes: priorityMetrics[], w.metric.card (compact variant), and metricTracking.priorityCards (including maxCount: 4 SELF / 9 TEAM) are all unchanged.",
+        "Add/verify Playwright tests named after AC-P4-01-43: mobile/tablet e2e asserting the Priority Metrics cards stack vertically (no horizontal scroll container, no dots) while Other Focus Metrics still carousels; desktop e2e asserting the Priority Metrics 2-column grid is unchanged."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Design source for the below-1024px single-column layout is three requester-supplied screenshots, not a Figma export or approved asset — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker, not a new one.",
+    "Tablet (768-1023px) still has no layout of its own distinct from mobile — AC-P4-01-43 makes it explicitly identical to mobile (single column) rather than resolving the general 'tablet has no control-layout spec' blocker for other regions of this screen."
+  ],
+  "createdAt": "2026-09-19T00:00:00Z"
+}

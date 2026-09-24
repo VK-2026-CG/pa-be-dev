@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-persistency-jira-alignment-v1-12-0",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+    "dirty": false,
+    "version": "1.12.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-03",
+    "AC-P4-02-25",
+    "AC-P4-02-46",
+    "AC-P4-02-47"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-46: getMetricDetail must omit `comparison` for PERSISTENCY_CY, PERSISTENCY_Y1 and PERSISTENCY_Y2 at both scopes (pa-be-dev src/data/values.ts detail path). The existing composer (src/bff/compose/metric-detail.ts 'comparison.primary' returns null when d.comparison is absent) then emits no comparison.primary; no composer change is needed. Do NOT touch listAgentMetrics / the S-P4-01 persistency card delta (still reads the snapshot change; cross-screen OQ-59), ACTIVITY_RATIO's comparison, S-P4-03 history, or any other metric.",
+        "AC-P4-02-47: in the S-P4-02 BFF route (GET /api/bff/v1/performance/metrics/:metricCode), when metricCode is PERSISTENCY_CY/Y1/Y2 call getMetricDetail with period=YTD regardless of the incoming `period` query, and return context.period='YTD' with the YTD snapshot's asOfDate. Keep businessLine/basis/scope/teamView as received. Do NOT change the catalog's dimensions.periods, do NOT add an MTD/QTD persistency mapping, and do NOT substitute YTD into MTD/QTD values anywhere else (C0 AC-PA-SRC-04 stays as-is; src/data/performance-mapping.ts persistency periods:['YTD'] is unchanged). No YTD value => dataState EMPTY as today.",
+        "No change: threshold sentiment (POSITIVE when met, NEGATIVE otherwise; GTE => current >= threshold) already satisfies the RAG ring. Thresholds 90/85/80 unchanged.",
+        "Add tests named after AC-P4-02-46 (persistency detail has no COMPARISON section at SELF and TEAM; ACTIVITY_RATIO still has one) and AC-P4-02-47 (MTD and QTD requests for each persistency metric return context.period=YTD and the same value as a YTD request; non-persistency metrics keep the requested period). Update test/service.test.ts 'PERSISTENCY_Y1 carries its own threshold 85 GTE; Y2 -> 80 (AC-P4-02-15)': it reads y1.comparison / y2.comparison, which will now be absent (keep its threshold assertions). Keep unchanged: test/performance-source.test.ts (MTD persistency at the domain source is still EMPTY; the YTD request happens in the BFF), test/performance-read.test.ts (no MTD persistency path), and test/bff-compose.test.ts's threshold case (it feeds a mocked comparison to a composer that does not change). Rename test/bff-metric-detail.test.ts 'PERSISTENCY_Y1: threshold gauge 85 GTE, pp change' to drop 'pp change' and assert no COMPARISON section."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-46: no code change is required for rendering, since sections are payload-driven and a missing comparison.primary leaves no gap (AC-P4-02-01). Remove or retarget any test or mock that expects a persistency comparison card or 'Persistency Change +2pp'. Keep insights.comparison.persistencyChange in en.json (reserved); the persistency branch of the comparison-label helper in src/components/metrics.tsx becomes unreachable and may stay for forward compatibility.",
+        "AC-P4-02-47: no code change is required. The Time pill renders context.period, which is now 'YTD' for persistency. Do not hide the pill and do not add a new tag. Back must return to the dashboard with its own previously selected period (do not propagate the detail's context.period back into dashboard filter state).",
+        "Confirm (no change expected): ThresholdArc tints the arc tone-success for sentiment POSITIVE and tone-danger otherwise, and shows the threshold marker at both SELF and TEAM.",
+        "Add e2e/unit tests named after AC-P4-02-46 and AC-P4-02-47 (persistency detail from an MTD dashboard shows only the threshold gauge, with the Time pill reading YTD; Back restores MTD)."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Sources: ARVIJ-111/170 (Current Year), ARVIJ-113/172 (First Year), ARVIJ-115/174 (Second Year), six Jira PDF exports dated 22-Sep-2026, not stored (no SHA-256). The handoff schema allows a single jiraId, so it is omitted here. The sign-off .eml was not read; the 3-Sep MOM image was read only as rendered in the PDFs; PBTB clones ARVIJ-522/524/526/546/548/550 were not reconciled.",
+    "Compatibility is declared ADDITIVE because no C2/C3/C4 schema changes (MetricDetail.comparison was already optional). The persistency payload content does change: comparison is gone and context.period is YTD. A consumer still rendering a comparison card would simply not receive one: degraded, not crashing.",
+    "OQ-58: the changed requirements rest on the 10-Sep 'acknowledge ... please proceed', not a restated sign-off; all six stories are Backlog.",
+    "OQ-59: S-P4-01 card follow-ups (not in this handoff): 'Persistency is calculated annually' text, YTD card value irrespective of the period, and removal of the card PP delta.",
+    "OQ-60: which period insights_metric_detail_viewed reports for persistency (rendered YTD vs entry period) is undecided; keep current producer behavior until ruled.",
+    "OQ-61: story editorial inconsistencies (ARVIJ-115 AC11 not fully struck; ARVIJ-174 AC4 threshold line struck while threshold is confirmed present; ARVIJ-174 AC10 lacks the YTD note).",
+    "OQ-62: YTD persistency source mapping remains CANDIDATE_MAPPING (OQ-PA-13); AC-P4-02-47 fixes the requested period only."
+  ],
+  "createdAt": "2026-09-24T00:00:00Z"
+}

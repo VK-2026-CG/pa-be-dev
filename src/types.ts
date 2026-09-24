@@ -83,6 +83,10 @@ export interface BarComparison {
   years: number[];
   axis?: { unitCode?: string };
   measures: Array<{ measureCode?: string; points: Array<{ year: number; value: MetricScalar; change?: Change }> }>;
+  /** S-P4-02 v1.13.0 (AC-P4-02-42): absent ⇒ GROUPED. */
+  layout?: 'GROUPED' | 'STACKED';
+  /** Required when `layout=STACKED`: per-year sum of the measures + the only delta chip (AC-P4-02-43). */
+  totals?: Array<{ year: number; value: MetricScalar; change?: Change }>;
 }
 export interface MetricDetail {
   metricCode: string; valueType: ScalarKind; context: SnapshotContext;

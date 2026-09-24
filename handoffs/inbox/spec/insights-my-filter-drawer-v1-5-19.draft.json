@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-filter-drawer-v1-5-19",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "1.5.19" },
+  "changedArtifacts": [
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/screens/screen-registry.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": ["AC-P4-01-71", "AC-P4-01-72", "AC-P4-01-73", "AC-P4-01-74", "AC-P4-01-75"],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Give the Filter & Selection sheet the same responsive chrome split as the Customize Metrics side-sheet: bottom sheet below 768px, right-anchored full-height side drawer (width: min(420px,100vw), no rounded corners, left border) at 768px and above.",
+        "Reuse the existing align=\"none\" CSS-only responsive pattern (no breakpoint branching in JS) already established for the Customize Metrics overlay; keep the staged Product/Time/Apply behavior, focus trap, Escape and backdrop dismissal unchanged at every breakpoint.",
+        "Remove the arrow-right-up-line nav icon from the Other Focus Metrics 'simple' MetricCard face; keep the card's Link wrapper tappable end-to-end.",
+        "Add a 1px solid #E4E4E7 border to every w.metric.card face (compact and simple); leave existing shadow/radius/padding per face unchanged.",
+        "Append a muted '(Direct View)'/'(Group View)' suffix to the Performance heading whenever scope=TEAM, driven by filters.teamView (new insights.dashboard.teamViewSuffix key + existing insights.teamView.{DIRECT,GROUP} labels), not by client persona."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

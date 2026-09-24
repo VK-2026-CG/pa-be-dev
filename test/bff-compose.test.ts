@@ -227,6 +227,22 @@ describe('composeMetricDetail (S-P4-02)', () => {
     expect(vm.sections[0]).toMatchObject({ sentiment: 'POSITIVE', threshold: { value: 80 } });
   });
 
+  it('requests YTD from the domain for persistency whatever the lens period; other metrics pass it through (AC-P4-02-47)', async () => {
+    const asked: string[] = [];
+    const api = stubApi({
+      metricDetail: async (_c: string, _a: string, code: string, p: { period: string }) => {
+        asked.push(`${code}:${p.period}`);
+        return { metricCode: code, valueType: 'PERCENT', context: CONTEXT, dataState: 'OK',
+          primary: { collected: { kind: 'PERCENT', value: 91 } }, threshold: { value: 90, comparator: 'GTE' } };
+      },
+    });
+    for (const period of ['MTD', 'QTD', 'YTD'] as const) {
+      await composeMetricDetail(api, P4, 'PERSISTENCY_CY', { ...SELF_LENS, period });
+    }
+    await composeMetricDetail(api, P4, 'ACTIVITY_RATIO', { ...SELF_LENS, period: 'MTD' });
+    expect(asked).toEqual(['PERSISTENCY_CY:YTD', 'PERSISTENCY_CY:YTD', 'PERSISTENCY_CY:YTD', 'ACTIVITY_RATIO:MTD']);
+  });
+
   it('bar metric renders BAR_COMPARISON first (no gauge); team chip present (AC-P4-02-10/11)', async () => {
     const api = detailApi({
       metricCode: 'MANPOWER', valueType: 'COUNT',

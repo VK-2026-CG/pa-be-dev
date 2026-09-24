@@ -7,7 +7,7 @@ import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DB, PERFORMANCE_READ_TIMEOUT_MS, t
 import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
 import { sourceMetricScalar } from './performance-values.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
-import type { Lens } from './values.js';
+import { mockFillDetail, type Lens } from './values.js';
 import type {
   Basis,
   DrilldownBasis,
@@ -35,6 +35,8 @@ export class PerformanceSource implements DataSource {
     private readonly db: Db,
     private readonly agents: Map<string, AgentRecord>,
     private readonly log: (msg: string) => void = () => {},
+    /** DEV-ONLY opt-in (`INSIGHTS_DEV_MOCK_FALLBACK=true`): fill detail gaps from the stub engine. */
+    private readonly devMockFallback = false,
   ) {
     if (db.databaseName !== PERFORMANCE_DB) throw new Error('Invalid Performance source database');
   }
@@ -122,11 +124,15 @@ export class PerformanceSource implements DataSource {
     const pendersCaseCount = collected && def.capabilities.repricing && lens.scope === 'TEAM'
       ? mockTeamPendersCaseCount(code, lens.teamView ?? 'DIRECT')
       : undefined;
-    return { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
+    const detail: MetricDetail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),
       ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING' as const, collected: alt }] } : {}),
       ...(collected && def.threshold ? { threshold: def.threshold } : {}),
       ...(pendersCaseCount !== undefined ? { pendersCaseCount } : {}) };
+    if (!this.devMockFallback) return detail;
+    const { detail: filledDetail, filled } = mockFillDetail(code, lens, detail);
+    if (filled.length) this.log(`performance DEV MOCK fallback: agent=${agent.agentId} metric=${code} filled=${filled.join(',')}`);
+    return filledDetail;
   }
   async metricSeries(agent: AgentRecord, code: string, lens: Lens, anchorYear: number, yearsBack: number): Promise<MetricSeries | undefined> {
     const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);

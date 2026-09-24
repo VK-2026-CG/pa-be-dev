@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-priority-card-face-simplified-v1-5-11",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.11"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-44"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "In src/components/metrics.tsx (MetricCard, variant='priority'): render title and subtitle (priorityMetrics[].variant) on one line, subtitle inline immediately after the title, parenthesized, in the existing muted/caption style (reuse the existing i18n key insights.variant.{code}; no new key). Cards with no variant keep rendering the title alone.",
+      "Remove the goal-line div and ProgressBar from the compact/priority card's render path entirely (both the SET and NOT_SET/showGoal branches) -- goal is never shown on this card face regardless of goal.state. Do not remove goal.{state,target,progressPct} from the VM or from anywhere Metric Detail (S-P4-02) reads them -- those are unaffected.",
+        "Remove the top-right arrow/nav Icon (token 'arrow-right-up-line') from the card's .head markup. Keep the outer <Link to={href(vm.nav)}> wrapper exactly as-is -- the whole card stays the tap target to Metric Detail, unchanged (AC-P4-01-08).",
+        "Move the delta (<DeltaLine>) onto the same row as the value, right-aligned -- reuse the existing .spread utility class pattern already used by the simple variant's value+delta row, rather than inventing new CSS. Update .mcard/.head/.value-block/.foot rules in src/dls-stub/dls.css accordingly for the priority/compact card only; the simple variant (Other Focus Metrics) is unaffected.",
+        "Do NOT touch value formatting (formatMoney/formatScalar) as part of this handoff -- value-abbreviation is blocked pending OQ-25 and is explicitly out of scope here.",
+        "Add/verify Playwright tests named after AC-P4-01-44 covering both a goal-SET priority card (e.g. TPC) and a showGoal=false card (PTPC): both must render identically now -- title+subtitle one line, no goal line/progress bar, no nav icon, delta on the value's row -- across mobile and desktop."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-25 (blocking, not this handoff's concern): priority metric value abbreviation (\"RM 80,000\" -> \"800K\") contradicts an earlier reference mockup (FYP \"RM 420K\", currency kept) and AC-P4-01-09/D-04 (formatMoney, no abbreviated mode). No VM/formatter change is authorized until product/UX resolves which metrics abbreviate, whether the currency prefix survives, thresholds/rounding, and scope (dashboard-only vs every consumer). This handoff's AC-P4-01-44 (layout only) is independent and not blocked by OQ-25."
+  ],
+  "createdAt": "2026-09-19T00:00:00Z"
+}

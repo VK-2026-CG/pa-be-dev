@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-scope-switcher-responsive-v1-5-9",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.9"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-42"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Replace the native <select>-based ScopeSwitcher (src/components/chrome.tsx) with the DLS ScopePill primitive (pill button + anchored menu, Figma 6588:16960, 8px corner radius per direct instruction rather than the Figma node's full rounding); ScopeSwitcherVM props are unchanged.",
+        "Add icon.insights.scope-avatar (Remix user-line placeholder) as public/icons/scope-avatar.svg + MANIFEST.json entry + scripts/copy-icons.mjs mapping; prefix the pill with it at every breakpoint, using the same single-person icon regardless of the current scope.",
+        "Extend ScopePill (src/dls-stub/index.tsx) with optional icon/ariaLabel props and a .scope-pill-label span that stays in the DOM at every breakpoint; hide it via CSS below breakpoint.tablet (<768px) and show it at breakpoint.tablet/desktop (>=768px), reusing the AC-P4-01-41 breakpoint token rather than a new one. Drop the pill's previous fixed min-width below breakpoint.tablet so the icon-only state stays content-sized.",
+        "Keep aria-label=\"Scope switcher\" on the trigger button at every breakpoint so the accessible name is breakpoint-independent.",
+        "Selecting a menu option (Self/Team) must behave exactly as A1 (refetch, teamView reset) and close the menu; the current scope is check-marked in the open menu.",
+        "Escape-to-close on the anchored menu: extracted a shared useEscapeKey hook in src/headless/index.tsx (used by both Layer and MenuPopover) rather than duplicating a keydown listener.",
+        "Add/verify Playwright tests named after AC-P4-01-42 in tests/e2e/personas.spec.ts (mobile: icon+chevron only, .scope-pill-label not visible, menu click still refetches) and tests/e2e/performance-desktop.spec.ts (desktop: .scope-pill-label visible with text 'Self')."
+      ]
+    }
+  },
+  "openQuestions": [
+    "icon.insights.scope-avatar (Remix user-line) remains an unapproved placeholder pending a Figma-exported avatar asset from UX (README §7 OQ-24); replacing the icon file only requires no VM/prop change."
+  ],
+  "createdAt": "2026-09-19T00:00:00Z"
+}

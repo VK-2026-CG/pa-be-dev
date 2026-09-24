@@ -50,19 +50,23 @@ export const CATALOG: MetricDefinition[] = [
     dimensions: { periods: P, businessLines: BL, basis: B },
     segmentOverrides: { SCHEME: { defaultOrder: 2 } } },
   { metricCode: 'MANPOWER', availability: 'UNBACKED', valueType: 'COUNT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 5, customizable: false,
-    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    // S-P4-02 v1.13.0 (ARVIJ-159, AC-P4-02-44): change is always shown as % — was ABS.
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
     capabilities: cap({ barComparison: true, history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'ACTIVITY_RATIO', availability: 'UNBACKED', valueType: 'PERCENT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 6, customizable: false,
-    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PP',
+    // S-P4-02 v1.14.0 (ARVIJ-160, AC-P4-02-48): change is a relative % of the ratio — was PP.
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
     capabilities: cap({ threshold: true, history: true }), threshold: { value: 90, comparator: 'GTE' },
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'PRODUCTIVITY', availability: 'UNBACKED', valueType: 'DECIMAL', category: 'PRIORITY', defaultSelected: true, defaultOrder: 7, customizable: false,
-    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    // ABS -> PCT: S-P4-02 v1.15.0 (ARVIJ-161, AC-P4-02-50). Stays a gauge — the bar-chart ask is OQ-66.
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
     capabilities: cap({ history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'AVERAGE_CASE_SIZE', availability: 'UNBACKED', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 8, customizable: false,
-    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'ABS',
+    // ABS -> PCT: S-P4-02 v1.16.0 (ARVIJ-162, AC-P4-02-52). Stays a gauge — the bar-chart ask is OQ-66.
+    scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
     capabilities: cap({ history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'NEW_RECRUIT_CONTRACTED', availability: 'UNBACKED', valueType: 'COUNT', category: 'FOCUS', defaultSelected: false, defaultOrder: 5, customizable: true,

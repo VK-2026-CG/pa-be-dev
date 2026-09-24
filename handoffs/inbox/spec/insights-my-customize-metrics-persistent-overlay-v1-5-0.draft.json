@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-customize-metrics-persistent-overlay-v1-5-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/requirements/legacy-contract.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/README.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/screen.manifest.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-04-33",
+    "AC-P4-04-34",
+    "AC-P4-04-35",
+    "AC-P4-04-36",
+    "AC-P4-04-37",
+    "AC-P4-01-58"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Add a tablet-boundary breakpoint hook (e.g. useIsTabletUp, mirroring the existing useIsDesktop pattern in src/headless/index.tsx, reading --bp-tablet-min) so PerformanceMY.tsx can branch its Customize Metrics entry points by breakpoint.",
+        "In src/components/chrome.tsx's MoreActionsSheet, support intercepting a specific action row (id CUSTOMIZE_METRICS) at tablet/desktop to call a local handler instead of navigating via <Link>; leave every other row's navigation unchanged.",
+        "In src/cdk/performance/PerformanceMY.tsx, add local overlay state for Customize Metrics (parallel to the existing filterOpen/moreOpen pattern) and render CustomizeMetricsMY in place at tablet/desktop, wiring the More-actions row and the '+ add focus metric' icon to open it locally instead of navigating.",
+        "In src/cdk/customize-metrics/CustomizeMetricsMY.tsx, add optional onClose/onSaved props (used by the embedded/overlay call site) without removing or breaking the existing route-based {query} call site used by mobile and by the standalone route.",
+        "On successful save from the embedded overlay, refetch only the dashboard's metric sections (reuse the existing dashboard GET the Filter-apply flow already issues) without clearing the currently-rendered VM first, so there is no full-page loading-skeleton flash and no lost scroll/filter state.",
+        "Do not change the route insights/customize-metrics itself — keep it working as the mobile mechanism and as a direct-link/refresh fallback at every breakpoint.",
+        "Update/replace tests/e2e/customize-desktop.spec.ts to open the overlay from /insights/performance (not page.goto directly to the customize-metrics route) and assert dashboard state (filters, a metric card, scroll position) is unchanged across open/close/save. Leave tests/e2e/customize.spec.ts (mobile) unchanged.",
+        "Add one test per new AC id per AGENTS.md §4."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-21T00:00:00Z"
+}

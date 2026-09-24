@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-dashboard-chrome-tweaks-v1-5-12",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.12"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/config/countries/MY/performance.config.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-45",
+    "AC-P4-01-46",
+    "AC-P4-01-47",
+    "AC-P4-01-48"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Sync vendor/spec/performance.config.json (or re-run npm run sync:specs once this spec commit is available) to pick up milestones.visible=false for both SELF and TEAM scopes -- no code change needed for AC-P4-01-45 itself; PerformanceMY.tsx already gates R7 on vm.milestones.visible. Verify R7 no longer renders by default and that setting visible=true locally still renders it exactly as before (traceability rows #14-18, AC-P4-01-10/-12/-20 unchanged).",
+        "AC-P4-01-46: in src/dls-stub/dls.css, reduce .mcard's --card-pad usage from 12px to 8px (introduce a dedicated token or override scoped to .mcard so .mcard.simple and any other --card-pad consumer are unaffected -- confirm --card-pad isn't shared elsewhere first), remove .mcard .head's min-height:24px, and reduce the gap before the value+delta row (.mcard .foot's padding-top) from 8px to 4px. Direct-instruction estimate, not measured -- flagged in the spec; do not over-engineer, just apply the three values.",
+        "AC-P4-01-47: in src/cdk/performance/PerformanceMY.tsx, change Other Focus Metrics' CarouselRow className from 'metric-grid' to a NEW class (e.g. 'focus-grid') -- do not reuse 'priority-grid' literally, per the spec's explicit 'own independent AC/class' requirement. In dls.css, give '.carousel-track.focus-grid' the same below-1024px static single-column rules as '.carousel-track.priority-grid' (duplicate the CSS, do not just alias the classes, since AC-P4-01-43 and AC-P4-01-47 are independently specified and may diverge later) and add it alongside '.carousel-track.priority-grid'/'.metric-grid' in the existing @media (min-width:1024px) 2-column grid rule. After this change, '.carousel-track.metric-grid' becomes unused (nothing else references it) -- remove the now-dead base .metric-grid carousel rules and its @media sub-rules, but keep '.metric-grid .milecard' style defensive rules only if still referenced elsewhere (confirm milestones' CarouselRow has no className before removing).",
+        "AC-P4-01-48: give the two Product/Time summary pills (PerformanceMY.tsx's filter-row buttons, currently className='pill') a NEW dedicated class (e.g. 'filter-pill') instead of editing the shared .pill class -- History screen (HistoryMY.tsx) uses .pill/.pill.active for its own filter-chip tabs and must be visually unaffected. New class should copy .pill's existing rule verbatim except border-radius: 8px instead of var(--radius-chip).",
+        "Add/verify Playwright tests named after each AC: AC-P4-01-45 (R7 absent by default on both SELF/TEAM personas, e.g. LEADER_P2/LEADER_P3/AGENT_P4 dashboards), AC-P4-01-46 (visual/geometry assertion the card is shorter -- boundingBox height comparison is acceptable given no exact target), AC-P4-01-47 (Other Focus Metrics stacks single-column below 1024px like Priority Metrics, still 2-col grid at >=1024px), AC-P4-01-48 (the two summary pills have the new class/8px radius; History's filter chips still render with the original .pill class/radius, unaffected)."
+      ]
+    }
+  },
+  "openQuestions": [
+    "AC-P4-01-46's spacing values (12px->8px padding, 24px min-height removed, 8px->4px gap) are unmeasured direct-instruction estimates, not a Figma export or exact user-specified target -- tracked under the existing 'Strict UX source approval is incomplete' blocker.",
+    "AC-P4-01-48 intentionally has no widget-contracts.md entry (the two summary pills have no widget id) -- this AC is their sole spec record."
+  ],
+  "createdAt": "2026-09-19T00:00:00Z"
+}

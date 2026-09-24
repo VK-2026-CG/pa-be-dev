@@ -4,7 +4,7 @@ import { buildApp } from '../src/app.js';
 import { PerformanceSource } from '../src/data/performance-source.js';
 import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DB, performanceProfile, type PerformanceCollection } from '../src/data/performance-profile.js';
 import { documentFingerprint, equivalentValidator, inspectImport, normalizeMockRecord, parseMockRecords, sourceSchema, type MockImport } from '../src/data/performance-import.js';
-import { sourceMoney } from '../src/lib/money.js';
+import { sourceMoney, toCents } from '../src/lib/money.js';
 import { createSource } from '../src/data/source.js';
 import type { AgentRecord } from '../src/data/registry.js';
 import type { Lens } from '../src/data/values.js';
@@ -131,6 +131,41 @@ describe('three-collection Performance adapter', () => {
       expect((await source.metricList(agent, unsupported, 'ALL')).items.every(x => x.dataState === 'EMPTY')).toBe(true);
     }
     expect((await source.metricList(leader, { ...team, teamView: 'DIRECT' }, 'ALL')).items.every(x => x.dataState === 'EMPTY')).toBe(true);
+  });
+  it('DEV mock fallback is off by default: no comparison/breakdown is fabricated', async () => {
+    const detail = await setup().source.metricDetail(agent, 'TPC', lens);
+    expect(detail).not.toHaveProperty('comparison');
+    expect(detail).not.toHaveProperty('breakdowns');
+  });
+  it('DEV mock fallback fills only missing parts, scaled to the real Mongo values', async () => {
+    const { db } = fakeDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] });
+    const logs: string[] = [];
+    const source = new PerformanceSource(db, agents, (m) => logs.push(m), true);
+    const detail = await source.metricDetail(agent, 'TPC', lens);
+    // Real values are untouched.
+    expect(detail?.primary?.collected).toEqual({ kind: 'MONEY', amount: '4538.76', currency: 'MYR' });
+    expect(detail?.altVariants?.[0]?.collected).toMatchObject({ amount: '12668.72' });
+    // Comparison: current is the real value, prior year follows the real period.
+    expect(detail?.comparison?.current).toEqual(detail?.primary?.collected);
+    expect(detail?.comparison?.priorYear).toBe(2024);
+    expect(detail?.comparison?.change.basis).toBe('LAST_YEAR');
+    // Both breakdowns present; totals match the real without/with repricing values.
+    expect(detail?.breakdowns?.map((b) => b.variant)).toEqual(['WITHOUT_REPRICING', 'WITH_REPRICING']);
+    const totalOf = (v: string) => detail?.breakdowns?.find((b) => b.variant === v)?.totals[0]?.value;
+    const cents = (s: string) => Number(toCents(s));
+    const without = totalOf('WITHOUT_REPRICING'); const withR = totalOf('WITH_REPRICING');
+    expect(without?.kind === 'MONEY' && Math.abs(cents(without.amount) - 453876)).toBeLessThanOrEqual(5);
+    expect(withR?.kind === 'MONEY' && Math.abs(cents(withR.amount) - 1266872)).toBeLessThanOrEqual(5);
+    expect(logs.some((m) => m.includes('DEV MOCK') && m.includes('comparison,breakdowns'))).toBe(true);
+  });
+  it('DEV mock fallback fills the whole body when Mongo has no value for the lens', async () => {
+    const { db } = fakeDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] });
+    const source = new PerformanceSource(db, agents, () => {}, true);
+    const detail = await source.metricDetail(agent, 'TPC', { ...lens, businessLine: 'ALL' });
+    expect(detail?.dataState).toBe('OK');
+    expect(detail?.primary).toBeDefined();
+    expect(detail?.comparison?.priorYear).toBe(2024);
+    expect(detail?.context.period.endDate).toBe('2025-05-31'); // real context kept
   });
   it('AC-PA-DIRECT-08 list/detail select the same newest reporting period, not the refresh year', async () => {
     const older = { ...production, period: { ...period, year: 2024 } };

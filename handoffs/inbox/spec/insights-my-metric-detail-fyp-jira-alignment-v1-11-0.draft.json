@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-fyp-jira-alignment-v1-11-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.11.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/api/insights.v1.yaml",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-39",
+    "AC-P4-02-40",
+    "AC-P4-02-41"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-40: flip FYP's breakdown capability (mongodb.md metric_definitions matrix) to true and emit breakdown.without-repricing with the 7-row productCode set (LINKED_PREMIUM, REGULAR_PREMIUM, PSA, SINGLE_PREMIUM, CREDIT_POINTS, UNIT_TRUST, GROUP_PREMIUM). FYP's CREDIT_POINTS row is a plain weightPct=10 value -- do NOT apply the TPC/PTPC capped A/B formula (AC-P4-02-33/mongodb.md D-19) to FYP.",
+        "AC-P4-02-39: no change required to getMetricDetail's capability gating for FYP -- confirm penders.primary stays never-emitted for FYP at both scopes (existing behavior), and do not add a Penders KPI card for FYP TEAM (unlike TPC/PTPC/CASE_COUNT).",
+        "AC-P4-02-41 is a formula-only specification: do NOT implement a default-goal pipeline calculation yet. It is blocked pending the chart-design open question (OQ-48) because the rendering surface for a FYP goal on this screen does not exist. Do not add a goal/target field to GaugeSectionVM speculatively, and do not reuse CASE_COUNT's (AC-P4-02-38) previous-year-achieved formula for FYP -- FYP's is priorYear.achieved x 1.20, a different formula.",
+        "No change to the chart/gauge rendering path for FYP -- the chart-design conflict remains open (extends OQ-40/OQ-42, does not open a new one); do not add or remove any donut/segment rendering in this revision."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Once the backend emits breakdown.without-repricing for FYP, the existing BreakdownSectionVM/w.metric-detail.breakdown-table rendering path requires no new UI code -- verify the 7-row set (including UNIT_TRUST/GROUP_PREMIUM, previously never rendered for any live metric) renders correctly end to end.",
+        "No KPI-card or Penders-card branching changes needed for FYP: confirm the existing 'skip absent sections' rendering already produces AC-P4-02-39's fixed three-element set with zero scope branching, and that no Penders card renders for FYP at either scope.",
+        "No chart/gauge code changes -- do not implement any donut/segment goal-target rendering for FYP in this revision; FYP's existing standalone donut-270 gauge is retained pending the chart-design ruling.",
+        "Add unit/e2e test coverage named after AC-P4-02-39/-40/-41 once backend fixtures exist for the FYP breakdown and confirmatory KPI/Penders behavior."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is two signed-off Jira stories (ARVIJ-107 Self, ARVIJ-165 Team), not Figma exports or screenshots -- tracked under the existing 'Strict UX source approval is incomplete' screen blocker for visual/layout aspects only; the ACs themselves are business-approved.",
+    "OQ-48 (blocking, chart design, extends OQ-40/OQ-42): ARVIJ-107/165 specify the same two-tone donut ARVIJ-19/157 specified for TPC, but FYP's actual standalone gauge (donut-270) has no approved baseline at any breakpoint -- a weaker starting point than TPC's evidenced value-only face. Not resolved by this revision; product/UX should rule on all chart-design questions together.",
+    "OQ-49: partially resolves v1.9.0's OQ-43 (orphaned UNIT_TRUST/GROUP_PREMIUM codes) for FYP only -- TPC/PTPC remain on their narrowed 5-code set.",
+    "OQ-50: confirms v1.10.0's OQ-47 'formula family' question for the FYP half only -- FYP's +20%-growth formula is now documented as distinct from CASE_COUNT's previous-year-achieved formula. Still open whether TPC/PTPC or a future FYC story would reuse either.",
+    "Cross-screen: whether FYP's default-goal formula should also apply to the S-P4-01 dashboard card's goal is noted but out of this handoff's scope -- would require a separate S-P4-01 spec change."
+  ],
+  "createdAt": "2026-09-23T00:00:00Z"
+}

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-direct-source-spec-2026-002",
+  "specId": "SPEC-2026-002",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "BREAKING",
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "0.3.0-draft" },
+  "changedArtifacts": [
+    "domains/insights/data/direct-mock-profile.md",
+    "domains/insights/content/en.json",
+    "domains/insights/data/source-mapping.md",
+    "domains/insights/data/mongodb.md",
+    "README.md",
+    "work-items/README.md",
+    "work-items/SPEC-2026-002/README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-PA-DIRECT-01", "AC-PA-DIRECT-02", "AC-PA-DIRECT-03",
+    "AC-PA-DIRECT-04", "AC-PA-DIRECT-05", "AC-PA-DIRECT-06",
+    "AC-PA-DIRECT-07", "AC-PA-DIRECT-08", "AC-PA-DIRECT-09",
+    "AC-PA-DIRECT-10", "AC-PA-DIRECT-11", "AC-PA-DIRECT-12",
+    "AC-PA-DIRECT-13", "AC-PA-DIRECT-14", "AC-PA-DIRECT-15",
+    "AC-PA-DIRECT-16", "AC-PA-DIRECT-17", "AC-PA-DIRECT-18",
+    "AC-PA-DIRECT-19", "AC-PA-DIRECT-20", "AC-PA-DIRECT-21",
+    "AC-PA-DIRECT-22", "AC-PA-DIRECT-23", "AC-PA-DIRECT-24"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Record the requester-approved development exception separately from production readiness; do not treat this DRAFT as an immutable READY handoff.",
+        "Remove legacy Performance Mongo adapter/constants and setup/seed mappings. Read only the three named collections in the approved development database, with explicit country/environment/identity guards and no data fallback.",
+        "Import only sanitized supplied files using the exact BSON schemas, with dry-run, duplicate/conflict checks, transactional inserts and no deletes or overwrites.",
+        "Translate approved production/MAPA/persistency mock mappings into unchanged C2 1.4.0/C3 shapes; preserve 2025 reporting windows and 2026 refresh dates. Keep disjoint agents separate.",
+        "Retain static catalogue/config and volatile preferences. Missing history/milestones/recommendations are empty; feedback cannot invent a recommendation. Retire the obsolete cross-domain synthetic seeder without changing Contest runtime/storage.",
+        "Test AC-PA-DIRECT-01 through AC-PA-DIRECT-11, build and verify live local APIs. Publish only a non-COMPLETE receipt while Spec/implementation are uncommitted and production approvals remain open.",
+        "For 0.3.0, harden existing resident-data reads per AC-PA-DIRECT-18 through AC-PA-DIRECT-24: schema-verified mapping table, exact BSON/numeric-text handling, controlled no-data 404, sanitized metadata errors, fixed default database and optional independent Performance URI. Do not import, seed, alter validators or remove authentication guards."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Implement the explicitly configured development-only sample selector and initial lenses in direct-mock-profile.md 0.2.0. Preserve existing fixed-agent headers and unrelated frontend changes.",
+        "Use matching configured identities for production/MAPA/persistency across dashboard and detail. Never join disjoint agents, rewrite ALL to INSURANCE in a request wrapper, or fabricate values.",
+        "Reuse existing select styling and the five domain-owned i18n keys. Keep standard/offline persona behavior and all C2/C3 shapes unchanged.",
+        "Test AC-PA-DIRECT-12 through AC-PA-DIRECT-17 with unit and real browser checks; record Draft/non-COMPLETE evidence only. Production builds must exclude development sample configuration."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Production IAM and source business mappings remain blocked under C0 OQ-PA-01 through OQ-PA-17; this authorization is for the named development mock environment only.",
+    "Production persistence/ownership for preferences and support features remains unapproved; temporary memory and unavailable outputs are explicitly approved for this development task.",
+    "Existing UX readiness and immutable handoff/implementation commits remain outstanding."
+  ],
+  "createdAt": "2026-09-18T18:40:00Z"
+}

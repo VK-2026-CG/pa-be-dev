@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-source-model-spec-2026-001",
+  "specId": "SPEC-2026-001",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "0.1.0-draft"
+  },
+  "changedArtifacts": [
+    "README.md",
+    "package.json",
+    "common/fixtures/registry.json",
+    "domains/insights/data/source-mapping.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/data/evidence/README.md",
+    "domains/insights/data/evidence/.gitattributes",
+    "domains/insights/data/evidence/pa-performance-pamb-schema-2026-09-10.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/screen-registry.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/fixtures/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/fixtures/dashboard-self.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/fixtures/dashboard-mixed-availability.json",
+    "scripts/validate-fixtures.ts",
+    "scripts/validate-performance-source.test.mjs",
+    "work-items/README.md",
+    "work-items/SPEC-2026-001/README.md",
+    "work-items/SPEC-2026-001/change-impact.md",
+    "work-items/SPEC-2026-001/validation.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-PA-SRC-01", "AC-PA-SRC-02", "AC-PA-SRC-03", "AC-PA-SRC-04",
+    "AC-PA-SRC-05", "AC-PA-SRC-06", "AC-PA-SRC-07", "AC-PA-SRC-08",
+    "AC-PA-SRC-09", "AC-PA-SRC-10", "AC-PA-SRC-11",
+    "AC-P4-01-31", "AC-P4-01-32", "AC-P4-01-33", "AC-P4-01-34",
+    "AC-P4-01-35", "AC-P4-01-36", "AC-P4-01-37", "AC-P4-01-38",
+    "AC-P4-01-02", "AC-P4-01-05", "AC-P4-01-06", "AC-P4-01-08",
+    "AC-P4-01-09", "AC-P4-01-11", "AC-P4-01-24",
+    "AC-P4-02-14", "AC-P4-02-17", "AC-P4-02-18",
+    "AC-P4-03-01", "AC-P4-03-02", "AC-P4-04-01", "AC-P4-04-05", "AC-P4-04-09"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Plan only against this DRAFT; retain canonical Insights collections and C2 1.4.0. No Fastify source-collection reads or source activation from schema evidence alone.",
+        "Coordinate Data/Business approval of C0 OQ-PA-01 through OQ-PA-17, including keys, source LOVs, units, period semantics, version pins, batch lineage and publication watermark. Keep unresolved adapters and migrations BLOCKED.",
+        "Implement and evidence AC-PA-SRC-01 through AC-PA-SRC-11 after approved mappings exist; no fabricated FYC, credit-points period values, history, goals, ratios or membership.",
+        "Preserve existing usable canonical rows, money precision, PII exclusions, scope gates and operation contracts. No collection/index/key migration is authorized by this revision.",
+        "Backend/Data tests cover the source ACs and canonical outputs for affected screen regressions; UI-only ACs may be NOT_APPLICABLE with rationale, never fabricated passing evidence. Publish only your own receipt."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Read S-P4-01 1.5.0 manifest and addendum A9-A11; package remains DRAFT with source and UX blockers. Preserve C3 1.5.0, C4 2.2.0, metric choices, thresholds, routes and design tokens.",
+        "Use the corrected SELF fixture and new mixed-availability fixture; implement or verify AC-P4-01-31 through AC-P4-01-38 plus the listed existing screen regression ACs, including detail EMPTY/PROCESSING, decimal formatting, historical nulls and catalogue selection.",
+        "Do not derive values, units, periods, joins, card composition or freshness from source schemas in the UI/BFF. Display only canonical state/value/watermark fields and preserve navigation for unavailable cards.",
+        "Source-processing ACs may be NOT_APPLICABLE for frontend with rationale. Report actual UI test evidence separately from Spec fixture checks; do not claim UX approval or COMPLETE from this draft. Publish only your own receipt."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-PA-01", "OQ-PA-02", "OQ-PA-03", "OQ-PA-04", "OQ-PA-05",
+    "OQ-PA-06", "OQ-PA-07", "OQ-PA-08", "OQ-PA-09", "OQ-PA-10",
+    "OQ-PA-11", "OQ-PA-12", "OQ-PA-13", "OQ-PA-14", "OQ-PA-15",
+    "OQ-PA-16", "OQ-PA-17",
+    "OQ-20 Scheme mechanics and existing S-P4-01 UX readiness blockers remain unresolved"
+  ],
+  "createdAt": "2026-09-18T17:12:00Z"
+}

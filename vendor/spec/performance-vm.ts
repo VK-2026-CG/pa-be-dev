@@ -2,7 +2,7 @@
  * PRUAction — Performance (P4) View Models
  * Contract C3: Next.js BFF → UI (CDK widgets)
  *
- * @version 1.5.0  (card-level data states — see CHANGES below)
+ * @version 1.6.0  (stacked bar-comparison layout — see CHANGES below)
  * @module bff/types/performance-vm
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -39,6 +39,17 @@
  *    each option's window start ("MTD · 1 Jul 2026 – Today"). MTD in MY.
  *  - MoM column header follows the metric's `display`
  *    (PCT → "MoM % Change", else "MoM Delta").
+ *
+ * v1.6.0 CHANGES (S-P4-02 v1.13.0, ARVIJ-159 Team Manpower — additive):
+ *  - `BarComparisonSectionVM.layout?` ('GROUPED' | 'STACKED', default
+ *    GROUPED) and `BarComparisonSectionVM.totals?` (required when STACKED).
+ *    MANPOWER now emits STACKED EXISTING_AGENTS + NEW_RECRUITS (superseding
+ *    grouped OPENING/CLOSING); the per-year total and its delta chip come
+ *    from `totals[]`, never summed client-side. NEW_RECRUIT_CONTRACTED is
+ *    unaffected (layout absent ⇒ GROUPED rules, single measure).
+ *  - Semantics only: MANPOWER `DeltaVM.display` is PCT (catalog flip from
+ *    ABS) and its `pct` follows the shared round-away-from-zero rule
+ *    (widget-contracts.md §2 `R-PCT-ROUNDUP`) — applied by the producer.
  *
  * v1.4.0 CHANGES (desktop layout, screenshot-derived — legacy-contract.md A6/A7):
  *  - `focusMetrics` becomes `{ visible, addEnabled, items }` (was a bare
@@ -124,7 +135,9 @@ export interface DeltaVM {
   sentiment: Sentiment;
   /** Which field the badge renders — from catalog `changeDisplay` (D-10). */
   display: 'PCT' | 'PP' | 'ABS';
-  /** "+27% vs LY". */
+  /** "+27% vs LY". Already rounded by the producer for metrics opted into
+   *  widget-contracts.md §2 `R-PCT-ROUNDUP` (MANPOWER, v1.6.0) — render
+   *  as-is, never re-round. */
   pct?: number;
   /** "+2pp". */
   pp?: number;
@@ -408,8 +421,13 @@ export interface BreakdownSectionVM {
 
 /**
  * Year-over-year bar chart (widget `w.metric-detail.bar-comparison`, v1.1.0).
- * One measure ⇒ simple bars (NEW_RECRUIT_CONTRACTED); two ⇒ grouped bars
- * (MANPOWER Opening/Closing). Delta chips render per point from `change`.
+ * One measure ⇒ simple bars (NEW_RECRUIT_CONTRACTED); two with
+ * `layout` absent/GROUPED ⇒ grouped bars; delta chips render per point
+ * from `change`.
+ * v1.6.0 (S-P4-02 v1.13.0): `layout='STACKED'` ⇒ measures stack into one
+ * bar per year (MANPOWER: EXISTING_AGENTS + NEW_RECRUITS = Total Manpower);
+ * the total label and the only delta chip come from `totals[]`, and
+ * segment points carry no `change`.
  */
 export interface BarComparisonSectionVM {
   type: 'BAR_COMPARISON';
@@ -421,6 +439,12 @@ export interface BarComparisonSectionVM {
     measureCode?: string;                  // i18n: insights.measure.{code}; absent for single-measure
     points: Array<{ year: number; value: MetricScalar; change?: DeltaVM }>;
   }>;
+  /** v1.6.0 — absent ⇒ 'GROUPED' (pre-v1.6.0 behavior). */
+  layout?: 'GROUPED' | 'STACKED';
+  /** v1.6.0 — required when `layout='STACKED'`, absent otherwise. One entry
+   *  per `years` entry, same order; `value` = sum of the measures' points
+   *  for that year (BFF/domain-computed); `change` vs previous year's total. */
+  totals?: Array<{ year: number; value: MetricScalar; change?: DeltaVM }>;
 }
 
 export type MetricDetailSectionVM =

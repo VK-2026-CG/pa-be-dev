@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-case-count-jira-alignment-v1-10-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.10.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-37",
+    "AC-P4-02-38"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-37: extend the existing values.pendersCaseCount pipeline aggregation (mongodb.md, already implemented/specified for TPC/PTPC TEAM) to CASE_COUNT TEAM. Emit penders.primary in getMetricDetail's capability gating ONLY when scope=TEAM for CASE_COUNT; never for scope=SELF. Unlike TPC/PTPC, CASE_COUNT SELF must not emit any Penders value at all -- not in GaugeSectionVM.penders either, since ARVIJ-20 specifies the SELF chart shows collected only.",
+        "AC-P4-02-38 is a formula-only specification: do NOT implement a default-goal pipeline calculation yet. It is blocked pending the chart-design open question (OQ-45) because the rendering surface for a CASE_COUNT goal on this screen does not exist. Do not add a goal/target field to GaugeSectionVM speculatively.",
+        "No change to the chart/gauge rendering path for CASE_COUNT -- the chart-design conflict remains open (OQ-45, a third and structurally distinct question from the existing TPC/PTPC donut conflict); do not add or remove any stacked-bar, segment, or donut rendering in this revision."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "No new pairing/layout logic required: once the backend only emits penders.primary for scope=TEAM on CASE_COUNT, the existing 'skip absent sections' rendering already produces the correct per-scope KPI set (AC-P4-02-37) with zero UI-side scope branching.",
+        "Verify PendersCard renders a COUNT-kind MetricScalar correctly for the CASE_COUNT Team Penders card (should already work, since formatting is display-kind driven).",
+        "No chart/gauge code changes -- do not implement any stacked-bar/segment chart or goal-target rendering for CASE_COUNT in this revision; AC-P4-02-23's value-only face (or CASE_COUNT's existing standalone donut-270) is retained pending OQ-45.",
+        "Add unit/e2e test coverage named after AC-P4-02-37/-38 once backend fixtures exist for the CASE_COUNT TEAM Penders count."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is two signed-off Jira stories (ARVIJ-20 Self, ARVIJ-158 Team), not Figma exports or screenshots -- tracked under the existing 'Strict UX source approval is incomplete' screen blocker for visual/layout aspects only; the ACs themselves are business-approved.",
+    "OQ-45 (blocking, chart design): ARVIJ-20/158 specify a stacked bar/segment chart (NB, NB Penders, Endorsement, each with count + %) -- a structurally different chart type from the existing open TPC/PTPC donut disagreement (OQ-40/OQ-42). Not resolved by this revision; product/UX should rule on all three chart-design questions together.",
+    "OQ-46: strikethrough markup in both source PDFs was not reliably extractable from the text dump -- the AC5 chart-detail field list (both stories) and ARVIJ-158's AC11 Penders KPI bullets (one aggregate card vs. two current/previous cards) need a visual re-check against the source PDFs before being treated as fully confirmed. This revision implements the single-aggregate-card reading per direct instruction.",
+    "OQ-47: the default-goal formula (AC-P4-02-38) was framed as matching an existing TPC/PTPC pattern distinct from an FYP/FYC '+20%' formula, but neither formula is documented anywhere in this repository -- AC-P4-02-38 is the first default-goal formula in the S-P4-02 spec chain, not a reuse of an established one.",
+    "Cross-screen: whether CASE_COUNT's default-goal formula should also apply to the S-P4-01 dashboard card's goal (currently showGoal:true / goal:{state:NOT_SET} in the canonical fixture) is noted but out of this handoff's scope -- would require a separate S-P4-01 spec change."
+  ],
+  "createdAt": "2026-09-23T00:00:00Z"
+}
