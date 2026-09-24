@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-my-metric-detail-manpower-jira-alignment-v1-13-0.backend",
+  "handoffId": "insights-my-metric-detail-manpower-jira-alignment-v1-13-0",
+  "jiraId": "ARVIJ-159",
+  "consumer": "backend",
+  "status": "IN_PROGRESS",
+  "specCommit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+  "implementation": {
+    "repository": "PruactionBackend",
+    "commit": "c5a7a833f6790997ddf929349db967694106cbff",
+    "dirty": false
+  },
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "PASS",
+      "summary": "tsc --noEmit clean at c5a7a83."
+    },
+    {
+      "command": "npm test",
+      "status": "FAIL",
+      "summary": "vitest: 197 passed / 5 failed at the implementation commit. The 5 failures (S-P4-01 dashboard/list x3, S-P4-07 preview, TPC CREDIT_POINTS) reproduce with the v1.16.0 edits reverted and predate this work; none touch the S-P4-02 Team drill-down metrics."
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS",
+      "summary": "dist rebuilt at c5a7a83."
+    },
+    {
+      "command": "SPEC_DIR=../pa-spec-dev SPEC_REF=03bf2e6 HANDOFF_REF=8475f42 npm run sync:specs",
+      "status": "PASS",
+      "summary": "vendor/spec and handoffs/inbox/spec synced from the READY publication; committed in c5a7a83."
+    }
+  ],
+  "operationCoverage": [
+    {
+      "operationId": "getMetricDetail",
+      "status": "IMPLEMENTED",
+      "evidence": "MANPOWER barComparison: layout=STACKED, EXISTING_AGENTS/NEW_RECRUITS measures without per-point change, totals[] with PCT change; comparison = Total Manpower. Stub engine only."
+    },
+    {
+      "operationId": "listAgentMetrics",
+      "status": "IMPLEMENTED",
+      "evidence": "MANPOWER subMeasures EXISTING_AGENTS/NEW_RECRUITS summing to collected; comparison PCT, rounded per R-PCT-ROUNDUP."
+    },
+    {
+      "operationId": "listMetricDefinitions",
+      "status": "IMPLEMENTED",
+      "evidence": "MANPOWER changeDisplay ABS -> PCT (src/data/catalog.ts)."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-P4-02-11",
+      "status": "PASS",
+      "evidence": "NEW_RECRUIT_CONTRACTED unchanged (layout absent) — service.test.ts 'NEW_RECRUIT_CONTRACTED bars exist in SELF too'; bff-compose grouped fixture path still passes."
+    },
+    {
+      "id": "AC-P4-02-12",
+      "status": "PASS",
+      "evidence": "Segments carry no change; chip only on totals — service.test.ts / bff-metric-detail.test.ts MANPOWER stacked tests."
+    },
+    {
+      "id": "AC-P4-02-42",
+      "status": "PASS",
+      "evidence": "Stacked measures and totals = segment sum asserted in bff-metric-detail.test.ts and service.test.ts (stub data)."
+    },
+    {
+      "id": "AC-P4-02-43",
+      "status": "PASS",
+      "evidence": "Earliest total has no change; latest total carries PCT change."
+    },
+    {
+      "id": "AC-P4-02-44",
+      "status": "PASS",
+      "evidence": "display=PCT, no abs, comparison current/prior equal totals — bff-metric-detail.test.ts."
+    },
+    {
+      "id": "AC-P4-02-45",
+      "status": "PASS",
+      "evidence": "test/pct-roundup.test.ts: 23.4->24, -23.4->-24, 120v110->10, exact integers stay exact, 25v18->39."
+    }
+  ],
+  "migrations": [
+    {
+      "name": "None",
+      "status": "NOT_REQUIRED",
+      "evidence": "Stub/in-memory data only; no Mongo schema or data change."
+    }
+  ],
+  "gaps": [
+    "OQ-51 (blocking): the EXISTING_AGENTS/NEW_RECRUITS split is a stub (manpowerSplit) so mock segments sum to the mock total; the direct Performance source still emits no barComparison for MANPOWER and has no approved existing-agents field.",
+    "OQ-54: zero prior keeps the pre-existing pct=0 behavior; not specified.",
+    "OQ-56: BFF-computed MoM deltas for MANPOWER (S-P4-03) now follow PCT display but are not rounded by R-PCT-ROUNDUP.",
+    "npm test has 5 pre-existing failures unrelated to this handoff; COMPLETE needs a green suite."
+  ],
+  "updatedAt": "2026-09-24T14:10:54.619Z"
+}

@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-my-metric-detail-activity-ratio-jira-alignment-v1-14-0.backend",
+  "handoffId": "insights-my-metric-detail-activity-ratio-jira-alignment-v1-14-0",
+  "jiraId": "ARVIJ-160",
+  "consumer": "backend",
+  "status": "IN_PROGRESS",
+  "specCommit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+  "implementation": {
+    "repository": "PruactionBackend",
+    "commit": "c5a7a833f6790997ddf929349db967694106cbff",
+    "dirty": false
+  },
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "PASS",
+      "summary": "tsc --noEmit clean at c5a7a83."
+    },
+    {
+      "command": "npm test",
+      "status": "FAIL",
+      "summary": "vitest: 197 passed / 5 failed at the implementation commit. The 5 failures (S-P4-01 dashboard/list x3, S-P4-07 preview, TPC CREDIT_POINTS) reproduce with the v1.16.0 edits reverted and predate this work; none touch the S-P4-02 Team drill-down metrics."
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS",
+      "summary": "dist rebuilt at c5a7a83."
+    },
+    {
+      "command": "SPEC_DIR=../pa-spec-dev SPEC_REF=03bf2e6 HANDOFF_REF=8475f42 npm run sync:specs",
+      "status": "PASS",
+      "summary": "vendor/spec and handoffs/inbox/spec synced from the READY publication; committed in c5a7a83."
+    }
+  ],
+  "operationCoverage": [
+    {
+      "operationId": "listMetricDefinitions",
+      "status": "IMPLEMENTED",
+      "evidence": "ACTIVITY_RATIO changeDisplay PP -> PCT (src/data/catalog.ts); threshold 90 GTE unchanged."
+    },
+    {
+      "operationId": "getMetricDetail",
+      "status": "IMPLEMENTED",
+      "evidence": "ACTIVITY_RATIO comparison.change carries pct only (relative %, R-PCT-ROUNDUP on decimal ratios scaled to integers, src/data/values.ts); THRESHOLD_GAUGE + COMPARISON unchanged."
+    },
+    {
+      "operationId": "listAgentMetrics",
+      "status": "IMPLEMENTED",
+      "evidence": "Same changeFor path, so the dashboard card delta is PCT."
+    },
+    {
+      "operationId": "getMetricSeries (BFF MoM)",
+      "status": "IMPLEMENTED",
+      "evidence": "buildMomDeltas emits PP only for PP-display PERCENT metrics; ACTIVITY_RATIO MoM is PCT (not round-up rounded, OQ-56). Persistency stays PP."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-P4-02-13",
+      "status": "PASS",
+      "evidence": "Display-driven; persistency PP path unchanged (bff-mom.test.ts PERCENT/PP case)."
+    },
+    {
+      "id": "AC-P4-02-48",
+      "status": "PASS",
+      "evidence": "bff-metric-detail.test.ts 'ACTIVITY_RATIO change is a relative, rounded-up PCT'; service.test.ts AC-P4-02-46 case now asserts pct present, pp absent; bff-mom.test.ts PCT-display PERCENT case."
+    },
+    {
+      "id": "AC-P4-02-49",
+      "status": "PASS",
+      "evidence": "test/pct-roundup.test.ts: 72.4 vs 61.8 -> 18; stub 95 vs 93 -> 3."
+    }
+  ],
+  "migrations": [
+    {
+      "name": "None",
+      "status": "NOT_REQUIRED",
+      "evidence": "Stub/in-memory catalog and data only."
+    }
+  ],
+  "gaps": [
+    "OQ-54: zero prior keeps the pre-existing pct=0 behavior; not specified.",
+    "OQ-56: MoM deltas for ACTIVITY_RATIO are PCT but not rounded by R-PCT-ROUNDUP.",
+    "npm test has 5 pre-existing failures unrelated to this handoff; COMPLETE needs a green suite."
+  ],
+  "updatedAt": "2026-09-24T14:10:54.619Z"
+}

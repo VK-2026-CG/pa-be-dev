@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-my-metric-detail-productivity-jira-alignment-v1-15-0.backend",
+  "handoffId": "insights-my-metric-detail-productivity-jira-alignment-v1-15-0",
+  "jiraId": "ARVIJ-161",
+  "consumer": "backend",
+  "status": "IN_PROGRESS",
+  "specCommit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+  "implementation": {
+    "repository": "PruactionBackend",
+    "commit": "c5a7a833f6790997ddf929349db967694106cbff",
+    "dirty": false
+  },
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "PASS",
+      "summary": "tsc --noEmit clean at c5a7a83."
+    },
+    {
+      "command": "npm test",
+      "status": "FAIL",
+      "summary": "vitest: 197 passed / 5 failed at the implementation commit. The 5 failures (S-P4-01 dashboard/list x3, S-P4-07 preview, TPC CREDIT_POINTS) reproduce with the v1.16.0 edits reverted and predate this work; none touch the S-P4-02 Team drill-down metrics."
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS",
+      "summary": "dist rebuilt at c5a7a83."
+    },
+    {
+      "command": "SPEC_DIR=../pa-spec-dev SPEC_REF=03bf2e6 HANDOFF_REF=8475f42 npm run sync:specs",
+      "status": "PASS",
+      "summary": "vendor/spec and handoffs/inbox/spec synced from the READY publication; committed in c5a7a83."
+    }
+  ],
+  "operationCoverage": [
+    {
+      "operationId": "listMetricDefinitions",
+      "status": "IMPLEMENTED",
+      "evidence": "PRODUCTIVITY changeDisplay ABS -> PCT (src/data/catalog.ts); valueType DECIMAL, goal off, no barComparison capability (OQ-66)."
+    },
+    {
+      "operationId": "getMetricDetail",
+      "status": "IMPLEMENTED",
+      "evidence": "New DECIMAL + PCT branch in changeFor (src/data/values.ts): relative % from exact decimals scaled to integers, R-PCT-ROUNDUP via PCT_ROUNDUP opt-in; stub 9.7 vs 9.3 -> pct 5, no abs. GAUGE + COMPARISON sections unchanged."
+    },
+    {
+      "operationId": "listAgentMetrics",
+      "status": "IMPLEMENTED",
+      "evidence": "Same changeFor path, so the S-P4-01 Productivity card delta is PCT."
+    },
+    {
+      "operationId": "getMetricSeries (BFF MoM)",
+      "status": "IMPLEMENTED",
+      "evidence": "No code change: buildMomDeltas already falls through to pct for non-ABS DECIMAL; PRODUCTIVITY MoM is PCT (not round-up rounded, OQ-56). Doc comment updated."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-P4-02-13",
+      "status": "PASS",
+      "evidence": "Display-driven; ABS path still covered for AVERAGE_CASE_SIZE / COUNT (bff-mom.test.ts ABS case, service.test.ts catalog assertion)."
+    },
+    {
+      "id": "AC-P4-02-50",
+      "status": "PASS",
+      "evidence": "service.test.ts 'PRODUCTIVITY is DECIMAL with a relative PCT change'; bff-metric-detail.test.ts 'PRODUCTIVITY keeps GAUGE + COMPARISON ...'; bff-mom.test.ts PCT-display DECIMAL case; catalog changeDisplay=PCT assertion."
+    },
+    {
+      "id": "AC-P4-02-51",
+      "status": "PASS",
+      "evidence": "test/pct-roundup.test.ts: 9.7 vs 9.3 -> 5; 9.3 vs 9.7 -> -5."
+    }
+  ],
+  "migrations": [
+    {
+      "name": "None",
+      "status": "NOT_REQUIRED",
+      "evidence": "Stub/in-memory catalog and data only; Mongo source mode emits no comparison for PRODUCTIVITY."
+    }
+  ],
+  "gaps": [
+    "OQ-66: bar chart not implemented by design; PRODUCTIVITY stays GAUGE + COMPARISON.",
+    "OQ-54: zero prior keeps the pre-existing pct=0 behavior; not specified.",
+    "OQ-56: MoM deltas for PRODUCTIVITY are PCT but not rounded by R-PCT-ROUNDUP.",
+    "PRODUCTIVITY remains availability UNBACKED (OQ-PA-12); only the stub path is affected.",
+    "npm test has 5 pre-existing failures unrelated to this handoff; COMPLETE needs a green suite."
+  ],
+  "updatedAt": "2026-09-24T14:10:54.619Z"
+}
