@@ -2,15 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { createSource } from '../src/data/source.js';
 import { BFF, getJson } from './support/bff-api.js';
+import type { PersonaKey } from './support/personas.js';
 
 process.env.MONGODB_URI = ''; // tests always run the in-memory engine
 const app = buildApp(await createSource());
 
 describe('BFF metric detail (S-P4-02)', () => {
-  it('TPC SELF: section order + 2 breakdowns, no Penders card, no CREDIT_POINTS notice (AC-P4-02-01/03/31/33)', async () => {
+  it('TPC SELF: section order incl. the Penders card + 2 breakdowns, no CREDIT_POINTS notice (AC-P4-02-01/03/33/58/59)', async () => {
     const d = await getJson(app, 'AGENT_P4', `${BFF}/performance/metrics/TPC`);
     expect(d.sections.map((s: any) => s.type)).toEqual(
-      ['GAUGE', 'COMPARISON', 'VARIANT_VALUE', 'BREAKDOWN', 'BREAKDOWN'],
+      ['GAUGE', 'COMPARISON', 'VARIANT_VALUE', 'PENDERS', 'BREAKDOWN', 'BREAKDOWN'],
     );
     expect(d.notices).toBeUndefined();
     const breakdown = d.sections.find((s: any) => s.type === 'BREAKDOWN');
@@ -48,6 +49,32 @@ describe('BFF metric detail (S-P4-02)', () => {
     );
     const penders = d.sections.find((s: any) => s.type === 'PENDERS');
     expect(penders.value.kind).toBe('COUNT');
+  });
+
+  // v1.20.0 (AC-P4-02-58/59): TPC/PTPC Penders card at SELF and TEAM for every persona.
+  const pendersCases: Array<[PersonaKey, string, string, number]> = [
+    ['AGENT_P4', 'TPC', '', 2],
+    ['AGENT_P4', 'PTPC', '', 1],
+    ['LEADER_P3', 'TPC', '', 2],
+    ['LEADER_P3', 'PTPC', '', 1],
+    ['LEADER_P3', 'TPC', '?scope=TEAM', 6],
+    ['LEADER_P3', 'PTPC', '?scope=TEAM', 4],
+    ['LEADER_P2', 'TPC', '', 2],
+    ['LEADER_P2', 'PTPC', '', 1],
+    ['LEADER_P2', 'TPC', '?scope=TEAM&teamView=DIRECT', 6],
+    ['LEADER_P2', 'PTPC', '?scope=TEAM&teamView=DIRECT', 4],
+    ['LEADER_P2', 'TPC', '?scope=TEAM&teamView=GROUP', 14],
+    ['LEADER_P2', 'PTPC', '?scope=TEAM&teamView=GROUP', 9],
+  ];
+  it.each(pendersCases)('%s %s%s: Penders COUNT card after VARIANT_VALUE, gauge money penders untouched, no nav (AC-P4-02-57/58/59)', async (persona, code, query, count) => {
+    const d = await getJson(app, persona, `${BFF}/performance/metrics/${code}${query}`);
+    expect(d.sections.map((s: any) => s.type)).toEqual(
+      ['GAUGE', 'COMPARISON', 'VARIANT_VALUE', 'PENDERS', 'BREAKDOWN', 'BREAKDOWN'],
+    );
+    const penders = d.sections.find((s: any) => s.type === 'PENDERS');
+    expect(penders.value).toEqual({ kind: 'COUNT', value: count });
+    expect(penders.nav).toBeUndefined();
+    expect(d.sections.find((s: any) => s.type === 'GAUGE').penders.kind).toBe('MONEY');
   });
 
   it('CASE_COUNT SELF: no Penders anywhere — not the gauge legend, not its own card (AC-P4-02-37)', async () => {

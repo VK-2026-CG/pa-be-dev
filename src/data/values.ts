@@ -200,19 +200,18 @@ function pendersFor(code: string, l: Lens): MetricScalar | undefined {
 }
 
 /**
- * v1.7.0 (ARVIJ-157 AC-P4-02-32): TEAM-scope Penders case count for
- * MONEY-primary metrics with repricing (TPC/PTPC) — a case count, distinct
- * from and never derived from `pendersFor`'s MONEY value above. Sourced from
- * the interim mock in `./mocks/team-penders.ts` until the pipeline
- * materializes `values.pendersCaseCount` in `metric_snapshots` (mongodb.md
- * v1.7.0 D-19); SELF never gets this — Self's Penders stays the money amount
- * inside the gauge legend (AC-P4-02-31).
+ * v1.7.0 (ARVIJ-157 AC-P4-02-32): Penders case count for MONEY-primary
+ * metrics with repricing (TPC/PTPC) — a case count, distinct from and never
+ * derived from `pendersFor`'s MONEY value above. Sourced from the interim mock
+ * in `./mocks/team-penders.ts` until the pipeline materializes
+ * `values.pendersCaseCount` in `metric_snapshots` (mongodb.md v1.7.0 D-19,
+ * OQ-77). v1.20.0 (AC-P4-02-58): emitted at SELF too (the agent's own cases),
+ * not only TEAM; CASE_COUNT's TEAM-only card comes from `pendersFor` instead.
  */
-function teamPendersCaseCountFor(code: string, l: Lens): number | undefined {
-  if (l.scope !== 'TEAM') return undefined;
+function pendersCaseCountFor(code: string, l: Lens): number | undefined {
   const def = findDef(code);
   if (!def?.capabilities.repricing) return undefined;
-  return mockTeamPendersCaseCount(code, l.teamView ?? 'DIRECT');
+  return mockTeamPendersCaseCount(code, l.scope === 'TEAM' ? (l.teamView ?? 'DIRECT') : 'SELF');
 }
 
 /** Scheme agents "have different goals" (D-13): goals are SET under SCHEME, NOT_SET under STANDARD (Set Goals flow pending — roadmap §7b). */
@@ -449,7 +448,7 @@ export function metricDetail(code: string, l: Lens, demoState?: 'EMPTY' | 'PROCE
       : [breakdown(code, 'WITHOUT_REPRICING', l)];
   }
   if (def.capabilities.barComparison) base.barComparison = barComparisonFor(code, l);
-  const pendersCaseCount = teamPendersCaseCountFor(code, l);
+  const pendersCaseCount = pendersCaseCountFor(code, l);
   if (pendersCaseCount !== undefined) base.pendersCaseCount = pendersCaseCount;
   return base;
 }

@@ -146,11 +146,12 @@ export class PerformanceSource implements DataSource {
     const { rows, context } = await this.selectionOrMock(agent, lens);
     const collected = this.value(def, rows, lens);
     const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
-    // v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC. No collection here
-    // materializes this yet (mongodb.md v1.7.0 D-19) — mock-sourced until it does, same
-    // interim source as the stub engine in values.ts; never derived from a money field.
-    const pendersCaseCount = collected && def.capabilities.repricing && lens.scope === 'TEAM'
-      ? mockTeamPendersCaseCount(code, lens.teamView ?? 'DIRECT')
+    // v1.7.0 (AC-P4-02-32) / v1.20.0 (AC-P4-02-58): Penders case count for TPC/PTPC at SELF
+    // and TEAM. No collection here materializes this yet (mongodb.md v1.7.0 D-19, OQ-77) —
+    // mock-sourced until it does, same interim source as the stub engine in values.ts; never
+    // derived from a money field.
+    const pendersCaseCount = collected && def.capabilities.repricing
+      ? mockTeamPendersCaseCount(code, lens.scope === 'TEAM' ? (lens.teamView ?? 'DIRECT') : 'SELF')
       : undefined;
     const detail: MetricDetail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),

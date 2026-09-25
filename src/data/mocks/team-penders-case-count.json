@@ -1,4 +1,4 @@
 {
-  "TPC": { "DIRECT": 6, "GROUP": 14 },
-  "PTPC": { "DIRECT": 4, "GROUP": 9 }
+  "TPC": { "SELF": 2, "DIRECT": 6, "GROUP": 14 },
+  "PTPC": { "SELF": 1, "DIRECT": 4, "GROUP": 9 }
 }
