@@ -168,6 +168,22 @@ describe('metric detail (S-P4-02)', () => {
     expect(d.barComparison.measures[0].measureCode).toBeUndefined();
   });
 
+  // v1.17.0 (ARVIJ-1877/1885): single-measure bars + ABS change at both scopes; never PCT, no PV split.
+  for (const [agent, query] of [['A1001', ''], ['L2001', '?scope=TEAM']] as const) {
+    it(`NEW_RECRUIT_CONTRACTED ${query ? 'TEAM' : 'SELF'} change is an absolute count, never a % (AC-P4-02-54/55)`, async () => {
+      const d = (await app.inject({ url: `/insights/v1/agents/${agent}/metrics/NEW_RECRUIT_CONTRACTED${query}`, headers: H(agent) })).json();
+      expect(d.barComparison.measures).toHaveLength(1);
+      expect(d.barComparison.measures[0].measureCode).toBeUndefined();
+      expect(d.barComparison.layout).toBeUndefined();
+      const chip = d.barComparison.measures[0].points.at(-1).change;
+      expect(chip.abs.kind).toBe('COUNT');
+      expect(chip.pct).toBeUndefined();
+      expect(d.comparison.change.abs.kind).toBe('COUNT');
+      expect(d.comparison.change.abs.value).toBe(d.comparison.current.value - d.comparison.prior.value);
+      expect(d.comparison.change.pct).toBeUndefined();
+    });
+  }
+
   // v1.15.0 (AC-P4-02-50/51) supersedes the ABS "+0.4" change: relative %, rounded up.
   it('PRODUCTIVITY is DECIMAL with a relative PCT change: 9.7 vs 9.3 ⇒ 5, not +0.4 (AC-P4-02-14/50/51)', async () => {
     const d = (await app.inject({ url: '/insights/v1/agents/L2001/metrics/PRODUCTIVITY?scope=TEAM', headers: H('L2001') })).json();
