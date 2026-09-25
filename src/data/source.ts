@@ -7,6 +7,7 @@ import { CATALOG } from './catalog.js';
 import { ANCHOR_YEAR, contextFor, metricDetail, metricList, metricSeries, milestones, type Lens } from './values.js';
 import { getPreferences, putPreferences, type PrefError } from './preferences.js';
 import { recommendations, recordFeedback, type RecommendationListPayload } from './recommendations.js';
+import { mockTeamMemberDashboard, mockTeamMembers } from './mocks/team-members.js';
 import type {
   Basis,
   DrilldownBasis,
@@ -56,53 +57,11 @@ class MemorySource implements DataSource {
   async recommendations(agent: AgentRecord, scope: Scope) { return recommendations(agent.agentId, scope); }
   async recordFeedback(agent: AgentRecord, id: string, rating: 'UP' | 'DOWN') { return recordFeedback(agent.agentId, id, rating); }
   async listTeamMembers(_agent: AgentRecord, _teamView: TeamView, basis: DrilldownBasis, query?: string): Promise<TeamMemberList> {
-    const membersByBasis: Record<DrilldownBasis, Array<{ agentId: string; displayName: string; roleCode: string }>> = {
-      AGENT: [
-        { agentId: 'A1001', displayName: 'Aisyah Rahman', roleCode: 'AGENT' },
-        { agentId: 'A1002', displayName: 'Demo Empty', roleCode: 'AGENT' },
-        { agentId: 'A1003', displayName: 'Demo Processing', roleCode: 'AGENT' },
-      ],
-      AM: [
-        { agentId: 'L2001', displayName: 'Farid Ismail', roleCode: 'AM' },
-      ],
-      UM: [
-        { agentId: 'L3001', displayName: 'Mei Lin Tan', roleCode: 'UM' },
-      ],
-    };
-    const normalizedQuery = query?.trim().toLowerCase() ?? '';
-    const filtered = membersByBasis[basis]
-      .filter((m) => {
-        if (!normalizedQuery) return true;
-        return m.agentId.toLowerCase().includes(normalizedQuery) || m.displayName.toLowerCase().includes(normalizedQuery);
-      })
-      .map((m) => ({ ...m, hierarchyBasis: basis }));
-    return { asOfDate: '2026-07-27', items: filtered };
+    return mockTeamMembers(basis, query);
   }
 
   async getTeamMemberDashboard(_agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
-    const member = AGENTS.find((a) => a.agentId === memberAgentId);
-    if (!member) return undefined;
-    const list = await this.metricList(member, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
-    const selected = list.items
-      .filter((item) => item.metricCode === 'TPC' || item.metricCode === 'PTPC')
-      .slice(0, 2);
-    return {
-      member: {
-        agentId: member.agentId,
-        displayName: member.name,
-        hierarchyBasis: 'AGENT',
-        roleCode: member.level === 'P4' ? 'AGENT' : member.level === 'P3' ? 'AM' : 'UM',
-      },
-      context: {
-        period: list.context.period,
-        businessLine: list.context.businessLine,
-        basis: list.context.basis,
-        scope: 'SELF',
-        teamView: lens.teamView,
-        asOfDate: list.context.asOfDate,
-      },
-      metrics: selected,
-    };
+    return mockTeamMemberDashboard(memberAgentId, lens);
   }
 }
 
@@ -119,9 +78,12 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
   const agents = performanceProfile();
   const db = await getPerformanceDb();
   log('data source: direct Performance Mongo DEVELOPMENT profile (three collections only)');
-  // performanceProfile() above already refuses anything but development/test.
-  const devMockFallback = process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true';
-  if (devMockFallback) log('data source: DEV MOCK fallback ON — metric-detail gaps are filled with stub values');
+  // performanceProfile() above already refuses anything but development/test; the
+  // fallback is narrower still: NODE_ENV=development only, never test/shared.
+  const requested = process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true';
+  const devMockFallback = requested && process.env.NODE_ENV === 'development';
+  if (devMockFallback) log('data source: DEV MOCK fallback ON — anything Mongo cannot supply is filled with stub values');
+  else if (requested) log('data source: INSIGHTS_DEV_MOCK_FALLBACK ignored — requires NODE_ENV=development');
   return new PerformanceSource(db, agents, log, devMockFallback);
 }
 

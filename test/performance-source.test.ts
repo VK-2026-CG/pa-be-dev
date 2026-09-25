@@ -167,6 +167,42 @@ describe('three-collection Performance adapter', () => {
     expect(detail?.comparison?.priorYear).toBe(2024);
     expect(detail?.context.period.endDate).toBe('2025-05-31'); // real context kept
   });
+  it('DEV mock fallback keeps real list values and fills only EMPTY metrics', async () => {
+    const logs: string[] = [];
+    const source = new PerformanceSource(setup().source['db'], agents, (m) => logs.push(m), true);
+    const list = await source.metricList(agent, lens, 'ALL');
+    expect(list.items.find(x => x.metricCode === 'TPC')?.collected).toEqual({ kind: 'MONEY', amount: '4538.76', currency: 'MYR' });
+    expect(list.items.find(x => x.metricCode === 'FYC')?.dataState).toBe('OK'); // null in Mongo → stub
+    expect(list.items.every(x => x.dataState === 'OK' && x.asOfDate === list.context.asOfDate)).toBe(true);
+    expect(list.context.period.endDate).toBe('2025-05-31');
+    for (const unsupported of [{ ...lens, businessLine: 'TAKAFUL' as const }, { ...lens, basis: 'SCHEME' as const }, { ...team, teamView: 'DIRECT' as const }]) {
+      expect((await source.metricList(leader, unsupported, 'ALL')).items.every(x => x.dataState === 'OK')).toBe(true);
+    }
+    expect(logs.some(m => m.includes('DEV MOCK') && m.includes('list filled=FYC'))).toBe(true);
+  });
+  it('DEV mock fallback serves stub data instead of 404 when the agent has no Mongo rows', async () => {
+    const source = new PerformanceSource(fakeDb().db, agents, () => {}, true);
+    const list = await source.metricList(agent, lens, 'PRIORITY');
+    expect(list.items.every(x => x.dataState === 'OK')).toBe(true);
+    expect((await source.metricDetail(agent, 'TPC', lens))?.dataState).toBe('OK');
+    const app = buildApp(source); apps.push(app);
+    const res = await app.inject({ url: '/api/bff/v1/performance/dashboard?businessLine=INSURANCE', headers: { 'x-agent-id': agent.agentId } });
+    expect(res.statusCode).toBe(200);
+  });
+  it('DEV mock fallback fills history, milestones, recommendations and the team roster', async () => {
+    const source = new PerformanceSource(setup().source['db'], agents, () => {}, true);
+    const series = await source.metricSeries(agent, 'TPC', lens, 2026, 1);
+    expect(series?.series[0]?.points.some(p => p.value !== null)).toBe(true);
+    expect(series?.context.asOfDate).toBe('2026-09-07'); // real context kept
+    expect((await source.milestones(agent)).items.length).toBeGreaterThan(0);
+    const recos = await source.recommendations(agent, 'SELF');
+    expect(recos.items.length).toBeGreaterThan(0);
+    expect(await source.recordFeedback(agent, recos.panel!.recommendationId!, 'UP')).toBe(true);
+    const members = await source.listTeamMembers(leader, 'GROUP', 'AGENT');
+    expect(members.items[0]?.agentId).toBe(leader.agentId); // real self first
+    expect(members.items.map(m => m.agentId)).toContain('A1001');
+    expect((await source.getTeamMemberDashboard(leader, 'A1001', team))?.metrics.length).toBe(2);
+  });
   it('AC-PA-DIRECT-08 list/detail select the same newest reporting period, not the refresh year', async () => {
     const older = { ...production, period: { ...period, year: 2024 } };
     const source = new PerformanceSource(fakeDb({ my_production: [older, production] }).db, agents);
