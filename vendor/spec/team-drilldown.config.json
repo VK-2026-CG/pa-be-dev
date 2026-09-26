@@ -1,0 +1,105 @@
+{
+  "configVersion": "0.2.0",
+  "country": "MY",
+  "module": "performance",
+  "screenId": "S-P4-07",
+  "route": "insights/team-drilldown",
+  "status": "DRAFT",
+  "filters": {
+    "defaultTeamView": "DIRECT",
+    "allowedTeamViews": [
+      "DIRECT",
+      "GROUP"
+    ],
+    "defaultHierarchyBasis": "AGENT",
+    "allowedHierarchyBasis": [
+      "AGENT",
+      "AM",
+      "UM"
+    ]
+  },
+  "memberList": {
+    "searchEnabled": true,
+    "maxItems": 200,
+    "defaultSort": "DISPLAY_NAME_ASC",
+    "defaultSortBy": "TPC",
+    "sortByOptions": [
+      "TPC",
+      "PTPC"
+    ],
+    "_defaultSortNote": "v0.2.0: DISPLAY_NAME_ASC is superseded by defaultSortBy (descending by metric; ties by displayName ascending).",
+    "cardMetrics": [
+      "TPC",
+      "PTPC"
+    ],
+    "badgeGroups": [
+      {
+        "groupCode": "MDRT",
+        "badges": [
+          "MDRT",
+          "COT",
+          "TOT"
+        ]
+      },
+      {
+        "groupCode": "PRUWEALTH_PLANNER",
+        "badges": [
+          "WP",
+          "EWP",
+          "SWP",
+          "PWP",
+          "MWP"
+        ]
+      },
+      {
+        "groupCode": "PV",
+        "badges": [
+          "PV"
+        ]
+      },
+      {
+        "groupCode": "ROOKIE",
+        "badges": [
+          "ROOKIE"
+        ]
+      }
+    ],
+    "displayOnlyBadges": [
+      "VIOLET"
+    ]
+  },
+  "selectedMemberPreview": {
+    "enabled": true,
+    "defaultMetrics": [
+      "TPC",
+      "PTPC"
+    ],
+    "maxMetrics": 4
+  },
+  "summary": {
+    "metrics": [
+      "MANPOWER",
+      "ACTIVITY_RATIO",
+      "PRODUCTIVITY",
+      "AVERAGE_CASE_SIZE"
+    ],
+    "computedOver": "FILTERED_MEMBERS"
+  },
+  "subteam": {
+    "enabled": true
+  },
+  "viewing": {
+    "enabled": true,
+    "quickLinks": [
+      "COMP_BEN"
+    ],
+    "moreActions": [
+      "HISTORICAL_DATA"
+    ],
+    "scopeByRole": {
+      "AGENT": "SELF",
+      "LEADER": "TEAM"
+    },
+    "teamView": "DIRECT"
+  }
+}

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PRUAction — Insights Domain API
-  version: 1.5.0
+  version: 1.6.0
   description: |
     Domain API for the **Insights** bounded context (agent performance):
     metric snapshots, metric detail, historical series, milestone progress,
@@ -61,6 +61,22 @@ info:
       `listTeamMembers` and `getTeamMemberDashboard` plus Team Drilldown
       schemas (`DrilldownBasis`, `TeamMember`, `TeamMemberList`,
       `TeamMemberDashboard`) for S-P4-07 hierarchy/member-preview composition.
+    - **1.5.1** (SPEC-2026-003, description-only): the MY catalog no longer
+      promotes NEW_RECRUIT_CONTRACTED to PRIORITY at TEAM — it is FOCUS at
+      both scopes. `scopeOverrides` shape is unchanged; only its example text
+      changes. Catalog data change lives in C1 2.0.0.
+    - **1.6.0** (SPEC-2026-004, S-P4-07 "My Team" UX; additive except the
+      `listTeamMembers` `basis` default below, a behavioural break confined
+      to the DRAFT S-P4-07 surface): optional
+      `TeamMember` card fields (`badges`, `goalStatus`, `tpc`, `ptpc`,
+      `directReportCount`, `photoUrl`), `TeamMemberList.summary` (team KPI
+      tiles for the filtered set) and `TeamMemberList.parent`, plus
+      `listTeamMembers` query params `parentMemberAgentId`, `sortBy` and
+      `badges`; an omitted `basis` now means all levels (the former
+      `AGENT` default is removed). New enums `MemberBadgeCode` (x-extensible),
+      `TeamMemberGoalStatus`, `TeamMemberSortBy`. All new response fields
+      are optional; `1.5.0` clients are unaffected. Card fields have no
+      approved upstream source yet (OQ-79) — stub/memory mode only.
   contact:
     name: Insights Domain Team
   x-domain: insights
@@ -591,7 +607,12 @@ paths:
         - $ref: '#/components/parameters/TeamView'
         - name: basis
           in: query
-          description: Hierarchy level grouping for drilldown list rendering.
+          description: |
+            Hierarchy level grouping for drilldown list rendering.
+            (1.6.0) When omitted, the list contains the caller's members of
+            every level, each carrying its own `hierarchyBasis` (the S-P4-07
+            "My Team" list mixes UMs and agents). Supplying a value still
+            restricts the list to that level.
           schema:
             $ref: '#/components/schemas/DrilldownBasis'
         - name: query
@@ -601,6 +622,33 @@ paths:
             type: string
             minLength: 1
             maxLength: 120
+        - name: parentMemberAgentId
+          in: query
+          description: |
+            (1.6.0) Lists the direct reports of this member instead of the
+            caller's own team — the S-P4-07 subteam drawer. The member MUST be
+            in the caller's downline (else 403 INS-4030). `teamView` gating is
+            unchanged: a P3 caller may only open members of its DIRECT team.
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{3,32}$'
+        - name: sortBy
+          in: query
+          description: (1.6.0) Member ordering, descending by the named metric; ties by displayName ascending.
+          schema:
+            $ref: '#/components/schemas/TeamMemberSortBy'
+        - name: badges
+          in: query
+          description: |
+            (1.6.0) Comma-separated `MemberBadgeCode` filter. A member matches
+            when it holds ANY listed badge (D-P4-07-02). Absent/empty = all
+            members ("All Agent"). Only filterable codes are accepted; VIOLET
+            (display-only, D-P4-07-01) or an unknown code returns 400.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/MemberBadgeCode' }
       responses:
         '200':
           description: Team member list.
@@ -797,9 +845,9 @@ components:
       description: >-
         Team Drilldown hierarchy basis (S-P4-07). This is independent from the
         performance `Basis` enum and MUST NOT be interpreted as
-        STANDARD|SCHEME.
+        STANDARD|SCHEME. (1.6.0: no default — an omitted `basis` on
+        `listTeamMembers` means all levels.)
       enum: [AGENT, AM, UM]
-      default: AGENT
 
     MeasureCode:
       type: string
@@ -1360,19 +1408,81 @@ components:
           pattern: '^[A-Z][A-Z0-9_]{1,39}$'
         teamView:
           $ref: '#/components/schemas/TeamView'
+        badges:
+          type: array
+          description: >-
+            (1.6.0) Qualification badges in display order. Absent when the
+            source has none or no approved source exists (OQ-79) — never
+            synthesized.
+          items: { $ref: '#/components/schemas/MemberBadgeCode' }
+        goalStatus:
+          $ref: '#/components/schemas/TeamMemberGoalStatus'
+        tpc:
+          description: (1.6.0) Member TPC for the requested period; absent when unavailable.
+          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
+        ptpc:
+          description: (1.6.0) Member PTPC for the requested period; absent when unavailable.
+          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
+        directReportCount:
+          type: integer
+          minimum: 0
+          description: >-
+            (1.6.0) Number of direct reports. Present and > 0 only for members
+            who lead a team (UM/AM); drives the subteam affordance.
+        photoUrl:
+          type: string
+          format: uri
+          description: (1.6.0) Optional avatar image; absent ⇒ client renders an initials avatar.
 
     TeamMemberList:
       type: object
-      required: [basis, teamView, items]
+      required: [teamView, items]
       properties:
         basis:
-          $ref: '#/components/schemas/DrilldownBasis'
+          description: (1.6.0) Absent when the request omitted `basis` (all levels).
+          allOf: [{ $ref: '#/components/schemas/DrilldownBasis' }]
         teamView:
           $ref: '#/components/schemas/TeamView'
         items:
           type: array
           items:
             $ref: '#/components/schemas/TeamMember'
+        parent:
+          description: (1.6.0) The member whose team is listed when `parentMemberAgentId` was supplied.
+          allOf: [{ $ref: '#/components/schemas/TeamMember' }]
+        summary:
+          type: array
+          description: >-
+            (1.6.0) Team KPI tiles computed over the FILTERED member set
+            (D-P4-07-02), in config order (MANPOWER, ACTIVITY_RATIO,
+            PRODUCTIVITY, AVERAGE_CASE_SIZE for MY). A tile whose value is
+            unavailable carries no `value` — never zero-filled.
+          items:
+            type: object
+            required: [metricCode]
+            properties:
+              metricCode: { $ref: '#/components/schemas/MetricCode' }
+              value: { $ref: '#/components/schemas/MetricScalar' }
+
+    MemberBadgeCode:
+      type: string
+      x-extensible-enum: true
+      description: >-
+        (1.6.0) Member qualification badge. Groups (C4 `badgeGroups`):
+        MDRT = MDRT|COT|TOT; PRUWEALTH_PLANNER = WP|EWP|SWP|PWP|MWP; PV; ROOKIE.
+        VIOLET is display-only — not filterable, meaning owned by Product (OQ-80).
+      enum: [MDRT, COT, TOT, WP, EWP, SWP, PWP, MWP, PV, ROOKIE, VIOLET]
+
+    TeamMemberGoalStatus:
+      type: string
+      description: (1.6.0) Whether the member has set goals for the current cycle ("Goal set" / "Goal not set").
+      enum: [SET, NOT_SET]
+
+    TeamMemberSortBy:
+      type: string
+      description: (1.6.0) Team Drilldown member ordering (descending).
+      enum: [TPC, PTPC]
+      default: TPC
 
     TeamMemberDashboard:
       type: object
@@ -1453,8 +1563,9 @@ components:
         scopeOverrides:
           type: object
           description: >-
-            Per-scope overrides of category/defaultSelected/defaultOrder
-            (NEW_RECRUIT_CONTRACTED is FOCUS for SELF, PRIORITY for TEAM).
+            Per-scope overrides of category/defaultSelected/defaultOrder.
+            No MY metric uses a category override since 1.5.1
+            (NEW_RECRUIT_CONTRACTED is FOCUS at both SELF and TEAM).
           additionalProperties:
             type: object
             properties:

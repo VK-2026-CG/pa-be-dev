@@ -1,5 +1,5 @@
 import type { Db, Document } from 'mongodb';
-import type { DataSource } from './source.js';
+import type { DataSource, TeamListRequest } from './source.js';
 import type { AgentRecord } from './registry.js';
 import { effectiveCatalog, type EffectiveDef } from './catalog.js';
 import { getPreferences, putPreferences } from './preferences.js';
@@ -23,7 +23,6 @@ import type {
   SnapshotContext,
   TeamMemberDashboard,
   TeamMemberList,
-  TeamView,
 } from '../types.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 
@@ -202,18 +201,34 @@ export class PerformanceSource implements DataSource {
     return stubRecordFeedback(agent.agentId, recommendationId, rating);
   }
 
-  async listTeamMembers(agent: AgentRecord, _teamView: TeamView, basis: DrilldownBasis, query?: string): Promise<TeamMemberList> {
-    const base = [
-      { agentId: agent.agentId, displayName: agent.name, roleCode: basis },
-    ];
-    const normalized = query?.trim().toLowerCase() ?? '';
-    const items: TeamMemberList['items'] = base
+  /**
+   * The three approved collections carry no hierarchy, badges, goal status or
+   * direct-report counts (spec OQ-79): the list stays the caller's own row, card
+   * fields are omitted, KPI tiles carry no values, and no subteam is visible.
+   */
+  async listTeamMembers(agent: AgentRecord, req: TeamListRequest): Promise<TeamMemberList | undefined> {
+    if (req.parentMemberAgentId) return undefined;
+    const basis = req.basis ?? 'AGENT';
+    const normalized = req.query?.trim().toLowerCase() ?? '';
+    const items: TeamMemberList['items'] = [{ agentId: agent.agentId, displayName: agent.name, roleCode: basis }]
       .filter((m) => !normalized || m.agentId.toLowerCase().includes(normalized) || m.displayName.toLowerCase().includes(normalized))
+      .filter(() => !req.badges?.length)
       .map((m) => ({ ...m, hierarchyBasis: basis }));
     // No source collection holds the hierarchy; the DEV fallback appends the stub roster after the real self entry.
-    if (this.devMockFallback) items.push(...mockTeamMembers(basis, query).items.filter((m) => m.agentId !== agent.agentId));
-    return { asOfDate: '2026-07-27', items };
+    // Stub members carry no badges, so a badge filter still returns nothing extra.
+    if (this.devMockFallback && !req.badges?.length) {
+      const bases: DrilldownBasis[] = req.basis ? [req.basis] : ['AGENT', 'AM', 'UM'];
+      for (const b of bases) items.push(...mockTeamMembers(b, req.query).items.filter((m) => m.agentId !== agent.agentId));
+    }
+    return {
+      asOfDate: '2026-07-27',
+      ...(req.basis ? { basis: req.basis } : {}),
+      items,
+      summary: ['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE'].map((metricCode) => ({ metricCode })),
+    };
   }
+
+  async findTeamMember(): Promise<undefined> { return undefined; }
 
   async getTeamMemberDashboard(agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
     if (memberAgentId !== agent.agentId) return this.devMockFallback ? mockTeamMemberDashboard(memberAgentId, lens) : undefined;

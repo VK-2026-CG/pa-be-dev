@@ -54,16 +54,35 @@ export interface MetricSnapshot {
 }
 export interface MetricSnapshotList { context: SnapshotContext; items: MetricSnapshot[] }
 
+/** insights.v1.yaml 1.6.0 (SPEC-2026-004) — extensible; VIOLET is display-only. */
+export type MemberBadgeCode = 'MDRT' | 'COT' | 'TOT' | 'WP' | 'EWP' | 'SWP' | 'PWP' | 'MWP' | 'PV' | 'ROOKIE' | 'VIOLET';
+export type TeamMemberGoalStatus = 'SET' | 'NOT_SET';
+export type TeamMemberSortBy = 'TPC' | 'PTPC';
+
 export interface TeamMember {
   agentId: string;
   displayName: string;
   hierarchyBasis: DrilldownBasis;
   roleCode: string;
+  /** 1.6.0 card fields — no approved upstream source (OQ-79): memory engine only, never synthesized in source mode. */
+  badges?: MemberBadgeCode[];
+  goalStatus?: TeamMemberGoalStatus;
+  tpc?: MetricScalar;
+  ptpc?: MetricScalar;
+  directReportCount?: number;
+  photoUrl?: string;
 }
+
+/** 1.6.0 `TeamMemberList.summary[]` item — `value` absent when unavailable, never zero-filled. */
+export interface TeamSummaryTile { metricCode: string; value?: MetricScalar }
 
 export interface TeamMemberList {
   asOfDate: string;
+  /** 1.6.0: absent when the request omitted `basis` (all levels). */
+  basis?: DrilldownBasis;
   items: TeamMember[];
+  parent?: TeamMember;
+  summary?: TeamSummaryTile[];
 }
 
 export interface TeamMemberDashboard {
