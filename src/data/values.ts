@@ -41,6 +41,11 @@ function scaleInt(base: number, l: Lens): number {
   return Math.max(0, Math.round((base * n) / d));
 }
 
+/** Scales a base YTD/ALL/STANDARD money figure to the lens (SELF multipliers) — Team Drilldown member values. */
+export function scaleMoney(base: string, l: Lens): string {
+  return scaleDec(base, { ...l, scope: 'SELF' });
+}
+
 /** Base YTD/ALL/SELF/STANDARD figures per metric (mock-sourced). */
 const MONEY_BASE: Record<string, { collected: string; prior: string; penders: string }> = {
   TPC: { collected: '980000.00', prior: '879712.75', penders: '30000.00' },

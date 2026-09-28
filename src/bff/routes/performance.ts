@@ -1,12 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Scope } from '../../../vendor/spec/performance-vm.js';
 import type { DomainApi } from '../domain-client.js';
-import { composeDashboard } from '../compose/dashboard.js';
+import { composeDashboard, composeViewingDashboard } from '../compose/dashboard.js';
 import { composeCustomize } from '../compose/customize.js';
 import { composeMetricDetail } from '../compose/metric-detail.js';
 import { composeHistory } from '../compose/history.js';
 import { buildMeta } from '../compose/shared.js';
-import { CONFIG } from '../config.js';
+import { CONFIG, FILTERABLE_BADGES, TEAM_DRILLDOWN_CONFIG } from '../config.js';
+import { composeTeamDrilldown } from '../compose/team-drilldown.js';
+import type { MemberBadgeCode } from '../../../vendor/spec/performance-vm.js';
 import { isLeader } from '../persona.js';
 import { getPersona as resolvePersona, mapDomainError, parseLens, problem } from '../bff.js';
 import type { DataSource } from '../../data/source.js';
@@ -83,6 +85,24 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   const getPersona = (request: FastifyRequest) => resolvePersona(request, source);
   app.get('/api/bff/v1/performance/dashboard', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
     const persona = getPersona(req);
+    const subjectAgentId = req.query.subjectAgentId?.trim();
+    if (subjectAgentId !== undefined) {
+      // S-P4-01 2.1.0 viewing mode (AC-P4-01-82..84): leaders only, downline members only, read-only.
+      if (!isLeader(persona)) return problem(reply, 403, 'BFF-4032', 'Viewing a member requires a leader persona');
+      if (!/^[A-Za-z0-9_-]{3,32}$/.test(subjectAgentId)) return problem(reply, 400, 'BFF-4000', 'Invalid subjectAgentId', subjectAgentId);
+      // scope/teamView are decided by the member's role, never by the query (AC-P4-01-83).
+      const { scope: _s, teamView: _t, ...query } = req.query;
+      const lens = parseLens(query, persona, reply);
+      if (!lens) return;
+      try {
+        const member = await domain.findTeamMember(persona.agentId, persona.agentId, subjectAgentId);
+        return await composeViewingDashboard(domain, member, { period: lens.period, businessLine: lens.businessLine, basis: lens.basis });
+      } catch (e) {
+        const err = e as { status?: number; code?: string };
+        if (err.status === 403 && err.code === 'INS-4030') return problem(reply, 403, 'BFF-4033', 'Member is not in the caller\'s team');
+        return mapDomainError(reply, e);
+      }
+    }
     const lens = parseLens(req.query, persona, reply);
     if (!lens) return;
     try {
@@ -165,9 +185,21 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
       return problem(reply, 403, 'BFF-4031', 'teamView=GROUP requires a P2-level leader');
     }
 
-    const hierarchyBasis = (req.query.basis ?? 'AGENT') as 'AGENT' | 'AM' | 'UM';
-    if (hierarchyBasis !== 'AGENT' && hierarchyBasis !== 'AM' && hierarchyBasis !== 'UM') {
+    // 1.6.0: an omitted basis lists every hierarchy level (S-P4-07 "My Team").
+    const hierarchyBasis = req.query.basis as 'AGENT' | 'AM' | 'UM' | undefined;
+    if (hierarchyBasis !== undefined && hierarchyBasis !== 'AGENT' && hierarchyBasis !== 'AM' && hierarchyBasis !== 'UM') {
       return problem(reply, 400, 'BFF-4000', 'Invalid basis', String(req.query.basis));
+    }
+    const sortBy = (req.query.sortBy ?? TEAM_DRILLDOWN_CONFIG.memberList.defaultSortBy) as 'TPC' | 'PTPC';
+    if (!TEAM_DRILLDOWN_CONFIG.memberList.sortByOptions.includes(sortBy)) {
+      return problem(reply, 400, 'BFF-4000', 'Invalid sortBy', String(req.query.sortBy));
+    }
+    const badges = (req.query.badges ?? '').split(',').map((b) => b.trim()).filter(Boolean);
+    const badBadge = badges.find((b) => !FILTERABLE_BADGES.has(b));
+    if (badBadge) return problem(reply, 400, 'BFF-4000', 'Invalid badges', badBadge);
+    const parentAgentId = req.query.parentAgentId?.trim() || undefined;
+    if (parentAgentId && !/^[A-Za-z0-9_-]{3,32}$/.test(parentAgentId)) {
+      return problem(reply, 400, 'BFF-4000', 'Invalid parentAgentId', parentAgentId);
     }
 
     const period = (req.query.period ?? 'YTD') as 'MTD' | 'QTD' | 'YTD';
@@ -187,65 +219,50 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
     const selectedAgentId = req.query.selectedAgentId?.trim() || undefined;
 
     try {
-      const members = await domain.listTeamMembers(persona.agentId, persona.agentId, {
+      const vm = await composeTeamDrilldown(domain, persona, {
         teamView,
-        basis: hierarchyBasis,
-        query: search,
+        ...(hierarchyBasis ? { basis: hierarchyBasis } : {}),
+        ...(search ? { search } : {}),
+        sortBy,
+        badges: badges as MemberBadgeCode[],
+        ...(parentAgentId ? { parentAgentId } : {}),
+        period,
+        businessLine,
+        performanceBasis,
       });
 
-      let selectedMember: {
-        member: { agentId: string; displayName: string; hierarchyBasis: 'AGENT' | 'AM' | 'UM'; roleCode: string };
-        context: {
-          period: 'MTD' | 'QTD' | 'YTD';
-          businessLine: 'ALL' | 'INSURANCE' | 'TAKAFUL';
-          basis: 'STANDARD' | 'SCHEME';
-          scope: 'TEAM';
-          teamView: 'DIRECT' | 'GROUP';
-          asOfDate: string;
-        };
-        metrics: Array<ReturnType<typeof cardFromSnapshot>>;
-      } | undefined;
-
+      // 0.1.0 selected-member preview — superseded in the UI by S-P4-01 viewing mode (AC-P4-07-04), kept for compatibility.
       if (selectedAgentId) {
         const dashboard = await domain.getTeamMemberDashboard(persona.agentId, persona.agentId, selectedAgentId, {
           teamView,
-          basis: hierarchyBasis,
+          ...(hierarchyBasis ? { basis: hierarchyBasis } : {}),
           period,
           businessLine,
           performanceBasis,
         });
-        selectedMember = {
-          member: dashboard.member,
-          context: {
-            period: dashboard.context.period.type,
-            businessLine: dashboard.context.businessLine,
-            basis: dashboard.context.basis,
-            scope: 'TEAM',
-            teamView,
-            asOfDate: dashboard.context.asOfDate,
+        return {
+          ...vm,
+          meta: buildMeta('S-P4-07', dashboard.context.asOfDate),
+          selectedMember: {
+            member: dashboard.member,
+            context: {
+              period: dashboard.context.period.type,
+              businessLine: dashboard.context.businessLine,
+              basis: dashboard.context.basis,
+              scope: 'TEAM',
+              teamView,
+              asOfDate: dashboard.context.asOfDate,
+            },
+            metrics: dashboard.metrics.map((m) => cardFromSnapshot(m, { period, businessLine, basis: performanceBasis, teamView })),
           },
-          metrics: dashboard.metrics.map((m) => cardFromSnapshot(m, {
-            period,
-            businessLine,
-            basis: performanceBasis,
-            teamView,
-          })),
         };
       }
-
-      const asOfDate = selectedMember?.context.asOfDate ?? members.asOfDate;
-      return {
-        meta: buildMeta('S-P4-07', asOfDate),
-        filters: {
-          scope: 'TEAM',
-          teamView,
-          basis: hierarchyBasis,
-          ...(search ? { search } : {}),
-        },
-        members: members.items,
-        ...(selectedMember ? { selectedMember } : {}),
-      };
+      return vm;
     } catch (e) {
+      const err = e as { status?: number; code?: string };
+      if (err.status === 403 && err.code === 'INS-4030') {
+        return problem(reply, 403, 'BFF-4033', 'Member is not in the caller\'s team');
+      }
       return mapDomainError(reply, e);
     }
   });

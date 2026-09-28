@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-team-drilldown-my-team-spec-2026-004",
+  "specId": "SPEC-2026-004",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "BREAKING",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "S-P4-07 0.2.0 / S-P4-01 2.1.0 / C2 1.6.0 / C3 1.8.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/config/countries/MY/team-drilldown.config.json",
+    "domains/insights/content/en.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/README.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/screen.manifest.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/requirements/legacy-contract.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/frontend/widget-contract.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/frontend/component-usage.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/content/i18n-keys.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/telemetry/events.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/reuse/discovery.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/reuse/decisions.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/reuse/promotion-candidates.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/assets/README.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/fixtures/README.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/fixtures/team-drilldown-my-team.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/fixtures/team-drilldown-filtered.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/fixtures/team-drilldown-subteam.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/fixtures/dashboard-viewing-member.json",
+    "domains/insights/screens/screen-registry.json",
+    "scripts/validate-fixtures.ts",
+    "work-items/README.md",
+    "work-items/SPEC-2026-004/README.md",
+    "work-items/SPEC-2026-004/change-impact.md",
+    "README.md",
+    "work-items/SPEC-2026-004/validation.md",
+    "handoffs/outbound/insights-my-team-drilldown-s-p4-07-v0-1-0.draft.json"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-07-01",
+    "AC-P4-07-02",
+    "AC-P4-07-03",
+    "AC-P4-07-06",
+    "AC-P4-07-07",
+    "AC-P4-07-08",
+    "AC-P4-07-09",
+    "AC-P4-07-10",
+    "AC-P4-07-11",
+    "AC-P4-07-12",
+    "AC-P4-07-13",
+    "AC-P4-07-14",
+    "AC-P4-07-15",
+    "AC-P4-01-82",
+    "AC-P4-01-83",
+    "AC-P4-01-84",
+    "AC-P4-01-85",
+    "AC-P4-01-86",
+    "AC-P4-01-87"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "team-drilldown BFF route: omitted basis returns members of every level with their own hierarchyBasis and omits filters.basis (BREAKING, DRAFT surface only); accept sortBy=TPC|PTPC (default TPC, desc, ties by name; else 400), badges=<csv> ANY-match (VIOLET/unknown -> 400) and parentAgentId (member must be in the caller's downline, else 403 BFF-4033; response carries parent, no summary).",
+        "Populate optional TeamMemberVM badges, goalStatus, tpc, ptpc, directReportCount, photoUrl and nav ({route:'insights/performance', params:{subjectAgentId}}) from deterministic stub data in memory mode; omit badges/goalStatus/directReportCount/photoUrl in source mode (never synthesize).",
+        "Return summary[] (MANPOWER, ACTIVITY_RATIO, PRODUCTIVITY, AVERAGE_CASE_SIZE, C4 order) computed over the filtered member set, and filterOptions from C4 team-drilldown 0.2.0.",
+        "dashboard BFF route: accept subjectAgentId for leaders only and only for a downline member (else 403 BFF-4033); compose that member's dashboard with scope SELF for agents and TEAM/DIRECT for members with direct reports; read-only (no scopeSwitcher, quickLinks=COMP_BEN, moreActions=HISTORICAL_DATA, addEnabled/setGoalEnabled false); return viewing {member, scope, readOnly:true, exitNav:{route:'insights/team-drilldown'}}.",
+        "Keep INS-4030/4031/4032 and BFF-4031/4032 gating unchanged; tests named after AC-P4-07-01..03, 06..09 and AC-P4-01-82..84."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Treat TeamDrilldownVM.filters.basis as optional (absent = all levels) and stop sending basis/teamView selectors from the S-P4-07 UI.",
+        "Rewrite the S-P4-07 page to requirements §3.3-3.4 at <1024 and >=1024: header (Back/as-of vs breadcrumb/as-of), search + Filter action, Filters/Sort By chips, KPI tiles, member cards (badges, goal status, identity, compact TPC/PTPC without currency, subteam button), white 2-column panel on desktop.",
+        "Implement the staged Filters sheet/drawer (Sort By radios, All Agent, badge groups, Cancel/Confirm) and the subteam drawer ({name}'s Team ({count}) + scoped search) with the existing responsive sheet/drawer chrome; keep list state in the URL.",
+        "Add S-P4-01 viewing mode: render the viewing banner (mobile strip with close, desktop card with Exit View), the single wide quick-link tile row, disable metric-card navigation, and navigate to viewing.exitNav on exit.",
+        "Use only insights.* keys (32 new, 3 changed values); resolve every colour/size through the DLS stub; compact values per D-P4-07-05.",
+        "Playwright tests named after AC-P4-07-10..15 and AC-P4-01-85..87; keep the package DRAFT and report baseline gaps (OQ-81/82) separately."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-79",
+    "OQ-80",
+    "OQ-81",
+    "OQ-82",
+    "OQ-83",
+    "OQ-84",
+    "OQ-P4-07-01",
+    "OQ-P4-07-03"
+  ],
+  "createdAt": "2026-09-24T00:00:00Z"
+}

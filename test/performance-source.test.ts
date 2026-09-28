@@ -198,9 +198,9 @@ describe('three-collection Performance adapter', () => {
     const recos = await source.recommendations(agent, 'SELF');
     expect(recos.items.length).toBeGreaterThan(0);
     expect(await source.recordFeedback(agent, recos.panel!.recommendationId!, 'UP')).toBe(true);
-    const members = await source.listTeamMembers(leader, 'GROUP', 'AGENT');
-    expect(members.items[0]?.agentId).toBe(leader.agentId); // real self first
-    expect(members.items.map(m => m.agentId)).toContain('A1001');
+    const members = await source.listTeamMembers(leader, { teamView: 'GROUP', basis: 'AGENT', sortBy: 'TPC', lens: team });
+    expect(members?.items[0]?.agentId).toBe(leader.agentId); // real self first
+    expect(members?.items.map(m => m.agentId)).toContain('A1001');
     expect((await source.getTeamMemberDashboard(leader, 'A1001', team))?.metrics.length).toBe(2);
   });
   it('AC-PA-DIRECT-08 list/detail select the same newest reporting period, not the refresh year', async () => {
