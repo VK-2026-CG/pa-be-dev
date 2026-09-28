@@ -27,10 +27,28 @@ than invented locally. See `docs/agent-workflows/`.
 ```bash
 npm install
 npm run dev          # http://localhost:4600
+npm run dev:mock     # same port, offline stub data — no Mongo, no .env needed
 npm test             # 24 integration tests (fastify.inject)
 npm run typecheck
 npm run build && npm start
 ```
+
+## Mock mode (no DB)
+
+`npm run dev:mock` is the shared development profile: it starts the watch server
+with `INSIGHTS_DATA_SOURCE=memory` (overriding any local `.env`), so every
+persona × scope × teamView × period × businessLine × basis returns the
+deterministic stub data from `src/data/values.ts`. Pair it with the frontend's
+`npm run dev:mock`, which drives persona from the header dropdown (`x-persona`).
+Entitlement guards are unchanged (TEAM ⇒ leader, GROUP ⇒ P2). Memory is chosen at
+start time only; it is never a fallback after a Mongo error.
+
+**Mongo first, mock second** (for developers with Mongo access): run `npm run dev`
+with `INSIGHTS_DATA_SOURCE=performance`, `INSIGHTS_DEV_MOCK_FALLBACK=true` and
+`NODE_ENV=development`. Real Mongo values are shown wherever they exist; every
+EMPTY metric, missing detail part, history, milestones, recommendations, team
+roster, or an agent with no rows at all is filled from the stub engine. Each fill
+is logged as `DEV MOCK fallback`. See AGENTS.md for the ruling.
 
 ## Identity (development only, not production JWT)
 

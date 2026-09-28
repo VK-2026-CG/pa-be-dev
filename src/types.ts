@@ -95,7 +95,7 @@ export interface MetricDetail {
   primary?: VariantValue; altVariants?: VariantValue[];
   comparison?: { current: MetricScalar; prior: MetricScalar; priorYear: number; change: Change };
   threshold?: Threshold; breakdowns?: BreakdownTable[]; barComparison?: BarComparison;
-  /** v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). Absent at scope=SELF. */
+  /** v1.7.0 (AC-P4-02-32): Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). v1.20.0 (AC-P4-02-58): present at scope=SELF (own cases) and TEAM. */
   pendersCaseCount?: number;
 }
 export interface SeriesPoint { month: number; value: MetricScalar | null }
