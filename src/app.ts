@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUi from '@fastify/swagger-ui';
+import { parse as parseYaml } from 'yaml';
+import type { OpenAPIV3 } from 'openapi-types';
 import { findAgent, type AgentRecord } from './data/registry.js';
 import { CATALOG, effectiveCatalog } from './data/catalog.js';
 import { ANCHOR_YEAR, contextFor, type Lens } from './data/values.js';
@@ -13,6 +19,11 @@ import { createContestBrochureStore, type ContestBrochureStore } from './contest
 import { ContestBrochureImportService } from './contest/brochure-import.js';
 import { createBrochureInferenceProvider, type ContestBrochureInferenceProvider } from './contest/brochure-import-provider.js';
 import { registerBffRoutes } from './bff/index.js';
+
+function loadSpec(fileName: string): OpenAPIV3.Document {
+  const path = fileURLToPath(new URL(`../vendor/spec/${fileName}`, import.meta.url));
+  return parseYaml(readFileSync(path, 'utf8')) as OpenAPIV3.Document;
+}
 
 const PERIODS = new Set(['MTD', 'QTD', 'YTD']);
 const BLS = new Set(['ALL', 'INSURANCE', 'TAKAFUL']);
@@ -94,6 +105,15 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   });
   void app.register(cors, { origin: true });
   void app.register(multipart);
+
+  void app.register(async (instance) => {
+    void instance.register(fastifySwagger, { mode: 'static', specification: { document: loadSpec('insights.v1.yaml') } });
+    void instance.register(fastifySwaggerUi, { routePrefix: '/docs' });
+  });
+  void app.register(async (instance) => {
+    void instance.register(fastifySwagger, { mode: 'static', specification: { document: loadSpec('contests.v1.yaml') } });
+    void instance.register(fastifySwaggerUi, { routePrefix: '/docs/contests' });
+  });
 
   app.get('/healthz', async () => ({ ok: true, service: 'pruaction-insights-service', spec: '1.4.0' }));
   registerSpecContestRoutes(app, specContestRepository,brochureStore,new ContestBrochureImportService(specContestRepository,brochureStore,inferenceProvider));

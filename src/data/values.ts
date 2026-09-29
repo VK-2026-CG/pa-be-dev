@@ -6,6 +6,7 @@
  */
 import { addDec, mulRatio, pctChange, pctRoundUpDec, toCents } from '../lib/money.js';
 import { effectiveCatalog, findDef } from './catalog.js';
+import { changeFor, directionFor, roundToOneDecimal, sentimentFor } from './change.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 import type {
   BarComparison, Basis, BreakdownTable, BusinessLine, Change, GoalProgress,
@@ -48,7 +49,7 @@ export function scaleMoney(base: string, l: Lens): string {
 
 /** Base YTD/ALL/SELF/STANDARD figures per metric (mock-sourced). */
 const MONEY_BASE: Record<string, { collected: string; prior: string; penders: string }> = {
-  TPC: { collected: '980000.00', prior: '879712.75', penders: '30000.00' },
+  TPC: { collected: '100000.00', prior: '78740.00', penders: '30000.00' },
   PTPC: { collected: '70000.00', prior: '95890.00', penders: '21000.00' },
   FYP: { collected: '360000.00', prior: '283460.00', penders: '54000.00' },
   FYC: { collected: '180000.00', prior: '141730.00', penders: '30000.00' },
@@ -68,18 +69,6 @@ const PERCENT_BASE: Record<string, { current: number; prior: number }> = {
 const DECIMAL_BASE: Record<string, { current: number; prior: number }> = {
   PRODUCTIVITY: { current: 9.7, prior: 9.3 },
 };
-
-function round1(n: number): number { return Math.round(n * 10) / 10; }
-
-function sentimentFor(code: string, delta: number): Change['sentiment'] {
-  if (delta === 0) return 'NEUTRAL';
-  const fav = findDef(code)?.favourability ?? 'HIGHER_IS_BETTER';
-  const good = fav === 'HIGHER_IS_BETTER' ? delta > 0 : delta < 0;
-  return good ? 'POSITIVE' : 'NEGATIVE';
-}
-function directionFor(delta: number): Change['direction'] {
-  return delta === 0 ? 'FLAT' : delta > 0 ? 'UP' : 'DOWN';
-}
 
 function scalar(kind: ScalarKind, moneyAmount: string | null, num: number | null): MetricScalar {
   if (kind === 'MONEY') return { kind, amount: moneyAmount ?? '0.00', currency: 'MYR' };
@@ -566,10 +555,10 @@ export function metricSeries(code: string, l: Lens, anchorYear: number, yearsBac
         const b = PERCENT_BASE[code] ?? PERCENT_BASE.PERSISTENCY_CY!;
         const drift = [1, 0.5, 1.07, -0.93, -0.93, -0.89, 0][mi] ?? 0;
         const yearOff = year === ANCHOR_YEAR ? 0 : -0.5;
-        value = { kind: 'PERCENT', value: round1(b.current + drift + yearOff - 1) };
+        value = { kind: 'PERCENT', value: roundToOneDecimal(b.current + drift + yearOff - 1) };
       } else {
         const b = DECIMAL_BASE[code] ?? DECIMAL_BASE.PRODUCTIVITY!;
-        value = { kind: 'DECIMAL', value: round1(b.current - (ANCHOR_YEAR - year) * 0.4 + mi * 0.02), precision: 1 };
+        value = { kind: 'DECIMAL', value: roundToOneDecimal(b.current - (ANCHOR_YEAR - year) * 0.4 + mi * 0.02), precision: 1 };
       }
       return { month, value };
     });

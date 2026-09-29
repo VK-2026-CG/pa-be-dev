@@ -8,7 +8,7 @@
   "specCommit": null,
   "implementation": { "repository": "PruactionBackend", "commit": null, "dirty": true },
   "validation": [
-    { "command": "npm test", "status": "PASS", "summary": "159 tests, including 30 source/value/connection tests; isolated fixtures and mocked connections, no test Mongo writes." },
+    { "command": "npm test", "status": "PASS", "summary": "183 tests passed, 1 skipped (deferred agent_status filter), including source/value/connection/comparison tests; isolated fixtures and mocked connections, no test Mongo writes." },
     { "command": "npm run typecheck", "status": "PASS", "summary": "Strict source/test TypeScript check." },
     { "command": "npm run build", "status": "PASS", "summary": "Cross-platform build; compiled server boot and imported-value read verified on temporary port 4601." },
     { "command": "db:import:performance dry-run/apply/repeat dry-run", "status": "PASS", "summary": "Applied 5 production + 1 MAPA + 6 persistency records; all 12 satisfy exact BSON schemas; repeat proposes zero inserts." },
@@ -17,8 +17,8 @@
     { "command": "Frontend npm run test:mock", "status": "PASS", "summary": "6 mobile/desktop tests passed against the updated live source API." }
   ],
   "operationCoverage": [
-    { "operationId": "listAgentMetrics", "status": "IMPLEMENTED", "evidence": "Direct three-collection adapter plus API/BFF tests and live verification." },
-    { "operationId": "getMetricDetail", "status": "IMPLEMENTED", "evidence": "Primary/alternate/threshold or EMPTY; no invented comparisons or breakdowns." },
+    { "operationId": "listAgentMetrics", "status": "IMPLEMENTED", "evidence": "Direct three-collection adapter plus API/BFF tests and live verification. Now also populates items[].comparison (Change only) from a day-aligned prior-year read, cached per collection per request; still no invented breakdowns." },
+    { "operationId": "getMetricDetail", "status": "IMPLEMENTED", "evidence": "Primary/alternate/threshold or EMPTY; no invented breakdowns. comparison (current/prior/priorYear/change) is now read from Mongo: same identity/aggregation, one year back, matching (or closest-not-exceeding) asOnMonthDay so a partial current month is never compared against an already-closed prior-year month; omitted (not fabricated) when no eligible prior row exists. See test/performance-source.test.ts 'prior-year comparison' tests." },
     { "operationId": "getMetricSeries", "status": "IMPLEMENTED", "evidence": "Existing contract with null history cells; approved unavailable behavior." },
     { "operationId": "listMetricDefinitions", "status": "UNCHANGED", "evidence": "Static catalogue; no Mongo metric-definition collection." },
     { "operationId": "listMilestoneProgress", "status": "IMPLEMENTED", "evidence": "Empty support list, source watermark; no old collection fallback." },
@@ -53,9 +53,11 @@
     { "name": "0.3.0 existing-collection read hardening", "status": "NOT_REQUIRED", "evidence": "No import, seed, database writes, collection or validator changes. Existing data read directly." }
   ],
   "gaps": [
+    "comparison (Mongo-backed prior-year read) was added to listAgentMetrics/getMetricDetail beyond the AC-PA-DIRECT-01..30 set this receipt was originally scored against; it is not yet tied to a formal acceptance criterion — pending a SPEC-2026-002 (or S-P4-01/S-P4-02) update to assign one.",
+    "agent_status active-filter wiring (PERFORMANCE_ACTIVE_STATUS_VALUES in performance-mapping.ts) is intentionally deferred/parked for now, not applied in latest(); its corresponding test is skipped, not removed.",
     "Requester-approved development exercise only; no immutable READY handoff or committed clean implementation exists.",
     "Production IAM/source semantics and UX approvals remain outstanding; temporary preferences and unavailable support data are not production implementations.",
     "Frontend development sample integration is covered by its separate receipt; production identity integration is still outstanding."
   ],
-  "updatedAt": "2026-09-18T19:53:00Z"
+  "updatedAt": "2026-09-27T00:00:00Z"
 }

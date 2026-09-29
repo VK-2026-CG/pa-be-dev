@@ -120,9 +120,7 @@ export async function provisionPerformance(db: Db): Promise<void> {
     if (existing.some(collection => collection.name === name)) await db.command({ collMod: name, validator, validationLevel: 'strict', validationAction: 'error' });
     else await db.createCollection(name, { validator, validationLevel: 'strict', validationAction: 'error' });
     await db.collection(name).createIndex({ id: 1 }, { unique: true, name: 'uq_mock_source_id' });
-    const production = name === 'my_production';
-    await db.collection(name).createIndex({ [production ? 'agent_id' : 'agentId']: 1,
-      [production ? 'agent_aggregation' : 'agentAggregation']: 1, entity: 1,
+    await db.collection(name).createIndex({ agentId: 1, agentAggregation: 1, entity: 1,
       'period.year': -1, 'period.month': -1 }, { name: 'ix_mock_performance_read' });
   }
 }

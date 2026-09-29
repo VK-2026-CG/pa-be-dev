@@ -16,7 +16,8 @@ beforeEach(() => {
   vi.resetModules(); state.clients.length = 0; state.fail = false;
   vi.stubEnv('MONGODB_URI', 'mongodb://contest.invalid');
   vi.stubEnv('MONGODB_CONTEST_DB', 'contests');
-  vi.stubEnv('MONGODB_PERFORMANCE_DB', 'pa_performance_PAMB-dev');
+  vi.stubEnv('MONGODB_PAMB_DB', 'pa_performance_PAMB-dev');
+  vi.stubEnv('MONGODB_PBTB_DB', 'pa_performance_PBTB-dev');
   vi.stubEnv('MONGODB_PERFORMANCE_URI', 'mongodb://performance.invalid');
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -24,12 +25,13 @@ afterEach(() => vi.unstubAllEnvs());
 describe('independent Performance Mongo connection', () => {
   it('AC-PA-DIRECT-23 dedicated URI never redirects Contest and simultaneous reads share connection', async () => {
     const mongo = await import('../src/db/mongo.js');
-    const [a, b, c] = await Promise.all([mongo.getPerformanceDb(), mongo.getPerformanceDb(), mongo.getContestDb()]);
+    const [a, b, c, d] = await Promise.all([mongo.getPerformanceDb('PAMB'), mongo.getPerformanceDb('PAMB'), mongo.getContestDb(), mongo.getPerformanceDb('PBTB')]);
     expect(a.databaseName).toBe('pa_performance_PAMB-dev');
     expect(b.databaseName).toBe(a.databaseName);
     expect(c.databaseName).toBe('contests');
+    expect(d.databaseName).toBe('pa_performance_PBTB-dev');
     expect(state.clients).toHaveLength(2);
-    expect(state.clients.find(client => client.uri === 'mongodb://performance.invalid')?.databases).toEqual(['pa_performance_PAMB-dev', 'pa_performance_PAMB-dev']);
+    expect(state.clients.find(client => client.uri === 'mongodb://performance.invalid')?.databases).toEqual(['pa_performance_PAMB-dev', 'pa_performance_PAMB-dev', 'pa_performance_PBTB-dev']);
     expect(state.clients.find(client => client.uri === 'mongodb://contest.invalid')?.databases).toEqual(['contests']);
     await mongo.closeDb();
     expect(state.clients.every(client => client.closed)).toBe(true);

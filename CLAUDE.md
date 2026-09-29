@@ -28,7 +28,9 @@ are real and tested — never remove them to "make something work".
 ## MongoDB Atlas (Mongo mode)
 
 Mongo-backed Performance uses only `my_production`, `my_mapa`, `my_persistency`
-in `pa_performance_PAMB-dev` (SPEC-2026-002 development profile). Old collection
+across two databases on the same cluster/credentials: `pa_performance_PAMB-dev`
+(INSURANCE and ALL/Hybrid) and `pa_performance_PBTB-dev` (TAKAFUL) — routed by
+`businessLine`, SPEC-2026-002 0.4.0-draft development profile. Old collection
 mappings are removed. Read `docs/performance-direct-source.md` before source work.
 `db:setup` provisions the three source schemas; `db:seed` delegates to the guarded
 file importer. Static catalogue/config and temporary preferences remain; missing

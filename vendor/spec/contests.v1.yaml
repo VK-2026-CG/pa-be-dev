@@ -31,6 +31,8 @@ info:
   x-domain: contests
   x-spec-repo: pruaction-spec
 servers:
+  - url: http://localhost:4600/contests/v1
+    description: Local dev server
   - url: https://api.{env}.pruaction.internal/contests/v1
     variables:
       env: { default: sit, enum: [sit, uat, prod] }
