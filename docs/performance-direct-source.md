@@ -2,9 +2,11 @@
 
 ## Scope and safety
 
-Requester-approved development work under SPEC-2026-002. Mongo Performance reads
-use **only** `my_production`, `my_mapa`, `my_persistency` in
-`pa_performance_PAMB-dev`. The old adapter/mappings are removed; old database
+Requester-approved development work under SPEC-2026-002 (0.4.0-draft). Mongo
+Performance reads use **only** `my_production`, `my_mapa`, `my_persistency`,
+across two databases on the same cluster/credentials: `pa_performance_PAMB-dev`
+(INSURANCE and ALL/Hybrid) and `pa_performance_PBTB-dev` (TAKAFUL), selected by
+the request's `businessLine`. The old adapter/mappings are removed; old database
 contents are not deleted. Contest connections and runtime collections are unchanged.
 This is not production authentication or approved production source mapping.
 
@@ -26,13 +28,18 @@ Set the following in ignored `.env.local` (shell environment wins):
 ```dotenv
 NODE_ENV=development
 INSIGHTS_DATA_SOURCE=performance
-MONGODB_PERFORMANCE_DB=pa_performance_PAMB-dev
+MONGODB_PAMB_DB=pa_performance_PAMB-dev
+MONGODB_PBTB_DB=pa_performance_PBTB-dev
 INSIGHTS_MOCK_AGENTS_FILE=data/performance-mocks/agents.json
 ```
 
-`MONGODB_PERFORMANCE_DB` may be omitted: the database defaults to the exact name
-above. A conflicting name is rejected. The only source collections remain
-`my_production`, `my_mapa`, `my_persistency`; requests cannot choose a database.
+`MONGODB_PAMB_DB`/`MONGODB_PBTB_DB` may each be omitted: they default to the
+exact names above. A conflicting name for either is rejected. The unrelated
+`MONGODB_DB` variable (Contest/legacy `insights` database) is untouched by this
+profile — do not confuse the two despite the similar name. The only source
+collections remain `my_production`, `my_mapa`, `my_persistency`; requests
+choose the *database* via `businessLine` (see "Mapping and limitations" below)
+but never an arbitrary database name.
 
 ### Reading resident data (no import required)
 
@@ -42,12 +49,20 @@ to make reads work: those are separate maintenance/import commands. The reader
 uses `find` only and reflects later data updates without a reseed or restart.
 
 `src/data/performance-mapping.ts` is the single source-path table, tested against
-the vendored schema. Production identity/aggregation fields are snake_case;
-MAPA/persistency use camelCase. Entity remains PAMB and production case status
-Collected under the previously approved mapping. No identity or numeric sample
-values are hardcoded into these mappings. Adding a new agent to a source does
-not authorize access: update the configured development identity allowlist or
-integrate approved authentication separately.
+the vendored schema. As of the latest data dump, all three collections use
+camelCase identity/aggregation/status fields (`agentId`/`agentAggregation`/
+`agentStatus`, and `caseStatus` on production) — an earlier snake_case
+assumption for production (`agent_id`/`agent_aggregation`/`agent_status`/
+`case_status`) no longer matches the real data and has been corrected.
+`entity` (INSURANCE=`PAMB`, ALL=`Hybrid`, TAKAFUL=`PBTB`) picks both the
+database and the query filter; production case status Collected remains
+required. Every read additionally requires an active agent status
+(`agentStatus` equal to `Active` or `A` — the latter is a temporary widening
+pending an upstream data correction, see "Mapping and limitations"). No
+identity or numeric sample values are hardcoded into these mappings. Adding a
+new agent to a source does not authorize access:
+update the configured development identity allowlist or integrate approved
+authentication separately.
 
 Runtime numeric compatibility covers BSON Double/Int32/Long/Decimal128 and strict
 decimal numeric text. Money avoids Number conversion; fractional/unsafe counts,
@@ -87,9 +102,25 @@ Source BSON numeric types are retained; wire money is decimal-string half-up cen
 
 ## Mapping and limitations
 
-- `PAMB` → INSURANCE; `Personal` → SELF; `Group` → TEAM/GROUP; STANDARD only.
-- ALL/TAKAFUL/DIRECT/SCHEME values are EMPTY, not inferred. Pass the supported
-  lens explicitly: default ALL will correctly show unavailable values.
+- `businessLine` picks the database and `entity` value: `INSURANCE` →
+  `pa_performance_PAMB-dev`/`entity: PAMB`; `ALL` → the same
+  `pa_performance_PAMB-dev` database with `entity: Hybrid` (its own precomputed
+  record — never a runtime merge of PAMB+PBTB); `TAKAFUL` →
+  `pa_performance_PBTB-dev`/`entity: PBTB`.
+- `Personal` → SELF; `Group` → TEAM/GROUP; STANDARD basis only.
+- DIRECT/SCHEME values are still EMPTY, not inferred, regardless of businessLine.
+- Every read requires an active agent status (`Active` or `A`) — the `A` spelling
+  is a **temporary** widening while an upstream data-correction is in progress;
+  once that lands, confirm whether both values remain accepted or the filter
+  narrows to one.
+- `asOfDate` is the selected record's period end date (declared day or calendar
+  month-end) — it is **not** read from the `asOnDate` watermark. Per-collection
+  selection ordering is `period.year desc, period.month desc, id desc, _id desc`
+  (latest inserted wins a same-period tie); `asOnDate`/`audit.updatedAt` no
+  longer participate in ordering.
+- `my_agent_hierarchy` exists in both databases but remains parked (known
+  conflicts, to be resolved separately); agent identity/reportees still come
+  from the development allowlist file (`INSIGHTS_MOCK_AGENTS_FILE`).
 - Production: exact PTD period leaf for TPC/PTPC/FYP/CASE_COUNT; FYC null is EMPTY.
   WITH_REPRICING is detail alternate only. No weighted-product/credit-point guess.
 - MAPA: PTD manpower/count, activity ratio as 0–100 percent, productivity decimal,
@@ -98,8 +129,8 @@ Source BSON numeric types are retained; wire money is decimal-string half-up cen
 - Three sample files have disjoint identities: one person's production is never
   joined to another person's MAPA/persistency. Missing metrics remain visible/EMPTY.
 - Select newest reporting year/month for the identity/lens, align contributing
-  sources to that month, keep the source watermark independent of reporting dates.
-  The supplied periods are in **2025**, even though refresh watermarks are in 2026.
+  sources to that month. The supplied periods are in **2025**, even though
+  refresh watermarks are in 2026 (the watermark itself no longer drives `asOfDate`).
 - No extra Mongo collections for catalogue, preferences, recommendations or
   milestones. Static catalogue is reused; preferences are volatile and reset on
   restart. History returns null cells; support lists are empty; feedback cannot
@@ -118,6 +149,9 @@ x-agent-id: {same-groupAgentId}
 
 GET /api/bff/v1/performance/dashboard?period=YTD&businessLine=INSURANCE&scope=SELF
 x-agent-id: {agentId}
+
+GET /insights/v1/agents/{agentId}/metrics?period=YTD&businessLine=TAKAFUL&scope=SELF&basis=STANDARD
+x-agent-id: {same-agentId}
 ```
 
 No implicit A1001 alias. The development frontend's configured source sample
@@ -127,7 +161,8 @@ the headers above. The selector does not grant access or join different agents.
 ## Validation
 
 `npm run typecheck`, `npm test`, `npm run build`, `npm run handoff:validate`.
-Backend tests cover source AC-PA-DIRECT-01–11 and resident-read AC-PA-DIRECT-18–24
-using synthetic data and fake Mongo. Frontend owns AC-PA-DIRECT-12–17. Live
+Backend tests cover source AC-PA-DIRECT-01–11, resident-read AC-PA-DIRECT-18–24,
+and multi-business-line routing/status/ordering AC-PA-DIRECT-25–30, using
+synthetic data and fake Mongo. Frontend owns AC-PA-DIRECT-12–17. Live
 read-only comparison with resident records is reported separately. The build
 script uses Node filesystem APIs so it also works on Windows.

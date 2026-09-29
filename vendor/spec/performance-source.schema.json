@@ -6,55 +6,67 @@
         "bsonType": "object",
         "required": [
           "_id",
-          "agent_aggregation",
-          "agent_id",
-          "agent_name",
-          "agent_segment",
-          "agent_status",
-          "agent_tier",
-          "agent_type",
+          "agentAggregation",
+          "agentBranchCode",
+          "agentBranchName",
+          "agentId",
           "agentKey",
+          "agentName",
+          "agentRegionCode",
+          "agentRegionName",
+          "agentSegment",
+          "agentStatus",
+          "agentTier",
+          "agentType",
           "asOnDate",
           "audit",
-          "branch_code",
-          "branch_name",
-          "case_status",
+          "caseStatus",
           "entity",
           "entityType",
           "id",
           "period",
           "ptd",
-          "region_code",
-          "region_name",
-          "scheme_type",
+          "schemeType",
           "snapshot"
         ],
         "properties": {
           "_id": {
             "bsonType": "objectId"
           },
-          "agent_aggregation": {
+          "agentAggregation": {
             "bsonType": "string"
           },
-          "agent_id": {
+          "agentBranchCode": {
             "bsonType": "string"
           },
-          "agent_name": {
+          "agentBranchName": {
             "bsonType": "string"
           },
-          "agent_segment": {
-            "bsonType": "string"
-          },
-          "agent_status": {
-            "bsonType": "string"
-          },
-          "agent_tier": {
-            "bsonType": "string"
-          },
-          "agent_type": {
+          "agentId": {
             "bsonType": "string"
           },
           "agentKey": {
+            "bsonType": "string"
+          },
+          "agentName": {
+            "bsonType": "string"
+          },
+          "agentRegionCode": {
+            "bsonType": "string"
+          },
+          "agentRegionName": {
+            "bsonType": "string"
+          },
+          "agentSegment": {
+            "bsonType": "string"
+          },
+          "agentStatus": {
+            "bsonType": "string"
+          },
+          "agentTier": {
+            "bsonType": "string"
+          },
+          "agentType": {
             "bsonType": "string"
           },
           "asOnDate": {
@@ -79,13 +91,7 @@
               "updatedAt"
             ]
           },
-          "branch_code": {
-            "bsonType": "string"
-          },
-          "branch_name": {
-            "bsonType": "string"
-          },
-          "case_status": {
+          "caseStatus": {
             "bsonType": "string"
           },
           "entity": {
@@ -1012,13 +1018,7 @@
               "tpc"
             ]
           },
-          "region_code": {
-            "bsonType": "string"
-          },
-          "region_name": {
-            "bsonType": "string"
-          },
-          "scheme_type": {
+          "schemeType": {
             "bsonType": "null"
           },
           "snapshot": {

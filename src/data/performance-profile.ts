@@ -1,13 +1,13 @@
 import type { AgentRecord } from './registry.js';
 import { readFileSync } from 'node:fs';
-import { performanceDatabase } from '../config/performance.js';
+import { performanceDatabases } from '../config/performance.js';
 
-export { PERFORMANCE_DB, PERFORMANCE_COLLECTIONS, type PerformanceCollection } from '../config/performance.js';
+export { PERFORMANCE_DB, PERFORMANCE_DATABASES, PERFORMANCE_COLLECTIONS, type PerformanceCollection, type PerformanceDatabaseKey } from '../config/performance.js';
 
 /** Explicit mock authorization, never inferred from imported source records. */
 export function performanceProfile(env: NodeJS.ProcessEnv = process.env): Map<string, AgentRecord> {
   if (!['development', 'test'].includes(env.NODE_ENV ?? '')) throw new Error('Performance source mode requires development/test');
-  performanceDatabase(env);
+  performanceDatabases(env);
   if ((env.COUNTRY_CODE ?? 'MY') !== 'MY') throw new Error('Performance source profile requires the MY deployment');
   let entries: unknown;
   try { entries = JSON.parse(env.INSIGHTS_MOCK_AGENTS_FILE ? readFileSync(env.INSIGHTS_MOCK_AGENTS_FILE, 'utf8') : env.INSIGHTS_MOCK_AGENTS ?? '{}'); }

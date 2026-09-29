@@ -117,9 +117,9 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
     return new MemorySource();
   }
   const agents = performanceProfile();
-  const db = await getPerformanceDb();
-  log('data source: direct Performance Mongo DEVELOPMENT profile (three collections only)');
-  return new PerformanceSource(db, agents, log);
+  const [pamb, pbtb] = await Promise.all([getPerformanceDb('PAMB'), getPerformanceDb('PBTB')]);
+  log('data source: direct Performance Mongo DEVELOPMENT profile (three collections, PAMB+PBTB databases)');
+  return new PerformanceSource({ PAMB: pamb, PBTB: pbtb }, agents, log);
 }
 
 export { AGENTS, ANCHOR_YEAR, CATALOG, contextFor };

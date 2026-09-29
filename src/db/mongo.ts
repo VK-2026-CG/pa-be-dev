@@ -3,8 +3,9 @@
  *
  * Config via env (a `.env` in the repo root is auto-loaded — no dep):
  *   MONGODB_URI  mongodb+srv://user:pass@cluster.../  (enables Mongo mode)
- *   MONGODB_PERFORMANCE_DB pa_performance_PAMB-dev (Performance reads)
- *   MONGODB_PERFORMANCE_URI optional dedicated Performance connection
+ *   MONGODB_PAMB_DB pa_performance_PAMB-dev (INSURANCE/ALL Performance reads)
+ *   MONGODB_PBTB_DB pa_performance_PBTB-dev (TAKAFUL Performance reads)
+ *   MONGODB_PERFORMANCE_URI optional dedicated Performance connection (same cluster/credentials for both databases)
  *   MONGODB_DB legacy migration source only; not used by Performance requests
  *
  * Only the explicit offline/test source path uses the in-memory engine; a
@@ -13,7 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MongoClient, type Db } from 'mongodb';
-import { performanceConnection, PERFORMANCE_READ_TIMEOUT_MS } from '../config/performance.js';
+import { performanceConnection, PERFORMANCE_READ_TIMEOUT_MS, type PerformanceDatabaseKey } from '../config/performance.js';
 
 function loadDotEnv(): void {
   for (const file of ['.env', '.env.local']) {
@@ -63,8 +64,9 @@ export async function getContestDb(): Promise<Db> {
 }
 
 /** Separate named Performance source database; never changes Contest storage. */
-export async function getPerformanceDb(): Promise<Db> {
-  const { database, uri } = performanceConnection();
+export async function getPerformanceDb(key: PerformanceDatabaseKey = 'PAMB'): Promise<Db> {
+  const { databases, uri } = performanceConnection();
+  const database = databases[key];
   if (process.env.MONGODB_PERFORMANCE_URI === undefined) return (await connect()).db(database);
   if (!performanceConnectionPromise) {
     const dedicated = new MongoClient(uri, {

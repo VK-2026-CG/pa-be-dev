@@ -51,7 +51,8 @@ describe('BFF team drilldown (S-P4-07)', () => {
       scope: 'TEAM',
       teamView: 'DIRECT',
     });
-    expect(vm.selectedMember.metrics).toHaveLength(2);
+    // performanceBasis=SCHEME excludes PTPC (catalog.ts segmentOverrides, OQ-20 placeholder) — only TPC remains.
+    expect(vm.selectedMember.metrics).toHaveLength(1);
     expect(vm.selectedMember.metrics[0].nav.route).toBe('insights/metric-detail');
     expect(vm.selectedMember.metrics[0].nav.params).toMatchObject({
       period: 'QTD',

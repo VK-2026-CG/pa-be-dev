@@ -63,6 +63,8 @@ info:
   x-spec-repo: pruaction-spec
 
 servers:
+  - url: http://localhost:4600/insights/v1
+    description: Local dev server
   - url: https://api.{env}.pruaction.internal/insights/v1
     variables:
       env:

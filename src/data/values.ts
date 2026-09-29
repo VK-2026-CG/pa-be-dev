@@ -4,8 +4,9 @@
  * exact (cents math), and every (period × businessLine × scope × teamView ×
  * basis) combination yields stable, visibly different values.
  */
-import { addDec, mulRatio, pctChange, toCents } from '../lib/money.js';
+import { addDec, mulRatio, toCents } from '../lib/money.js';
 import { effectiveCatalog, findDef } from './catalog.js';
+import { changeFor, directionFor, roundToOneDecimal, sentimentFor } from './change.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 import type {
   BarComparison, Basis, BreakdownTable, BusinessLine, Change, GoalProgress,
@@ -43,7 +44,7 @@ function scaleInt(base: number, l: Lens): number {
 
 /** Base YTD/ALL/SELF/STANDARD figures per metric (mock-sourced). */
 const MONEY_BASE: Record<string, { collected: string; prior: string; penders: string }> = {
-  TPC: { collected: '980000.00', prior: '879712.75', penders: '30000.00' },
+  TPC: { collected: '100000.00', prior: '78740.00', penders: '30000.00' },
   PTPC: { collected: '70000.00', prior: '95890.00', penders: '21000.00' },
   FYP: { collected: '360000.00', prior: '283460.00', penders: '54000.00' },
   FYC: { collected: '180000.00', prior: '141730.00', penders: '30000.00' },
@@ -64,18 +65,6 @@ const DECIMAL_BASE: Record<string, { current: number; prior: number }> = {
   PRODUCTIVITY: { current: 9.7, prior: 9.3 },
 };
 
-function round1(n: number): number { return Math.round(n * 10) / 10; }
-
-function sentimentFor(code: string, delta: number): Change['sentiment'] {
-  if (delta === 0) return 'NEUTRAL';
-  const fav = findDef(code)?.favourability ?? 'HIGHER_IS_BETTER';
-  const good = fav === 'HIGHER_IS_BETTER' ? delta > 0 : delta < 0;
-  return good ? 'POSITIVE' : 'NEGATIVE';
-}
-function directionFor(delta: number): Change['direction'] {
-  return delta === 0 ? 'FLAT' : delta > 0 ? 'UP' : 'DOWN';
-}
-
 function scalar(kind: ScalarKind, moneyAmount: string | null, num: number | null): MetricScalar {
   if (kind === 'MONEY') return { kind, amount: moneyAmount ?? '0.00', currency: 'MYR' };
   if (kind === 'COUNT') return { kind, value: num ?? 0 };
@@ -87,51 +76,25 @@ interface Pair { current: MetricScalar; prior: MetricScalar; change: Change }
 function valuePair(code: string, l: Lens): Pair {
   const def = findDef(code);
   const kind = def?.valueType ?? 'MONEY';
-  const display = def?.changeDisplay ?? 'PCT';
+  let current: MetricScalar; let prior: MetricScalar;
   if (kind === 'MONEY') {
     const b = MONEY_BASE[code] ?? MONEY_BASE.TPC!;
-    const current = scaleDec(b.collected, l);
-    const prior = scaleDec(b.prior, l);
-    const pct = pctChange(current, prior);
-    const absCents = toCents(current) - toCents(prior);
-    const change: Change = {
-      basis: 'LAST_YEAR', direction: directionFor(pct), sentiment: sentimentFor(code, pct),
-      ...(display === 'ABS'
-        ? { abs: { kind: 'MONEY', amount: addDec(current, mulRatio(prior, -1, 1)), currency: 'MYR' } }
-        : { pct }),
-    };
-    void absCents;
-    return { current: scalar('MONEY', current, null), prior: scalar('MONEY', prior, null), change };
-  }
-  if (kind === 'COUNT') {
+    current = scalar('MONEY', scaleDec(b.collected, l), null);
+    prior = scalar('MONEY', scaleDec(b.prior, l), null);
+  } else if (kind === 'COUNT') {
     const b = COUNT_BASE[code] ?? COUNT_BASE.CASE_COUNT!;
-    const current = scaleInt(b.collected, l);
-    const prior = scaleInt(b.prior, l);
-    const diff = current - prior;
-    const pct = prior === 0 ? 0 : Math.round(((current - prior) / prior) * 1000) / 10;
-    const change: Change = {
-      basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff),
-      ...(display === 'ABS' ? { abs: { kind: 'COUNT', value: diff } } : { pct }),
-    };
-    return { current: scalar('COUNT', null, current), prior: scalar('COUNT', null, prior), change };
-  }
-  if (kind === 'PERCENT') {
+    current = scalar('COUNT', null, scaleInt(b.collected, l));
+    prior = scalar('COUNT', null, scaleInt(b.prior, l));
+  } else if (kind === 'PERCENT') {
     const b = PERCENT_BASE[code] ?? PERCENT_BASE.PERSISTENCY_CY!;
-    const pp = round1(b.current - b.prior);
-    const pct = b.prior === 0 ? 0 : round1(((b.current - b.prior) / b.prior) * 100);
-    const change: Change = {
-      basis: 'LAST_YEAR', direction: directionFor(pp), sentiment: sentimentFor(code, pp),
-      ...(display === 'PCT' ? { pct } : { pp }),
-    };
-    return { current: scalar('PERCENT', null, b.current), prior: scalar('PERCENT', null, b.prior), change };
+    current = scalar('PERCENT', null, b.current);
+    prior = scalar('PERCENT', null, b.prior);
+  } else {
+    const b = DECIMAL_BASE[code] ?? DECIMAL_BASE.PRODUCTIVITY!;
+    current = scalar('DECIMAL', null, b.current);
+    prior = scalar('DECIMAL', null, b.prior);
   }
-  const b = DECIMAL_BASE[code] ?? DECIMAL_BASE.PRODUCTIVITY!;
-  const diff = round1(b.current - b.prior);
-  const change: Change = {
-    basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff),
-    abs: { kind: 'DECIMAL', value: diff, precision: 1 },
-  };
-  return { current: scalar('DECIMAL', null, b.current), prior: scalar('DECIMAL', null, b.prior), change };
+  return { current, prior, change: changeFor(code, current, prior) };
 }
 
 function pendersFor(code: string, l: Lens): MetricScalar | undefined {
@@ -154,10 +117,12 @@ function pendersFor(code: string, l: Lens): MetricScalar | undefined {
  * v1.7.0 (ARVIJ-157 AC-P4-02-32): TEAM-scope Penders case count for
  * MONEY-primary metrics with repricing (TPC/PTPC) — a case count, distinct
  * from and never derived from `pendersFor`'s MONEY value above. Sourced from
- * the interim mock in `./mocks/team-penders.ts` until the pipeline
- * materializes `values.pendersCaseCount` in `metric_snapshots` (mongodb.md
- * v1.7.0 D-19); SELF never gets this — Self's Penders stays the money amount
- * inside the gauge legend (AC-P4-02-31).
+ * the interim mock in `./mocks/team-penders.ts` until the real figure is
+ * wired up — that's an upstream API call, not a Mongo collection, and is
+ * blocked on business confirming the call contract (endpoint/auth/shape
+ * still unconfirmed as of this writing) (mongodb.md v1.7.0 D-19); SELF never
+ * gets this — Self's Penders stays the money amount inside the gauge legend
+ * (AC-P4-02-31).
  */
 function teamPendersCaseCountFor(code: string, l: Lens): number | undefined {
   if (l.scope !== 'TEAM') return undefined;
@@ -412,10 +377,10 @@ export function metricSeries(code: string, l: Lens, anchorYear: number, yearsBac
         const b = PERCENT_BASE[code] ?? PERCENT_BASE.PERSISTENCY_CY!;
         const drift = [1, 0.5, 1.07, -0.93, -0.93, -0.89, 0][mi] ?? 0;
         const yearOff = year === ANCHOR_YEAR ? 0 : -0.5;
-        value = { kind: 'PERCENT', value: round1(b.current + drift + yearOff - 1) };
+        value = { kind: 'PERCENT', value: roundToOneDecimal(b.current + drift + yearOff - 1) };
       } else {
         const b = DECIMAL_BASE[code] ?? DECIMAL_BASE.PRODUCTIVITY!;
-        value = { kind: 'DECIMAL', value: round1(b.current - (ANCHOR_YEAR - year) * 0.4 + mi * 0.02), precision: 1 };
+        value = { kind: 'DECIMAL', value: roundToOneDecimal(b.current - (ANCHOR_YEAR - year) * 0.4 + mi * 0.02), precision: 1 };
       }
       return { month, value };
     });

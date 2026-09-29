@@ -11,7 +11,7 @@ const cap = (o: Partial<MetricDefinition['capabilities']>): MetricDefinition['ca
  * MY seed — mirrors pruaction-spec domains/insights/data/mongodb.md §4 (v1.3.0).
  * SCHEME segmentOverrides are a PLACEHOLDER pending OQ-20 (Scheme set/order/goals
  * unconfirmed): stubbed as the smaller re-ordered set [TPC, FYP, CASE_COUNT].
- * `scheme_type` arrives null from the declared upstream source, so `basis=SCHEME`
+ * `schemeType` arrives null from the declared upstream source, so `basis=SCHEME`
  * stays unbacked regardless of a metric's own availability (source-mapping.md
  * OQ-PA-07) — the overrides below remain a placeholder, not a mapping.
  *

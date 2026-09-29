@@ -4,7 +4,7 @@ import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricP
 import { sourceSchema } from '../src/data/performance-import.js';
 import { sourceDecimalText, sourceInteger, sourceMetricScalar } from '../src/data/performance-values.js';
 import { performanceRecordMetadata, performanceWatermark } from '../src/data/performance-record.js';
-import { performanceConnection, performanceDatabase, PERFORMANCE_DB } from '../src/config/performance.js';
+import { performanceConnection, performanceDatabases, PERFORMANCE_DATABASES } from '../src/config/performance.js';
 import { CATALOG } from '../src/data/catalog.js';
 
 describe('existing Performance collection field contract', () => {
@@ -69,9 +69,10 @@ describe('existing Performance collection field contract', () => {
     }
   });
   it('AC-PA-DIRECT-23 fixed DB defaults and dedicated URI selection reject accidental fallback', () => {
-    expect(performanceDatabase({})).toBe(PERFORMANCE_DB);
-    expect(() => performanceDatabase({ MONGODB_PERFORMANCE_DB: 'other' })).toThrow();
-    expect(performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid' })).toEqual({ database: PERFORMANCE_DB, uri: 'mongodb://shared.invalid' });
+    expect(performanceDatabases({})).toEqual(PERFORMANCE_DATABASES);
+    expect(() => performanceDatabases({ MONGODB_PAMB_DB: 'other' })).toThrow();
+    expect(() => performanceDatabases({ MONGODB_PBTB_DB: 'other' })).toThrow();
+    expect(performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid' })).toEqual({ databases: PERFORMANCE_DATABASES, uri: 'mongodb://shared.invalid' });
     expect(performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid', MONGODB_PERFORMANCE_URI: 'mongodb://performance.invalid' }).uri).toBe('mongodb://performance.invalid');
     expect(() => performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid', MONGODB_PERFORMANCE_URI: '' })).toThrow('connection required');
   });
