@@ -120,7 +120,8 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
     return new MemorySource();
   }
   const agents = performanceProfile();
-  const db = await getPerformanceDb();
+  const [pamb, pbtb] = await Promise.all([getPerformanceDb('PAMB'), getPerformanceDb('PBTB')]);
+  const dbs = { PAMB: pamb, PBTB: pbtb };
   log('data source: direct Performance Mongo DEVELOPMENT profile (three collections only)');
   // performanceProfile() above already refuses anything but development/test; the
   // fallback is narrower still: NODE_ENV=development only, never test/shared.
@@ -128,7 +129,7 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
   const devMockFallback = requested && process.env.NODE_ENV === 'development';
   if (devMockFallback) log('data source: DEV MOCK fallback ON — anything Mongo cannot supply is filled with stub values');
   else if (requested) log('data source: INSIGHTS_DEV_MOCK_FALLBACK ignored — requires NODE_ENV=development');
-  const source = new PerformanceSource(db, agents, log, devMockFallback);
+  const source = new PerformanceSource(dbs, agents, log, devMockFallback);
   if (teamDrilldownMockEnabled()) {
     log('⚠ INSIGHTS_TEAM_DRILLDOWN_MOCK=true: Team Drilldown hierarchy/badges/goals are MOCK data (development only, SPEC-2026-004 D-P4-07-06)');
     return new TeamDrilldownMockOverlay(source, new MemorySource());
