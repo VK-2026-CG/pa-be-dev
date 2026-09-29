@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-tpc-jira-alignment-v1-7-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.7.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-31",
+    "AC-P4-02-32",
+    "AC-P4-02-33",
+    "AC-P4-02-34"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-32: implement the values.pendersCaseCount pipeline aggregation (sum of all agents' Penders cases in the selected teamView unit) for TPC/PTPC at scope=TEAM only, per mongodb.md §1. Materialize this as a distinct field from values.penders (money) — do not derive one from the other, they are different units. Emit penders.primary in getMetricDetail's capability gating ONLY when scope=TEAM for TPC/PTPC; never for scope=SELF.",
+        "AC-P4-02-33: implement the Credit Point formula in the domain pipeline for the CREDIT_POINTS breakdown row (both WITHOUT_REPRICING/WITH_REPRICING variants, both scopes), per mongodb.md §1 D-19: A = Insurance+Takaful collected (that variant); B = 10%×Single Premium + 10%×PSA (same variant); Credit Point = B if B<25%×A else capped at 25%×A. This replaces the current PRODUCT_DATA_MISSING notice for CREDIT_POINTS once implemented.",
+        "BLOCKED pending clarification (do not implement yet): whether values.collected (the headline TPC/gauge value) must itself be recomputed as A + Credit Point, or whether collected stays independently sourced and CREDIT_POINTS is purely an informational breakdown row. See the legacy-contract.md v1.7.0 open question. Do not guess — wait for product/business confirmation before touching values.collected.",
+        "No change to the Penders card's nav/link field — OQ-30 (Activity Management Proposal-screen route) remains unconfirmed. Do not add a route or hardcode a guessed destination."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "No new pairing/layout logic is required: once the backend only emits penders.primary for scope=TEAM on TPC/PTPC, the existing 'skip absent sections' rendering in MetricDetailMY.tsx already produces the correct per-scope KPI set (AC-P4-02-31) with zero UI-side scope branching, consistent with the 'UI never decides which sections exist' hard rule.",
+        "Verify PendersCard/formatScalar render a COUNT-kind MetricScalar correctly for the new Team Penders card (they should already, since formatting is display-kind driven, not scope driven) — add a fixture/test exercising scope=TEAM with penders.primary present once the backend field exists.",
+        "No chart/gauge code changes — AC-P4-02-23's value-only face is retained pending the unresolved chart-design open question; do not add a donut or colored segments in this revision.",
+        "Add unit/e2e test coverage named after AC-P4-02-31 through AC-P4-02-34 per this repo's Definition of Done, once backend fixtures exist for the TEAM Penders count and the Credit Point breakdown value."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is two signed-off Jira stories (ARVIJ-19 Self, ARVIJ-157 Team), not Figma exports or screenshots — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker for visual/layout aspects only; the ACs themselves are business-approved.",
+    "OQ-40 (blocking, chart design): ARVIJ-19/157 specify a colored visual chart (Self: Collected+Penders two-tone donut; Team: Collected-only single-tone) that contradicts the shipped value-only gauge face (AC-P4-02-23). Not resolved by this revision — product/UX must decide which source of truth governs.",
+    "OQ-41 (blocking, calculation scope): does the Credit Point formula (AC-P4-02-33) redefine the headline TPC/gauge collected value (TPC = A + Credit Point, read literally from ARVIJ-157 AC13), or only the CREDIT_POINTS breakdown row? Blocks backend implementation of AC-P4-02-33 until answered.",
+    "OQ-42: ARVIJ-19's Visual Chart Color Logic AC still lists goal-related grey/green segments despite goal-setting being struck off for R1 elsewhere in the same story — treated as non-authoritative leftover text, not implemented; confirm before any future revision.",
+    "OQ-43: does ARVIJ-157 AC17's \"Group (Applicable for AM only)\" restriction equal the existing P2/P3 leader-level gating (P2 = DIRECT or GROUP, P3 = DIRECT-only, 403 INS-4031), or is a new AM-specific role check required?",
+    "OQ-30 (pre-existing, still blocking): Penders card link destination (Activity Management module's Proposal screen) has no confirmed route — card ships non-navigable for TEAM."
+  ],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

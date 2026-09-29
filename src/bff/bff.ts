@@ -16,7 +16,7 @@ import type { DataSource } from '../data/source.js';
 export function getPersona(request: FastifyRequest, source?: DataSource): Persona {
   if (source?.ownIdentityOnly) {
     const id = request.headers['x-agent-id'];
-    const agent = typeof id === 'string' ? source.findAgent?.(id) : undefined;
+    const agent = typeof id === 'string' ? (source.findIdentityAgent ?? source.findAgent)?.call(source, id) : undefined;
     if (!agent || (request.headers['x-tenant'] && request.headers['x-tenant'] !== 'MY')) {
       throw Object.assign(new Error('Unknown development identity'), { statusCode: 401, code: 'INS-4010' });
     }

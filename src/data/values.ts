@@ -4,7 +4,7 @@
  * exact (cents math), and every (period × businessLine × scope × teamView ×
  * basis) combination yields stable, visibly different values.
  */
-import { addDec, mulRatio, toCents } from '../lib/money.js';
+import { addDec, mulRatio, pctChange, pctRoundUpDec, toCents } from '../lib/money.js';
 import { effectiveCatalog, findDef } from './catalog.js';
 import { changeFor, directionFor, roundToOneDecimal, sentimentFor } from './change.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
@@ -42,6 +42,11 @@ function scaleInt(base: number, l: Lens): number {
   return Math.max(0, Math.round((base * n) / d));
 }
 
+/** Scales a base YTD/ALL/STANDARD money figure to the lens (SELF multipliers) — Team Drilldown member values. */
+export function scaleMoney(base: string, l: Lens): string {
+  return scaleDec(base, { ...l, scope: 'SELF' });
+}
+
 /** Base YTD/ALL/SELF/STANDARD figures per metric (mock-sourced). */
 const MONEY_BASE: Record<string, { collected: string; prior: string; penders: string }> = {
   TPC: { collected: '100000.00', prior: '78740.00', penders: '30000.00' },
@@ -73,9 +78,84 @@ function scalar(kind: ScalarKind, moneyAmount: string | null, num: number | null
 }
 
 interface Pair { current: MetricScalar; prior: MetricScalar; change: Change }
+
+/** Metrics opted into widget-contracts §2 `R-PCT-ROUNDUP` (S-P4-02 v1.13.0 AC-P4-02-45; v1.14.0 AC-P4-02-49; v1.15.0 AC-P4-02-51; v1.16.0 AC-P4-02-53). */
+const PCT_ROUNDUP = new Set(['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE']);
+
+/** Scale two decimals to integers on a common power of ten so `pctRoundUp` stays exact (72.4 vs 61.8 ⇒ 724 vs 618). */
+function toScaledInts(a: number, b: number): [number, number] {
+  const places = (n: number) => { const s = String(n); const i = s.indexOf('.'); return i < 0 ? 0 : Math.min(s.length - i - 1, 6); };
+  const f = 10 ** Math.max(places(a), places(b));
+  return [Math.round(a * f), Math.round(b * f)];
+}
+
+/**
+ * `R-PCT-ROUNDUP`: integer % change rounded away from zero (+23.4 ⇒ 24, −23.4 ⇒ −24).
+ * Integer arithmetic only, so an exact 10 never floats up to 11. `prior` must be non-zero
+ * (zero prior is unresolved, OQ-54 — callers keep their existing behavior for it).
+ */
+export function pctRoundUp(diff: number, prior: number): number {
+  const num = Math.abs(diff) * 100; const den = Math.abs(prior);
+  const mag = Math.floor(num / den) + (num % den === 0 ? 0 : 1);
+  return mag === 0 ? 0 : Math.sign(diff) * Math.sign(prior) * mag;
+}
+
+/** Year-over-year change between two same-kind scalars, per the metric's favourability (D-05) and changeDisplay (D-10). */
+function changeFor(code: string, current: MetricScalar, prior: MetricScalar): Change {
+  const display = findDef(code)?.changeDisplay ?? 'PCT';
+  if (current.kind === 'MONEY' && prior.kind === 'MONEY') {
+    // AVERAGE_CASE_SIZE (AC-P4-02-52/53): relative % of the exact amounts, rounded away from zero.
+    const pct = PCT_ROUNDUP.has(code) ? pctRoundUpDec(current.amount, prior.amount) : pctChange(current.amount, prior.amount);
+    return {
+      basis: 'LAST_YEAR', direction: directionFor(pct), sentiment: sentimentFor(code, pct),
+      ...(display === 'ABS'
+        ? { abs: { kind: 'MONEY', amount: addDec(current.amount, mulRatio(prior.amount, -1, 1)), currency: 'MYR' } }
+        : { pct }),
+    };
+  }
+  if (current.kind === 'COUNT' && prior.kind === 'COUNT') {
+    const diff = current.value - prior.value;
+    const pct = prior.value === 0 ? 0
+      : PCT_ROUNDUP.has(code) ? pctRoundUp(diff, prior.value)
+        : Math.round((diff / prior.value) * 1000) / 10;
+    return {
+      basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff),
+      ...(display === 'ABS' ? { abs: { kind: 'COUNT', value: diff } } : { pct }),
+    };
+  }
+  if (current.kind === 'PERCENT' && prior.kind === 'PERCENT') {
+    if (display === 'PCT' && PCT_ROUNDUP.has(code)) {
+      // Relative % of the ratio, rounded away from zero from exact values (AC-P4-02-48/49).
+      const [cur, pri] = toScaledInts(current.value, prior.value);
+      const diff = cur - pri;
+      const pct = pri === 0 ? 0 : pctRoundUp(diff, pri);
+      return { basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff), pct };
+    }
+    const pp = round1(current.value - prior.value);
+    const pct = prior.value === 0 ? 0 : round1(((current.value - prior.value) / prior.value) * 100);
+    return {
+      basis: 'LAST_YEAR', direction: directionFor(pp), sentiment: sentimentFor(code, pp),
+      ...(display === 'PCT' ? { pct } : { pp }),
+    };
+  }
+  if (current.kind === 'DECIMAL' && prior.kind === 'DECIMAL' && display === 'PCT') {
+    // Relative % of the decimal value, not its absolute difference (AC-P4-02-50/51: 9.7 vs 9.3 ⇒ 5).
+    const [cur, pri] = toScaledInts(current.value, prior.value);
+    const diff = cur - pri;
+    const pct = pri === 0 ? 0
+      : PCT_ROUNDUP.has(code) ? pctRoundUp(diff, pri)
+        : round1((diff / pri) * 100);
+    return { basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff), pct };
+  }
+  const diff = round1((current as { value: number }).value - (prior as { value: number }).value);
+  return {
+    basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff),
+    abs: { kind: 'DECIMAL', value: diff, precision: 1 },
+  };
+}
+
 function valuePair(code: string, l: Lens): Pair {
-  const def = findDef(code);
-  const kind = def?.valueType ?? 'MONEY';
+  const kind = findDef(code)?.valueType ?? 'MONEY';
   let current: MetricScalar; let prior: MetricScalar;
   if (kind === 'MONEY') {
     const b = MONEY_BASE[code] ?? MONEY_BASE.TPC!;
@@ -114,21 +194,18 @@ function pendersFor(code: string, l: Lens): MetricScalar | undefined {
 }
 
 /**
- * v1.7.0 (ARVIJ-157 AC-P4-02-32): TEAM-scope Penders case count for
- * MONEY-primary metrics with repricing (TPC/PTPC) — a case count, distinct
- * from and never derived from `pendersFor`'s MONEY value above. Sourced from
- * the interim mock in `./mocks/team-penders.ts` until the real figure is
- * wired up — that's an upstream API call, not a Mongo collection, and is
- * blocked on business confirming the call contract (endpoint/auth/shape
- * still unconfirmed as of this writing) (mongodb.md v1.7.0 D-19); SELF never
- * gets this — Self's Penders stays the money amount inside the gauge legend
- * (AC-P4-02-31).
+ * v1.7.0 (ARVIJ-157 AC-P4-02-32): Penders case count for MONEY-primary
+ * metrics with repricing (TPC/PTPC) — a case count, distinct from and never
+ * derived from `pendersFor`'s MONEY value above. Sourced from the interim mock
+ * in `./mocks/team-penders.ts` until the pipeline materializes
+ * `values.pendersCaseCount` in `metric_snapshots` (mongodb.md v1.7.0 D-19,
+ * OQ-77). v1.20.0 (AC-P4-02-58): emitted at SELF too (the agent's own cases),
+ * not only TEAM; CASE_COUNT's TEAM-only card comes from `pendersFor` instead.
  */
-function teamPendersCaseCountFor(code: string, l: Lens): number | undefined {
-  if (l.scope !== 'TEAM') return undefined;
+function pendersCaseCountFor(code: string, l: Lens): number | undefined {
   const def = findDef(code);
   if (!def?.capabilities.repricing) return undefined;
-  return mockTeamPendersCaseCount(code, l.teamView ?? 'DIRECT');
+  return mockTeamPendersCaseCount(code, l.scope === 'TEAM' ? (l.teamView ?? 'DIRECT') : 'SELF');
 }
 
 /** Scheme agents "have different goals" (D-13): goals are SET under SCHEME, NOT_SET under STANDARD (Set Goals flow pending — roadmap §7b). */
@@ -174,9 +251,11 @@ function snapshotFor(code: string, l: Lens): MetricSnapshot {
   const penders = pendersFor(code, l);
   if (penders) snap.penders = penders;
   if (code === 'MANPOWER') {
+    // v1.13.0 (AC-P4-02-42): Total Manpower = EXISTING_AGENTS + NEW_RECRUITS; `collected` is the total.
+    const [existing, recruits] = manpowerSplit(pair.current, MANPOWER_NEW_RECRUITS.current, l);
     snap.subMeasures = [
-      { measureCode: 'OPENING', value: { kind: 'COUNT', value: scaleInt(10, l) } },
-      { measureCode: 'CLOSING', value: pair.current },
+      { measureCode: 'EXISTING_AGENTS', value: existing },
+      { measureCode: 'NEW_RECRUITS', value: recruits },
     ];
   }
   return snap;
@@ -269,26 +348,39 @@ function breakdown(code: string, variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING'
   return { variant, columns, rows, totals };
 }
 
+/** Stub NEW_RECRUITS base (joined in the same calendar year) — MANPOWER totals stay COUNT_BASE. */
+const MANPOWER_NEW_RECRUITS = { current: 8, prior: 4 } as const;
+
+/**
+ * STUB split of a Total Manpower count into [EXISTING_AGENTS, NEW_RECRUITS]. Real upstream has no
+ * existing-agents field and total − newRecruits is NOT an approved source derivation (OQ-51); this
+ * only keeps mock segments summing to the mock total.
+ */
+function manpowerSplit(total: MetricScalar, recruitsBase: number, l: Lens): [MetricScalar, MetricScalar] {
+  const t = total.kind === 'COUNT' ? total.value : 0;
+  const recruits = Math.min(t, scaleInt(recruitsBase, l));
+  return [{ kind: 'COUNT', value: t - recruits }, { kind: 'COUNT', value: recruits }];
+}
+
 function barComparisonFor(code: string, l: Lens): BarComparison {
   if (code === 'MANPOWER') {
-    const mk = (base: number, prior: number, measureCode: string) => ({
-      measureCode,
-      points: [
-        { year: ANCHOR_YEAR - 1, value: { kind: 'COUNT' as const, value: scaleInt(prior, l) } },
-        {
-          year: ANCHOR_YEAR, value: { kind: 'COUNT' as const, value: scaleInt(base, l) },
-          change: {
-            basis: 'LAST_YEAR' as const, direction: directionFor(scaleInt(base, l) - scaleInt(prior, l)),
-            sentiment: sentimentFor(code, scaleInt(base, l) - scaleInt(prior, l)),
-            abs: { kind: 'COUNT' as const, value: scaleInt(base, l) - scaleInt(prior, l) },
-          },
-        },
-      ],
-    });
+    // v1.13.0 (AC-P4-02-42/43): stacked EXISTING_AGENTS + NEW_RECRUITS; the only chip is on totals[].
+    const pair = valuePair(code, l);
+    const [curExisting, curRecruits] = manpowerSplit(pair.current, MANPOWER_NEW_RECRUITS.current, l);
+    const [priExisting, priRecruits] = manpowerSplit(pair.prior, MANPOWER_NEW_RECRUITS.prior, l);
+    const years = [ANCHOR_YEAR - 1, ANCHOR_YEAR];
     return {
-      years: [ANCHOR_YEAR - 1, ANCHOR_YEAR],
+      years,
       axis: { unitCode: 'AGENTS' },
-      measures: [mk(10, 7, 'OPENING'), mk(25, 18, 'CLOSING')],
+      layout: 'STACKED',
+      measures: [
+        { measureCode: 'EXISTING_AGENTS', points: [{ year: years[0]!, value: priExisting }, { year: years[1]!, value: curExisting }] },
+        { measureCode: 'NEW_RECRUITS', points: [{ year: years[0]!, value: priRecruits }, { year: years[1]!, value: curRecruits }] },
+      ],
+      totals: [
+        { year: years[0]!, value: pair.prior },
+        { year: years[1]!, value: pair.current, change: changeFor(code, pair.current, pair.prior) },
+      ],
     };
   }
   const b = COUNT_BASE[code] ?? COUNT_BASE.NEW_RECRUIT_CONTRACTED!;
@@ -310,6 +402,13 @@ function barComparisonFor(code: string, l: Lens): BarComparison {
   };
 }
 
+/**
+ * v1.12.0 (AC-P4-02-46, ARVIJ-111/113/115/170/172/174): persistency drill-downs removed
+ * the year-on-year comparison, so the detail omits `comparison` for these metrics (both
+ * scopes). Detail only — dashboard snapshots keep their change for the S-P4-01 card.
+ */
+const NO_DETAIL_COMPARISON = new Set(['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2']);
+
 export function metricDetail(code: string, l: Lens, demoState?: 'EMPTY' | 'PROCESSING'): MetricDetail | undefined {
   const def = effectiveCatalog(l.scope, l.basis).find((d) => d.metricCode === code);
   if (!def) return undefined;
@@ -324,7 +423,9 @@ export function metricDetail(code: string, l: Lens, demoState?: 'EMPTY' | 'PROCE
     collected: pair.current,
     ...(pendersFor(code, l) ? { penders: pendersFor(code, l)! } : {}),
   };
-  base.comparison = { current: pair.current, prior: pair.prior, priorYear: ANCHOR_YEAR - 1, change: pair.change };
+  if (!NO_DETAIL_COMPARISON.has(code)) {
+    base.comparison = { current: pair.current, prior: pair.prior, priorYear: ANCHOR_YEAR - 1, change: pair.change };
+  }
   if (def.capabilities.repricing && pair.current.kind === 'MONEY') {
     base.altVariants = [{
       variant: 'WITH_REPRICING',
@@ -341,9 +442,86 @@ export function metricDetail(code: string, l: Lens, demoState?: 'EMPTY' | 'PROCE
       : [breakdown(code, 'WITHOUT_REPRICING', l)];
   }
   if (def.capabilities.barComparison) base.barComparison = barComparisonFor(code, l);
-  const pendersCaseCount = teamPendersCaseCountFor(code, l);
+  const pendersCaseCount = pendersCaseCountFor(code, l);
   if (pendersCaseCount !== undefined) base.pendersCaseCount = pendersCaseCount;
   return base;
+}
+
+/** `value × num/den` for a same-kind stub ratio — money via cents math, counts rounded, rates unscaled. */
+function scaleByRatio(value: MetricScalar, num: MetricScalar, den: MetricScalar): MetricScalar {
+  if (value.kind === 'MONEY' && num.kind === 'MONEY' && den.kind === 'MONEY') {
+    const d = Number(toCents(den.amount));
+    return d === 0 ? num : { ...value, amount: mulRatio(value.amount, Number(toCents(num.amount)), d) };
+  }
+  if (value.kind === 'COUNT' && num.kind === 'COUNT' && den.kind === 'COUNT') {
+    return den.value === 0 ? num : { kind: 'COUNT', value: Math.max(0, Math.round((value.value * num.value) / den.value)) };
+  }
+  return num; // PERCENT/DECIMAL are rates, not volumes — the stub prior is used as-is
+}
+
+/** Rescales a stub breakdown so its total equals `target`, then re-sums totals from the scaled rows. */
+function scaleBreakdown(table: BreakdownTable, target: MetricScalar): BreakdownTable {
+  const total = table.totals[0]?.value;
+  if (!total || total.kind !== 'MONEY' || target.kind !== 'MONEY' || toCents(total.amount) === 0n) return table;
+  const num = Number(toCents(target.amount)); const den = Number(toCents(total.amount));
+  const rows = table.rows.map((r) => ({
+    ...r,
+    cells: r.cells.map((c) => (c.value.kind === 'MONEY' ? { ...c, value: { ...c.value, amount: mulRatio(c.value.amount, num, den) } } : c)),
+  }));
+  const totals = table.totals.map((t) => ({
+    ...t,
+    value: {
+      kind: 'MONEY' as const, currency: 'MYR',
+      amount: rows.reduce((acc, r) => {
+        const cell = r.cells.find((c) => c.businessLine === t.businessLine);
+        return cell?.value.kind === 'MONEY' ? addDec(acc, cell.value.amount) : acc;
+      }, '0.00'),
+    },
+  }));
+  return { ...table, rows, totals };
+}
+
+/**
+ * DEV-ONLY (`INSIGHTS_DEV_MOCK_FALLBACK=true`, Performance source mode only —
+ * see AGENTS.md "Dev mock fallback"): fills the parts of a Mongo-backed
+ * detail the direct source cannot supply, from this stub engine. Real values
+ * are never replaced. When Mongo has a Collected value, the mock prior year
+ * and breakdown rows are rescaled to it so the combined card stays coherent
+ * (the stub's growth % and product mix are kept). When Mongo has nothing,
+ * the whole stub body is returned under the real context.
+ */
+export function mockFillDetail(code: string, l: Lens, real: MetricDetail): { detail: MetricDetail; filled: string[] } {
+  const stub = metricDetail(code, l);
+  if (!stub?.primary) return { detail: real, filled: [] };
+  if (!real.primary) {
+    const priorYear = Number((real.context.period.endDate ?? real.context.asOfDate).slice(0, 4)) - 1;
+    return {
+      detail: { ...stub, context: real.context, ...(stub.comparison ? { comparison: { ...stub.comparison, priorYear } } : {}) },
+      filled: ['all'],
+    };
+  }
+  const detail: MetricDetail = { ...real };
+  const filled: string[] = [];
+  const current = real.primary.collected;
+  if (!detail.comparison && stub.comparison) {
+    const prior = scaleByRatio(current, stub.comparison.prior, stub.comparison.current);
+    const priorYear = Number((real.context.period.endDate ?? real.context.asOfDate).slice(0, 4)) - 1;
+    detail.comparison = { current, prior, priorYear, change: changeFor(code, current, prior) };
+    filled.push('comparison');
+  }
+  if (!detail.breakdowns && stub.breakdowns) {
+    const realAlt = real.altVariants?.find((v) => v.variant === 'WITH_REPRICING')?.collected;
+    const stubWithout = stub.breakdowns.find((b) => b.variant === 'WITHOUT_REPRICING');
+    detail.breakdowns = stub.breakdowns.map((b) => {
+      if (b.variant === 'WITHOUT_REPRICING') return scaleBreakdown(b, current);
+      if (realAlt) return scaleBreakdown(b, realAlt);
+      // No real repriced total: keep the stub's with/without proportion.
+      const stubTotal = b.totals[0]?.value; const stubWithoutTotal = stubWithout?.totals[0]?.value;
+      return stubTotal && stubWithoutTotal ? scaleBreakdown(b, scaleByRatio(current, stubTotal, stubWithoutTotal)) : b;
+    });
+    filled.push('breakdowns');
+  }
+  return { detail, filled };
 }
 
 /** Monthly weights (per-mille of the YTD total across closed months Jan–Jul). */

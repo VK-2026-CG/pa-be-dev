@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-customize-checkbox-colors-v1-3-1",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "1.3.1" },
+  "changedArtifacts": [
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/requirements/legacy-contract.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/screen.manifest.json",
+    "domains/insights/screens/screen-registry.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": ["AC-P4-04-24", "AC-P4-04-25"],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Fix --color-check-on from a washed-out pink (#f4867f) to brand-red, matching AC-P4-04-25's already-correct spec text that the implementation had drifted from.",
+        "Introduce --color-check-locked-bg (a lighter grey) for the locked-priority checkbox fill, distinct from --color-check-border, which stays reserved for the neutral unchecked-box border and the drag-grip dots (AC-P4-04-24)."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-23T00:00:00Z"
+}

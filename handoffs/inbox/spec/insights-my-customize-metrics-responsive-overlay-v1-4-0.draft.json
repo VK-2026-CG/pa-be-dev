@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-customize-metrics-responsive-overlay-v1-4-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.4.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/requirements/legacy-contract.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/README.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-04-11",
+    "AC-P4-04-12",
+    "AC-P4-04-13",
+    "AC-P4-04-14",
+    "AC-P4-04-15",
+    "AC-P4-04-16",
+    "AC-P4-04-17",
+    "AC-P4-04-18",
+    "AC-P4-04-19",
+    "AC-P4-04-20",
+    "AC-P4-04-21",
+    "AC-P4-04-22",
+    "AC-P4-04-23",
+    "AC-P4-04-24",
+    "AC-P4-04-25",
+    "AC-P4-04-26",
+    "AC-P4-04-27",
+    "AC-P4-04-28",
+    "AC-P4-04-29",
+    "AC-P4-04-30",
+    "AC-P4-04-31"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Replace the current unversioned full-page overlay (`CustomizeSurface`, `min-height: 100dvh` at every viewport) with breakpoint-aware chrome implementing `w.customize.overlay`: bottom sheet below breakpoint.tablet, right-anchored side sheet at breakpoint.tablet and above (AC-P4-04-11/12/16/19).",
+        "Mobile: pin the action area to the sheet bottom with Save Changes only (no Cancel); Close/back opens the existing discard-confirmation sheet when dirty (AC-P4-04-13).",
+        "Tablet: implement the recommended provisional side-sheet default (width min(420px,100vw), full height, Cancel+Save footer) pending UX sign-off on OQ-26 (AC-P4-04-16/17/18); flag as provisional in code comments/design QA.",
+        "Desktop: fixed 420px right-anchored side sheet, ~72px header with bottom divider, ~24px content padding, ~56px/8px-radius/1px-border rows, six-dot reorder grip, locked-grey vs selected-red checkbox tokens, sticky footer with top divider (AC-P4-04-19 to AC-P4-04-26).",
+        "Ensure Save Changes visibly reflects its disabled/enabled state per the existing dirty+constraints rule at every breakpoint (AC-P4-04-14).",
+        "Implement focus trap on open, focus return to the opening control on close, background inert/backdrop block, Escape-to-close with discard semantics, and prefers-reduced-motion handling for the open/close transition (AC-P4-04-27/28/30).",
+        "Confirm drag reorder (pointer + existing SR move-up/move-down fallback, AC-P4-04-06) is unaffected and available at every breakpoint (AC-P4-04-29).",
+        "No VM/API/BFF/config change required — CustomizeMetricsVM, CustomizeItemVM, CustomizeConstraintsVM, SaveCustomizeRequest are all unchanged.",
+        "Add one test per new AC id per AGENTS.md §4."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-26: tablet overlay geometry has no visual baseline; recommended side-sheet default (AC-P4-04-16/17/18) needs UX/product sign-off before this package can leave DRAFT."
+  ],
+  "createdAt": "2026-09-21T00:00:00Z"
+}

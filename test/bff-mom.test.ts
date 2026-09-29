@@ -29,6 +29,22 @@ describe('MoM builder (D-11, AC-P4-03-09/10/13)', () => {
     );
     expect(abs[1]).toMatchObject({ display: 'ABS', abs: { kind: 'COUNT', value: 3 } });
   });
+  it('PCT-display PERCENT metric (ACTIVITY_RATIO, AC-P4-02-48) gets a MoM pct, not pp', () => {
+    const d = buildMomDeltas(
+      [{ kind: 'PERCENT', value: 80 }, { kind: 'PERCENT', value: 84 }],
+      { favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT', valueType: 'PERCENT' },
+    );
+    expect(d[1]).toMatchObject({ display: 'PCT', pct: 5, sentiment: 'POSITIVE' });
+    expect(d[1]!.pp).toBeUndefined();
+  });
+  it('PCT-display DECIMAL metric (PRODUCTIVITY, AC-P4-02-50) gets a MoM pct, not abs', () => {
+    const d = buildMomDeltas(
+      [{ kind: 'DECIMAL', value: 8, precision: 1 }, { kind: 'DECIMAL', value: 8.4, precision: 1 }],
+      { favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT', valueType: 'DECIMAL' },
+    );
+    expect(d[1]).toMatchObject({ display: 'PCT', pct: 5, sentiment: 'POSITIVE' });
+    expect(d[1]!.abs).toBeUndefined();
+  });
   it('comparisonBasis is LAST_MONTH and sentiment respects favourability', () => {
     const d = buildMomDeltas([money('10.00'), money('12.00')], HIGHER);
     expect(d[1]).toMatchObject({ comparisonBasis: 'LAST_MONTH', direction: 'UP', sentiment: 'POSITIVE' });

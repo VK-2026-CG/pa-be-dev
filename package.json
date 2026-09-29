@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:mock": "node scripts/dev-mock.mjs",
     "build": "node scripts/build.mjs",
     "start": "node dist/src/server.js",
     "test": "vitest run",

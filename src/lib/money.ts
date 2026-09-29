@@ -39,6 +39,20 @@ export function mulRatio(dec: string, num: number, den: number): string {
   return fromCents(q);
 }
 export function addDec(a: string, b: string): string { return fromCents(toCents(a) + toCents(b)); }
+/**
+ * widget-contracts §2 `R-PCT-ROUNDUP` on decimal-string money: integer % change
+ * rounded away from zero, computed on exact cents (never parseFloat). Zero prior
+ * returns 0 — unresolved (OQ-54), same as `pctChange`.
+ */
+export function pctRoundUpDec(current: string, prior: string): number {
+  const p = toCents(prior);
+  if (p === 0n) return 0;
+  const diff = toCents(current) - p;
+  const num = (diff < 0n ? -diff : diff) * 100n; const den = p < 0n ? -p : p;
+  const mag = num / den + (num % den === 0n ? 0n : 1n);
+  const sign = (diff < 0n ? -1 : 1) * (p < 0n ? -1 : 1);
+  return mag === 0n ? 0 : sign * Number(mag);
+}
 export function pctChange(current: string, prior: string): number {
   const c = Number(toCents(current)); const p = Number(toCents(prior));
   if (p === 0) return 0;

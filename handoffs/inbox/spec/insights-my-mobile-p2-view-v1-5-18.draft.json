@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-mobile-p2-view-v1-5-18",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "1.5.18" },
+  "changedArtifacts": [
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/content/en.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/screens/screen-registry.json"
+  ],
+  "acceptanceCriteria": ["AC-P4-01-65", "AC-P4-01-66", "AC-P4-01-67", "AC-P4-01-68", "AC-P4-01-69", "AC-P4-01-70"],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Add optional scopeSwitcher.teamViewOptions=[DIRECT,GROUP] for resolved P2 identities with TEAM teamViewToggle enabled, including SELF responses; omit for P3 and preserve no switcher for P4.",
+        "Preserve existing TEAM/GROUP API entitlement guards and test P2, P3, P4 and config-disabled cases. Rebuild/restart the backend to load the additive VM capability."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Render the requester PNG mobile View sheet, including leading radios and a nested Direct/Group radio dropdown when staged scope is TEAM and the BFF supplies capability.",
+        "Apply scope and teamView atomically; preserve filters for same-scope changes. Cancel/close/backdrop discard drafts. Missing capability hides selector; never infer from client persona.",
+        "When staged Team lacks teamViewOptions (P3), render the same trigger disabled showing Direct instead of omitting it (AC-P4-01-70).",
+        "Retain desktop/tablet anchored scope menus. Test request timing, keyboard/focus, dismissal, P3/P4 gating, narrow mobile geometry and desktop parity."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

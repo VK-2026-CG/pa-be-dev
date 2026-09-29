@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-header-cards-v1-4-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.4.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-22",
+    "AC-P4-02-23",
+    "AC-P4-02-24",
+    "AC-P4-02-25",
+    "AC-P4-02-26"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "BLOCKED PENDING OQ-29/OQ-30 — do not implement yet. AC-P4-02-26 wants a Penders card on TPC, but src/bff/compose/metric-detail.ts gates the penders.primary section on the primary value being a COUNT ('if (!d.primary?.penders || d.primary.collected.kind !== \\'COUNT\\') return null'), so a MONEY-primary metric like TPC emits no such section today. Revisiting that gate is the mechanical part of the change.",
+        "BLOCKED PENDING OQ-29 — the value the screenshot shows ('6 Cases') is a case count, not the money penders figure TPC currently carries in values.penders (RM 30,000 in the gauge legend). Do NOT wire the card to values.penders to make the section appear. The domain field backing a case-count penders must be confirmed by Business/Data first; if it is a new field it needs C1/C2 work (collection field, index/lineage, OpenAPI schema + example) specified in a follow-up spec revision before any BFF change.",
+        "No other backend change: MetricDetailVM, PendersSectionVM, sections[] ordering, entitlement and all other section builders are unchanged by this revision. No nav field is added to PendersSectionVM (OQ-30)."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Header region (AC-P4-02-22) in src/cdk/metric-detail/MetricDetailMY.tsx: move the metric title out of the .appbar into the page body as a page title; give the back control a visible label using the new key insights.common.back (added to the content bundle in this revision — re-vendor before use, never inline the literal); move the as-of value out of the context chip row into the back-bar row, right-aligned. Keep formatDateAsOf — the numeric date in the screenshot is OQ-34, not an authorized format change.",
+        "Context pills (AC-P4-02-22): replace the two bare Tag chips with the labelled pill treatment S-P4-01 already ships (.filter-pill markup currently page-local in src/cdk/performance/PerformanceMY.tsx, keys insights.dashboard.filter.product / .time). Because two features now use it, promote that markup to src/components/ per the layering rule rather than duplicating it; leave the dashboard's rendering unchanged. A teamView chip, when present, still renders first (AC-P4-02-10).",
+        "Gauge face (AC-P4-02-23) in src/components/metrics.tsx: below breakpoint.desktop the gauge renders value-only — muted insights.gauge.collected label above the collected value, no donut SVG, and no penders legend entry. breakpoint.desktop is unevidenced: keep the existing donut face there. The v1.3.0 combined-card grouping (AC-P4-02-21, .gauge-comparison in dls.css) is unchanged.",
+        "Headings and row labels (AC-P4-02-24): card headings render the variant alone, dropping the metric-title prefix in both the combined card and VariantValueCard; comparison and variant-value rows render the bare year, dropping the 'YTD ' prefix. These are composition changes in src/components/metrics.tsx, not new copy keys.",
+        "Growth delta (AC-P4-02-25): remove the separate labelled growth row and its DeltaBadge from the comparison face and render the delta as a toned line under the current-year value, reusing the existing DeltaLine component in src/components/metrics.tsx. Keep reading DeltaVM.display for the unit and change.sentiment for the tone. Leave insights.delta.vsLY's value alone — the screenshot's 'vs last year' wording is OQ-32.",
+        "Penders card (AC-P4-02-26): PendersCard stays a non-navigable single row. Do NOT add a link, an external-link icon, or a 'Cases' unit label — all three are blocked (OQ-29/30/31). The card will simply not appear for TPC until the backend action above is unblocked; no frontend workaround may synthesize it.",
+        "NO formatter change (README OQ-25): the abbreviated, prefix-less money in the evidence ('960K'/'800K'/'120K') is not authorized. Every value stays on formatMoney/formatScalar per D-04.",
+        "Tests: add AC-named coverage — AC-P4-02-22 (header composition and pill labels), AC-P4-02-23 (no donut, no penders legend entry below breakpoint.desktop), AC-P4-02-24/25 (heading text, bare-year rows, delta line present and the labelled growth row absent). Note the existing AC-P4-02-21 e2e assertion getByText('Penders') currently matches the gauge legend label; once AC-P4-02-23 removes that legend entry the assertion must be retargeted rather than deleted."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is two requester-supplied MY screenshots, not a Figma export or approved asset — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker, not a new one.",
+    "OQ-29 (blocking): Penders value source — case count in the evidence vs the money values.penders TPC carries today. Owner Business/Data. Blocks the backend action and AC-P4-02-26's value.",
+    "OQ-30 (blocking): Penders link destination unevidenced. Owner Product/UX. Card specified non-navigable meanwhile; no nav field added to PendersSectionVM.",
+    "OQ-31: no insights-scoped 'Cases' unit key exists; one is added only after OQ-29 resolves.",
+    "OQ-32: evidence reads 'vs last year' but insights.delta.vsLY is 'vs LY' — copy change or mockup artifact; key unchanged.",
+    "OQ-33: S-P4-01's dashboard-namespaced pill keys are reused as-is on a detail screen — confirm or re-key to a shared namespace before build.",
+    "OQ-34: as-of date renders numerically (03/09/2026) in the evidence vs formatDateAsOf ('27 Jul 2026') in the contract; existing format kept.",
+    "OQ-25 (pre-existing, blocking): money abbreviation without a currency prefix now evidenced on this screen too. No abbreviation, thresholds, rounding, prefix behavior or formatter change is authorized by this revision.",
+    "breakpoint.desktop equivalents of every Part B change are unevidenced and unspecified; desktop keeps today's contract plus the v1.3.0 two-column pairing."
+  ],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

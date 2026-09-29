@@ -72,4 +72,20 @@ Tests explicitly select `INSIGHTS_DATA_SOURCE=memory`, `MONGODB_URI=""` and
 `NODE_ENV=test`; this preserves offline regression fixtures, not old DB mappings.
 Source mode is development/test only and requires a configured identity allowlist.
 No production readiness or COMPLETE handoff is implied by live mock verification.
+
+**Dev mock fallback (approved exception, 2026-09-24; widened by requester ruling
+2026-09-25).** `INSIGHTS_DEV_MOCK_FALLBACK=true` is the one sanctioned exception
+to "no synthetic values in Mongo requests". Off by default; honoured only in
+Performance source mode **and** `NODE_ENV=development` (ignored, with a log line,
+under test or anything else). Rule: **Mongo first, stub second** — a real value
+is never overwritten. It fills, from the stub engine in `src/data/values.ts`:
+metric detail parts (`mockFillDetail`), EMPTY metrics in lists, the stub
+context when the agent has no Mongo rows (instead of 404), history series,
+milestones, recommendations/feedback, and the team roster/member previews
+(`src/data/mocks/team-members.ts`) after the real self entry. Every fill logs
+`DEV MOCK fallback`. Never enable it in a shared or production-like
+environment; any further widening needs a new ruling.
+`npm run dev:mock` (`scripts/dev-mock.mjs`) is the shared, credential-free dev
+profile: it starts in `INSIGHTS_DATA_SOURCE=memory` with Mongo unset. Memory is a
+start-time choice only, never a runtime fallback after a Mongo error.
 `.env`, `.env.local`, and local allowlists are ignored — never commit credentials.

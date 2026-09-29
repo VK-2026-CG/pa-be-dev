@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-performance-dashboard-v1-5-13",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.5.13"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "common/assets/MY/manifest.json",
+    "common/assets/MY/icons/filter.svg",
+    "common/assets/MY/icons/more_vert.svg",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-01-49",
+    "AC-P4-01-50",
+    "AC-P4-01-51",
+    "AC-P4-01-52",
+    "AC-P4-01-53"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Implement the S-P4-01 v1.5.13 Metric Tracking reference layout as a frontend UI-only patch, preserving the existing route, VM/API/BFF contracts, filter options and apply behavior, metric data, analytics payloads, navigation destinations, and breakpoint tokens.",
+        "Apply the provided MY filter icon and approved vertical overflow icon in the header chrome; ensure the Filter trigger is icon-only below tablet and keeps the visible label at tablet+ breakpoints, while the More actions trigger uses the approved vertical icon without changing the sheet behavior.",
+        "Render the Product/Time summary pills as static labels with dedicated styling, leaving History screen chip treatments and shared button styles unchanged.",
+        "Keep the metric panel surfaces visible and correctly laid out at mobile, tablet, and desktop without altering any underlying data contract or analytics event payloads.",
+        "Add regression checks for mobile, tablet, and desktop layout states and confirm no backend, BFF, API, VM, migration, or analytics change is required."
+      ]
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-19T00:00:00Z"
+}

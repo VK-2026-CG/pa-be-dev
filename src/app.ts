@@ -94,7 +94,8 @@ function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId
 }
 
 export function buildApp(source: DataSource, specContestRepository = new SpecContestRepository(),brochureStore:ContestBrochureStore=createContestBrochureStore(),inferenceProvider:ContestBrochureInferenceProvider=createBrochureInferenceProvider()) {
-  const resolveAgent = source.findAgent?.bind(source) ?? findAgent;
+  // Caller identity: login allowlist only (the Team Drilldown mock overlay adds non-login mock members to findAgent).
+  const resolveAgent = (source.findIdentityAgent ?? source.findAgent)?.bind(source) ?? findAgent;
   const caller = (req: FastifyRequest, reply: FastifyReply) => callerFor(req, reply, resolveAgent, source.ownIdentityOnly);
   const lens = (req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply) => lensFor(req, reply, resolveAgent, source.ownIdentityOnly);
   const app = Fastify({ logger: false });

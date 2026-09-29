@@ -24,11 +24,13 @@ interface DomainDetail {
   comparison?: { current: any; prior: any; priorYear: number; change: DomainChange };
   threshold?: { value: number; comparator: 'GTE' | 'LTE' };
   breakdowns?: Array<{ variant: 'WITHOUT_REPRICING' | 'WITH_REPRICING'; columns: any[]; rows: any[]; totals: any[] }>;
-  /** v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). Absent at scope=SELF. */
+  /** v1.7.0 (AC-P4-02-32): Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). v1.20.0 (AC-P4-02-58): present at scope=SELF (own cases) and TEAM. */
   pendersCaseCount?: number;
   barComparison?: {
     years: number[]; axis?: { unitCode?: string };
     measures: Array<{ measureCode?: string; points: Array<{ year: number; value: any; change?: DomainChange }> }>;
+    layout?: 'GROUPED' | 'STACKED';
+    totals?: Array<{ year: number; value: any; change?: DomainChange }>;
   };
 }
 
@@ -65,6 +67,14 @@ function buildSection(id: string, d: DomainDetail): MetricDetailSectionVM | null
             ...(p.change ? { change: mapChange(p.change) } : {}),
           })),
         })),
+        // v1.13.0 (AC-P4-02-42/43): stacked layout carries domain-summed totals + their chip.
+        ...(bc.layout ? { layout: bc.layout } : {}),
+        ...(bc.totals ? {
+          totals: bc.totals.map((t) => ({
+            year: t.year, value: t.value,
+            ...(t.change ? { change: mapChange(t.change) } : {}),
+          })),
+        } : {}),
       };
       return vm;
     }
@@ -98,8 +108,9 @@ function buildSection(id: string, d: DomainDetail): MetricDetailSectionVM | null
       if (d.primary?.penders && d.primary.collected.kind === 'COUNT') {
         return { type: 'PENDERS', id, periodLabelYear: year, value: d.primary.penders };
       }
-      // v1.7.0 (AC-P4-02-32): MONEY-primary metrics with repricing (TPC/PTPC) emit this
-      // section only at scope=TEAM, as a case count distinct from the gauge's MONEY penders.
+      // v1.7.0 (AC-P4-02-32) / v1.20.0 (AC-P4-02-58): MONEY-primary metrics with repricing
+      // (TPC/PTPC) emit this section at SELF and TEAM, as a case count distinct from the
+      // gauge's MONEY penders.
       if (d.pendersCaseCount !== undefined) {
         return { type: 'PENDERS', id, periodLabelYear: year, value: { kind: 'COUNT', value: d.pendersCaseCount } };
       }
@@ -117,11 +128,20 @@ function buildSection(id: string, d: DomainDetail): MetricDetailSectionVM | null
   }
 }
 
+/**
+ * v1.12.0 (AC-P4-02-47): persistency always shows its YTD value, whatever period the
+ * dashboard had selected. The domain is asked for YTD explicitly, so no MTD/QTD value is
+ * ever substituted from YTD (C0 AC-PA-SRC-04); context.period comes back as YTD, which
+ * the Time pill shows as the YTD tag. The incoming route params are not rewritten.
+ */
+const YTD_ONLY_DETAIL = new Set(['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2']);
+
 export async function composeMetricDetail(
   api: DomainApi, persona: Persona, metricCode: string, lens: LensInput,
 ): Promise<MetricDetailVM> {
+  const period = YTD_ONLY_DETAIL.has(metricCode) ? 'YTD' : lens.period;
   const d: DomainDetail = await api.metricDetail(persona.agentId, persona.agentId, metricCode, {
-    period: lens.period, businessLine: lens.businessLine, basis: lens.basis,
+    period, businessLine: lens.businessLine, basis: lens.basis,
     scope: lens.scope, ...(lens.scope === 'TEAM' ? { teamView: lens.teamView ?? 'DIRECT' } : {}),
   });
 

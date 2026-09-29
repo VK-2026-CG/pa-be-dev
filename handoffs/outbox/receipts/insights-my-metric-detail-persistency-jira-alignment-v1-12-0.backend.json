@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-my-metric-detail-persistency-jira-alignment-v1-12-0.backend",
+  "handoffId": "insights-my-metric-detail-persistency-jira-alignment-v1-12-0",
+  "consumer": "backend",
+  "status": "IN_PROGRESS",
+  "specCommit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+  "implementation": {
+    "repository": "PruactionBackend",
+    "commit": "c5a7a833f6790997ddf929349db967694106cbff",
+    "dirty": false
+  },
+  "validation": [
+    {
+      "command": "npm run typecheck",
+      "status": "PASS",
+      "summary": "tsc --noEmit clean at c5a7a83."
+    },
+    {
+      "command": "npm test",
+      "status": "FAIL",
+      "summary": "vitest: 197 passed / 5 failed at the implementation commit. The 5 failures (S-P4-01 dashboard/list x3, S-P4-07 preview, TPC CREDIT_POINTS) reproduce with the v1.16.0 edits reverted and predate this work; none touch the S-P4-02 Team drill-down metrics."
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS",
+      "summary": "dist rebuilt at c5a7a83."
+    },
+    {
+      "command": "SPEC_DIR=../pa-spec-dev SPEC_REF=03bf2e6 HANDOFF_REF=8475f42 npm run sync:specs",
+      "status": "PASS",
+      "summary": "vendor/spec and handoffs/inbox/spec synced from the READY publication; committed in c5a7a83."
+    }
+  ],
+  "operationCoverage": [
+    {
+      "operationId": "getMetricDetail",
+      "status": "IMPLEMENTED",
+      "evidence": "src/data/values.ts: NO_DETAIL_COMPARISON omits comparison for PERSISTENCY_CY/Y1/Y2 (stub engine); the Mongo source never set it and its dev mock fallback copies the stub, so it is also omitted there. Snapshot (listAgentMetrics) change is untouched."
+    },
+    {
+      "operationId": "listAgentMetrics",
+      "status": "NOT_APPLICABLE",
+      "evidence": "Unchanged by design: S-P4-01 persistency card delta is cross-screen (OQ-59)."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-P4-02-03",
+      "status": "PASS",
+      "evidence": "Threshold half unchanged: service.test.ts 'PERSISTENCY_Y1 carries its own threshold 85 GTE; Y2 -> 80'; bff-metric-detail 'PERSISTENCY_Y1: threshold gauge 85 GTE'. Comparison half superseded per AC-P4-02-46."
+    },
+    {
+      "id": "AC-P4-02-25",
+      "status": "NOT_APPLICABLE",
+      "evidence": "Frontend presentation rule; backend only stops emitting the persistency comparison (AC-P4-02-46)."
+    },
+    {
+      "id": "AC-P4-02-46",
+      "status": "PASS",
+      "evidence": "service.test.ts 'persistency detail omits comparison at both scopes; ACTIVITY_RATIO keeps it'; bff-metric-detail.test.ts 'persistency renders only the threshold gauge, SELF and TEAM; ACTIVITY_RATIO keeps its comparison'."
+    },
+    {
+      "id": "AC-P4-02-47",
+      "status": "PASS",
+      "evidence": "src/bff/compose/metric-detail.ts YTD_ONLY_DETAIL: domain called with period=YTD for PERSISTENCY_*. bff-compose.test.ts 'requests YTD from the domain for persistency whatever the lens period'; bff-metric-detail.test.ts 'persistency is always YTD whatever the dashboard period; other metrics keep theirs'. performance-source.test.ts MTD=EMPTY at the domain source is unchanged (AC-PA-SRC-04)."
+    }
+  ],
+  "migrations": [
+    {
+      "name": "None",
+      "status": "NOT_REQUIRED",
+      "evidence": "No schema, catalog or data change."
+    }
+  ],
+  "gaps": [
+    "OQ-62: the YTD persistency source field is still CANDIDATE_MAPPING (OQ-PA-13); only the requested period changed.",
+    "OQ-60: analytics period for persistency not decided; no telemetry changed.",
+    "npm test has 5 pre-existing failures unrelated to this handoff; COMPLETE needs a green suite."
+  ],
+  "updatedAt": "2026-09-24T14:10:54.619Z"
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-breakdown-pairing-v1-6-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.6.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-29",
+    "AC-P4-02-30"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-29: in MetricDetailMY.tsx's section loop, add a second look-ahead alongside the existing GAUGE+COMPARISON and VARIANT_VALUE+PENDERS pairings — when a BREAKDOWN section is immediately followed by another BREAKDOWN section, wrap both in one .section-pair container (reuse the existing class from src/dls-stub/dls.css, no new CSS). Emit the wrapper ONLY when two BREAKDOWN sections are adjacent, so a lone BREAKDOWN keeps rendering full-width (which is every fixture today).",
+        "No breakdown.with-repricing fixture, VM field or BreakdownTable prop change is authorized — OQ-38 (per-product repricing data source) is unconfirmed. This action ships dead code paths only, unverifiable until a second BREAKDOWN section exists in a fixture; do not fabricate one to exercise it.",
+        "AC-P4-02-30: de-interpolate insights.detail.breakdownByProduct (drop the {metric} param, both in vendor/spec/en.json after re-vendoring and in the source content/en.json) and render it once, in MetricDetailMY.tsx, above the BREAKDOWN section's card(s) — both the single-card BREAKDOWN case and the new BREAKDOWN+BREAKDOWN pairing case. BreakdownTable itself drops its metricCode prop and its own heading now renders only the bare variant label (insights.variant.{variant}), matching VariantValueCard's AC-P4-02-24 convention. This AC applies today, independent of OQ-38 — it is exercised by the existing single-breakdown TPC fixture."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is a requester-supplied MY desktop screenshot, not a Figma export — tracked under the existing \"Strict UX source approval is incomplete\" screen blocker.",
+    "OQ-38 (blocking): breakdown.with-repricing has no domain data source today — only the single altVariants[WITH_REPRICING] total exists, not a per-product repriced breakdown. Owner: Business/Data.",
+    "OQ-39: AC-P4-02-29 cannot be exercised or tested until OQ-38 is answered and a fixture emits two adjacent BREAKDOWN sections; the layout ships unrendered, same as AC-P4-02-27 today."
+  ],
+  "createdAt": "2026-09-22T00:00:00Z"
+}

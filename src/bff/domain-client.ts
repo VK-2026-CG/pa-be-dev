@@ -9,7 +9,7 @@ import type { DataSource } from '../data/source.js';
 import { findAgent } from '../data/registry.js';
 import { CATALOG } from '../data/catalog.js';
 import { ANCHOR_YEAR, type Lens } from '../data/values.js';
-import type { TeamMemberDashboard, TeamMemberList } from '../types.js';
+import type { MemberBadgeCode, TeamMember, TeamMemberDashboard, TeamMemberList, TeamMemberSortBy } from '../types.js';
 
 export class DomainError extends Error {
   constructor(public status: number, public code: string, public title: string) {
@@ -39,12 +39,16 @@ export interface LensParams {
 
 export interface TeamDrilldownParams {
   teamView?: string;
-  /** Drilldown hierarchy axis (`AGENT|AM|UM`), distinct from Performance `basis`. */
+  /** Drilldown hierarchy axis (`AGENT|AM|UM`), distinct from Performance `basis`. Absent ⇒ all levels (1.6.0). */
   basis?: string;
   query?: string;
   period?: string;
   businessLine?: string;
   performanceBasis?: string;
+  /** 1.6.0 — validated by the BFF. */
+  sortBy?: TeamMemberSortBy;
+  badges?: MemberBadgeCode[];
+  parentMemberAgentId?: string;
 }
 
 function teamDashboardLensOf(p: TeamDrilldownParams): Lens {
@@ -114,12 +118,24 @@ export function createInsightsDomain(source: DataSource) {
     },
     listTeamMembers: async (_caller: string, agentId: string, p: TeamDrilldownParams): Promise<TeamMemberList> => {
       const agent = agentOrThrow(agentId);
-      return source.listTeamMembers(
-        agent,
-        (p.teamView ?? 'DIRECT') as 'DIRECT' | 'GROUP',
-        (p.basis ?? 'AGENT') as 'AGENT' | 'AM' | 'UM',
-        p.query,
-      );
+      const list = await source.listTeamMembers(agent, {
+        teamView: (p.teamView ?? 'DIRECT') as 'DIRECT' | 'GROUP',
+        ...(p.basis ? { basis: p.basis as 'AGENT' | 'AM' | 'UM' } : {}),
+        ...(p.query ? { query: p.query } : {}),
+        sortBy: p.sortBy ?? 'TPC',
+        ...(p.badges?.length ? { badges: p.badges } : {}),
+        ...(p.parentMemberAgentId ? { parentMemberAgentId: p.parentMemberAgentId } : {}),
+        lens: { ...teamDashboardLensOf(p), scope: 'SELF' },
+      });
+      if (!list) throw new DomainError(403, 'INS-4030', 'Member is not in the caller\'s downline');
+      return list;
+    },
+    /** Downline membership check (D-14) + the record used to compose a viewed member's dashboard. */
+    findTeamMember: async (_caller: string, agentId: string, memberAgentId: string): Promise<{ member: TeamMember; agentId: string; level: 'P2' | 'P3' | 'P4' }> => {
+      const agent = agentOrThrow(agentId);
+      const found = await source.findTeamMember(agent, memberAgentId, { period: 'YTD', businessLine: 'ALL', basis: 'STANDARD', scope: 'SELF' });
+      if (!found) throw new DomainError(403, 'INS-4030', 'Member is not in the caller\'s downline');
+      return { member: found.member, agentId: found.record.agentId, level: found.record.level };
     },
     getTeamMemberDashboard: async (
       _caller: string,

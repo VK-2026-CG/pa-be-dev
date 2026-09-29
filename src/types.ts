@@ -54,16 +54,35 @@ export interface MetricSnapshot {
 }
 export interface MetricSnapshotList { context: SnapshotContext; items: MetricSnapshot[] }
 
+/** insights.v1.yaml 1.6.0 (SPEC-2026-004) — extensible; VIOLET is display-only. */
+export type MemberBadgeCode = 'MDRT' | 'COT' | 'TOT' | 'WP' | 'EWP' | 'SWP' | 'PWP' | 'MWP' | 'PV' | 'ROOKIE' | 'VIOLET';
+export type TeamMemberGoalStatus = 'SET' | 'NOT_SET';
+export type TeamMemberSortBy = 'TPC' | 'PTPC';
+
 export interface TeamMember {
   agentId: string;
   displayName: string;
   hierarchyBasis: DrilldownBasis;
   roleCode: string;
+  /** 1.6.0 card fields — no approved upstream source (OQ-79): memory engine only, never synthesized in source mode. */
+  badges?: MemberBadgeCode[];
+  goalStatus?: TeamMemberGoalStatus;
+  tpc?: MetricScalar;
+  ptpc?: MetricScalar;
+  directReportCount?: number;
+  photoUrl?: string;
 }
+
+/** 1.6.0 `TeamMemberList.summary[]` item — `value` absent when unavailable, never zero-filled. */
+export interface TeamSummaryTile { metricCode: string; value?: MetricScalar }
 
 export interface TeamMemberList {
   asOfDate: string;
+  /** 1.6.0: absent when the request omitted `basis` (all levels). */
+  basis?: DrilldownBasis;
   items: TeamMember[];
+  parent?: TeamMember;
+  summary?: TeamSummaryTile[];
 }
 
 export interface TeamMemberDashboard {
@@ -83,6 +102,10 @@ export interface BarComparison {
   years: number[];
   axis?: { unitCode?: string };
   measures: Array<{ measureCode?: string; points: Array<{ year: number; value: MetricScalar; change?: Change }> }>;
+  /** S-P4-02 v1.13.0 (AC-P4-02-42): absent ⇒ GROUPED. */
+  layout?: 'GROUPED' | 'STACKED';
+  /** Required when `layout=STACKED`: per-year sum of the measures + the only delta chip (AC-P4-02-43). */
+  totals?: Array<{ year: number; value: MetricScalar; change?: Change }>;
 }
 export interface MetricDetail {
   metricCode: string; valueType: ScalarKind; context: SnapshotContext;
@@ -91,7 +114,7 @@ export interface MetricDetail {
   primary?: VariantValue; altVariants?: VariantValue[];
   comparison?: { current: MetricScalar; prior: MetricScalar; priorYear: number; change: Change };
   threshold?: Threshold; breakdowns?: BreakdownTable[]; barComparison?: BarComparison;
-  /** v1.7.0 (AC-P4-02-32): TEAM-scope Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). Absent at scope=SELF. */
+  /** v1.7.0 (AC-P4-02-32): Penders case count for TPC/PTPC — COUNT, distinct from `primary.penders` (MONEY). v1.20.0 (AC-P4-02-58): present at scope=SELF (own cases) and TEAM. */
   pendersCaseCount?: number;
 }
 export interface SeriesPoint { month: number; value: MetricScalar | null }

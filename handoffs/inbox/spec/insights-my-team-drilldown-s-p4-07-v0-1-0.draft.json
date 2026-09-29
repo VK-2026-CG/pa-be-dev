@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-team-drilldown-s-p4-07-v0-1-0",
+  "status": "SUPERSEDED",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "0.1.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/screens/TeamDrilldown_S-P4-07/README.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/screen.manifest.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/requirements/legacy-contract.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/fixtures/README.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/fixtures/team-drilldown-ready.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/frontend/component-usage.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/frontend/widget-contract.md",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/reuse/discovery.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/reuse/decisions.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/reuse/promotion-candidates.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/telemetry/events.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/content/i18n-keys.json",
+    "domains/insights/screens/TeamDrilldown_S-P4-07/assets/README.md",
+    "domains/insights/screens/screen-registry.json",
+    "domains/insights/common/registry.json",
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/content/en.json",
+    "domains/insights/config/countries/MY/team-drilldown.config.json"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-07-01",
+    "AC-P4-07-02",
+    "AC-P4-07-03",
+    "AC-P4-07-04",
+    "AC-P4-07-05"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Implement listTeamMembers and getTeamMemberDashboard operations as additive handlers behind existing leader authorization checks.",
+        "Preserve existing TEAM gating: P3 leaders are DIRECT-only, P2 leaders may request DIRECT or GROUP.",
+        "Treat Drilldown basis (AGENT|AM|UM) independently from performance basis (STANDARD|SCHEME).",
+        "Do not promote hierarchy publication to READY until row-level my_agent_hierarchy evidence validates member linkage and basis derivation."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Render S-P4-07 as a Team Drilldown package using TeamDrilldownVM, member list, and selected-member preview contracts.",
+        "Reuse metric-card formatting for selected-member preview metrics; do not re-derive metric units or deltas client-side.",
+        "Use new i18n keys under insights.teamDrilldown.* and keep existing TeamView labels.",
+        "Keep package status as DRAFT and report UX baseline gaps separately from contract conformance."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-P4-07-01",
+    "OQ-P4-07-02",
+    "OQ-P4-07-03"
+  ],
+  "createdAt": "2026-09-23T00:00:00Z"
+}

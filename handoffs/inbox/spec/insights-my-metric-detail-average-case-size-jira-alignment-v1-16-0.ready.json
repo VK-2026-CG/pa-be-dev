@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-average-case-size-jira-alignment-v1-16-0",
+  "jiraId": "ARVIJ-162",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "03bf2e64fbb99ac9431dfd80feaa60edddd15360",
+    "dirty": false,
+    "version": "1.16.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/fixtures/metric-detail-average-case-size.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "scripts/validate-fixtures.ts",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-13",
+    "AC-P4-02-52",
+    "AC-P4-02-53"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-52: flip AVERAGE_CASE_SIZE catalog changeDisplay ABS -> PCT (pa-be-dev src/data/catalog.ts) so every AVERAGE_CASE_SIZE DeltaVM (dashboard card, detail comparison, S-P4-03 MoM display) carries display=PCT with pct populated. pct is the RELATIVE change of the MONEY amount, (current - prior) / prior * 100, NOT the absolute difference (RM 5,200 vs RM 4,800 -> 9, not +RM 400). abs may still be sent but is not rendered. Keep valueType MONEY, goal off, no penders, and the GAUGE + COMPARISON section list unchanged; do NOT add bars.primary / barComparison for AVERAGE_CASE_SIZE (OQ-66 is unresolved).",
+        "AC-P4-02-53: round every AVERAGE_CASE_SIZE YoY pct away from zero to an integer per widget-contracts.md section 2 R-PCT-ROUNDUP, computed from the exact decimal-string amounts with decimal arithmetic (never parseFloat). Do not invent behavior for prior=0 (OQ-54) or for S-P4-03 MoM deltas (OQ-56).",
+        "Update tests that assume ABS '+RM 20,000' for AVERAGE_CASE_SIZE and add tests named after AC-P4-02-52/53 against metric-detail-average-case-size.json (5200.00 vs 4800.00, pct 9)."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-52: map the AVERAGE_CASE_SIZE comparison change-row label to the new key insights.comparison.averageCaseSizeChange ('Average Case Size Change') instead of insights.comparison.absoluteChange (pa-fe-dev src/components/metrics.tsx); absoluteChange stays in en.json as a reserved key. Sync vendored en.json.",
+        "AC-P4-02-52/53: no unit inference; AVERAGE_CASE_SIZE now arrives with DeltaVM.display=PCT, so the detail comparison card, the dashboard Average Case Size card and the S-P4-03 MoM header switch to % automatically via display-driven rendering. Render pct as-is; never re-round. Current/prior values stay MONEY via formatMoney (no abbreviation, OQ-25).",
+        "Do NOT switch the AVERAGE_CASE_SIZE gauge.primary widget to a bar chart; ARVIJ-162 AC4's bar-chart request is covered by blocking OQ-66 (extended) pending one product/UX ruling for PRODUCTIVITY and AVERAGE_CASE_SIZE.",
+        "Add unit/e2e tests named after AC-P4-02-52/53 against metric-detail-average-case-size.json (expects label 'Average Case Size Change', '+9%' with POSITIVE tone and UP direction; values render as RM 5,200.00 / RM 4,800.00)."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Evidence is one Jira PDF (ARVIJ-162, Team only); the attached sign-off .eml was not read; the clone ARVIJ-538 (PBTB) was not reconciled.",
+    "Compatibility is declared ADDITIVE because no C2/C3/C4 schema changes and DeltaVM.display already drives units; however AVERAGE_CASE_SIZE's rendered change moves from an absolute '+RM 20,000' to a relative % on S-P4-01, S-P4-02 and S-P4-03, and its detail label changes.",
+    "OQ-66 (extended; blocking for the chart only): ARVIJ-162 AC4 requires a bar chart; same root conflict as PRODUCTIVITY, one ruling covers both. A MONEY bar switch would also need a MONEY axisUnitCode and OQ-25 money abbreviation. Not switched.",
+    "OQ-69: the signed 19-Aug AC8 said 'absolute value'; the % display and round-up rest only on the 10-Sep 'acknowledge ... please proceed' (MANPOWER pattern); Jira status Backlog.",
+    "OQ-70: AC15's Goal/Target strike was saved (Shreya Jain, 10-Sep 6:00 PM, 'its now updated, was not saved before') after Loke Wee Wong's 2:47 PM acknowledgement, in reply to his 2:49 PM question; no re-acknowledgement recorded. The 22-Sep export shows it struck; goal stays off; no intent inferred.",
+    "OQ-71: story editorial inconsistencies ('absolute value' wording read as the input to the %; AC5 '%' vs '(+/- %)'; AC11 'target comparisons' has no surface; AC14 Team Type bullets flattened).",
+    "OQ-54 / OQ-55 / OQ-56 extended to AVERAGE_CASE_SIZE (zero prior, AC12 summary read as filter-driven value, cross-screen reach and MoM rounding)."
+  ],
+  "createdAt": "2026-09-24T00:00:00Z"
+}

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PRUAction — Insights Domain API
-  version: 1.4.0
+  version: 1.6.0
   description: |
     Domain API for the **Insights** bounded context (agent performance):
     metric snapshots, metric detail, historical series, milestone progress,
@@ -57,6 +57,26 @@ info:
       extracted to the shared `Notice` schema (no shape change). Catalogue
       gains APE and API; see `data/source-mapping.md` (C0) for field lineage
       and metric readiness.
+    - **1.5.0** (Team Drilldown draft, additive): introduces
+      `listTeamMembers` and `getTeamMemberDashboard` plus Team Drilldown
+      schemas (`DrilldownBasis`, `TeamMember`, `TeamMemberList`,
+      `TeamMemberDashboard`) for S-P4-07 hierarchy/member-preview composition.
+    - **1.5.1** (SPEC-2026-003, description-only): the MY catalog no longer
+      promotes NEW_RECRUIT_CONTRACTED to PRIORITY at TEAM — it is FOCUS at
+      both scopes. `scopeOverrides` shape is unchanged; only its example text
+      changes. Catalog data change lives in C1 2.0.0.
+    - **1.6.0** (SPEC-2026-004, S-P4-07 "My Team" UX; additive except the
+      `listTeamMembers` `basis` default below, a behavioural break confined
+      to the DRAFT S-P4-07 surface): optional
+      `TeamMember` card fields (`badges`, `goalStatus`, `tpc`, `ptpc`,
+      `directReportCount`, `photoUrl`), `TeamMemberList.summary` (team KPI
+      tiles for the filtered set) and `TeamMemberList.parent`, plus
+      `listTeamMembers` query params `parentMemberAgentId`, `sortBy` and
+      `badges`; an omitted `basis` now means all levels (the former
+      `AGENT` default is removed). New enums `MemberBadgeCode` (x-extensible),
+      `TeamMemberGoalStatus`, `TeamMemberSortBy`. All new response fields
+      are optional; `1.5.0` clients are unaffected. Card fields have no
+      approved upstream source yet (OQ-79) — stub/memory mode only.
   contact:
     name: Insights Domain Team
   x-domain: insights
@@ -87,6 +107,8 @@ tags:
     description: Agent-level metric customization (priority / focus sets, ordering).
   - name: Recommendations
     description: Performance recommendation entries (engine-generated).
+  - name: TeamDrilldown
+    description: Hierarchy-scoped member listing and selected-member dashboard composition.
 
 paths:
   /agents/{agentId}/metrics:
@@ -202,6 +224,16 @@ paths:
         - `altVariants[WITH_REPRICING]` — capability `repricing` (TPC, PTPC)
         - `threshold` — capability `threshold` (persistency metrics)
         - `breakdowns` — capability `breakdown` (TPC, PTPC)
+        - `comparison` — **omitted** for PERSISTENCY_CY / PERSISTENCY_Y1 /
+          PERSISTENCY_Y2 at both scopes (S-P4-02 v1.12.0, AC-P4-02-46:
+          year-on-year comparison removed). No schema change, because
+          `comparison` was already optional. ACTIVITY_RATIO and every other
+          metric are unchanged.
+
+        Persistency period (S-P4-02 v1.12.0, AC-P4-02-47): the S-P4-02 BFF
+        always calls this operation with `period=YTD` for PERSISTENCY_*,
+        whatever the dashboard period was. MTD/QTD persistency is still not
+        substituted from YTD (C0 AC-PA-SRC-04).
       parameters:
         - $ref: '#/components/parameters/AgentId'
         - $ref: '#/components/parameters/MetricCodePath'
@@ -246,34 +278,32 @@ paths:
                         sentiment: POSITIVE
                         pct: 27
                     breakdowns:
+                      # v1.8.0 (AC-P4-02-35): columns has exactly one entry, matching
+                      # context.businessLine above (ALL here) — a combined value per
+                      # row, not two Insurance/Takaful columns side by side.
                       - variant: WITHOUT_REPRICING
-                        columns: [INSURANCE, TAKAFUL]
+                        columns: [ALL]
                         rows:
                           - productCode: LINKED_PREMIUM
                             cells:
-                              - { businessLine: INSURANCE, value: { kind: MONEY, amount: '12345.00', currency: MYR } }
-                              - { businessLine: TAKAFUL, value: { kind: MONEY, amount: '8000.00', currency: MYR } }
+                              - { businessLine: ALL, value: { kind: MONEY, amount: '20345.00', currency: MYR } }
                           - productCode: REGULAR_PREMIUM
                             cells:
-                              - { businessLine: INSURANCE, value: { kind: MONEY, amount: '14000.00', currency: MYR } }
-                              - { businessLine: TAKAFUL, value: { kind: MONEY, amount: '6000.00', currency: MYR } }
+                              - { businessLine: ALL, value: { kind: MONEY, amount: '20000.00', currency: MYR } }
                           - productCode: PSA
                             weightPct: 10
                             cells:
-                              - { businessLine: INSURANCE, value: { kind: MONEY, amount: '15007.00', currency: MYR } }
-                              - { businessLine: TAKAFUL, value: { kind: MONEY, amount: '3000.00', currency: MYR } }
+                              - { businessLine: ALL, value: { kind: MONEY, amount: '18007.00', currency: MYR } }
                           - productCode: SINGLE_PREMIUM
                             weightPct: 10
                             cells:
-                              - { businessLine: INSURANCE, value: { kind: MONEY, amount: '20000.00', currency: MYR } }
-                              - { businessLine: TAKAFUL, value: { kind: MONEY, amount: '2000.00', currency: MYR } }
+                              - { businessLine: ALL, value: { kind: MONEY, amount: '22000.00', currency: MYR } }
                           - productCode: CREDIT_POINTS
+                            weightPct: 10
                             cells:
-                              - { businessLine: INSURANCE, value: { kind: MONEY, amount: '12500.00', currency: MYR } }
-                              - { businessLine: TAKAFUL, value: { kind: MONEY, amount: '1000.00', currency: MYR } }
+                              - { businessLine: ALL, value: { kind: MONEY, amount: '4000.70', currency: MYR } }
                         totals:
-                          - { businessLine: INSURANCE, value: { kind: MONEY, amount: '73900.00', currency: MYR } }
-                          - { businessLine: TAKAFUL, value: { kind: MONEY, amount: '20000.00', currency: MYR } }
+                          - { businessLine: ALL, value: { kind: MONEY, amount: '84352.70', currency: MYR } }
                 my-persistency-y1:
                   summary: First Year Persistency detail (P4 mock 10)
                   value:
@@ -288,15 +318,9 @@ paths:
                     primary:
                       collected: { kind: PERCENT, value: 95 }
                     threshold: { value: 85, comparator: GTE }
-                    comparison:
-                      current: { kind: PERCENT, value: 95 }
-                      prior: { kind: PERCENT, value: 93 }
-                      priorYear: 2025
-                      change:
-                        basis: LAST_YEAR
-                        direction: UP
-                        sentiment: POSITIVE
-                        pp: 2
+                    # S-P4-02 v1.12.0 (AC-P4-02-46): no `comparison` for
+                    # persistency (was 95 vs 93, +2pp). AC-P4-02-47: context
+                    # period is always YTD for persistency.
         '304': { $ref: '#/components/responses/NotModified' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -567,6 +591,112 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /agents/{agentId}/team-members:
+    get:
+      operationId: listTeamMembers
+      tags: [TeamDrilldown]
+      summary: List hierarchy members for Team Drilldown
+      description: |
+        Returns members visible to the requesting leader for Team Drilldown
+        (S-P4-07). The hierarchy basis used here (`AGENT|AM|UM`) is a drilldown
+        axis and is explicitly separate from the Performance metric `basis`
+        (`STANDARD|SCHEME`).
+
+        Gating follows existing team-view rulings: P3 leaders can request
+        `teamView=DIRECT` only; P2 leaders can request `DIRECT` or `GROUP`.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - $ref: '#/components/parameters/TeamView'
+        - name: basis
+          in: query
+          description: |
+            Hierarchy level grouping for drilldown list rendering.
+            (1.6.0) When omitted, the list contains the caller's members of
+            every level, each carrying its own `hierarchyBasis` (the S-P4-07
+            "My Team" list mixes UMs and agents). Supplying a value still
+            restricts the list to that level.
+          schema:
+            $ref: '#/components/schemas/DrilldownBasis'
+        - name: query
+          in: query
+          description: Case-insensitive search on member id or display name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: parentMemberAgentId
+          in: query
+          description: |
+            (1.6.0) Lists the direct reports of this member instead of the
+            caller's own team — the S-P4-07 subteam drawer. The member MUST be
+            in the caller's downline (else 403 INS-4030). `teamView` gating is
+            unchanged: a P3 caller may only open members of its DIRECT team.
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{3,32}$'
+        - name: sortBy
+          in: query
+          description: (1.6.0) Member ordering, descending by the named metric; ties by displayName ascending.
+          schema:
+            $ref: '#/components/schemas/TeamMemberSortBy'
+        - name: badges
+          in: query
+          description: |
+            (1.6.0) Comma-separated `MemberBadgeCode` filter. A member matches
+            when it holds ANY listed badge (D-P4-07-02). Absent/empty = all
+            members ("All Agent"). Only filterable codes are accepted; VIOLET
+            (display-only, D-P4-07-01) or an unknown code returns 400.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/MemberBadgeCode' }
+      responses:
+        '200':
+          description: Team member list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /agents/{agentId}/team-members/{memberAgentId}/dashboard:
+    get:
+      operationId: getTeamMemberDashboard
+      tags: [TeamDrilldown]
+      summary: Compose dashboard-style data for a selected member
+      description: |
+        Returns the selected member's dashboard payload and the request context
+        used for S-P4-07 preview composition. This is additive and mirrors
+        existing dashboard composition dimensions: period, business line,
+        performance basis, and team-view.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: memberAgentId
+          in: path
+          required: true
+          description: Selected member from `listTeamMembers`.
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{3,32}$'
+        - $ref: '#/components/parameters/Period'
+        - $ref: '#/components/parameters/BusinessLine'
+        - $ref: '#/components/parameters/Basis'
+        - $ref: '#/components/parameters/TeamView'
+      responses:
+        '200':
+          description: Selected member dashboard composition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberDashboard'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -712,9 +842,22 @@ components:
       enum: [DIRECT, GROUP]
       default: DIRECT
 
+    DrilldownBasis:
+      type: string
+      description: >-
+        Team Drilldown hierarchy basis (S-P4-07). This is independent from the
+        performance `Basis` enum and MUST NOT be interpreted as
+        STANDARD|SCHEME. (1.6.0: no default — an omitted `basis` on
+        `listTeamMembers` means all levels.)
+      enum: [AGENT, AM, UM]
+
     MeasureCode:
       type: string
-      description: Sub-measure identifier (e.g. OPENING / CLOSING for MANPOWER; FYP/FYC/ANNUAL_PREMIUM for milestones).
+      description: >-
+        Sub-measure identifier (e.g. EXISTING_AGENTS / NEW_RECRUITS for
+        MANPOWER since S-P4-02 v1.13.0 — OPENING / CLOSING are retained as
+        reserved, no longer emitted for MANPOWER; FYP/FYC/ANNUAL_PREMIUM for
+        milestones).
       pattern: '^[A-Z][A-Z0-9_]{1,39}$'
       x-extensible-enum: true
 
@@ -842,15 +985,40 @@ components:
         sentiment: { $ref: '#/components/schemas/Sentiment' }
         pct:
           type: number
-          description: Percentage change for MONEY/COUNT metrics ("+27% vs LY").
+          description: >-
+            Percentage change for metrics whose catalog `changeDisplay=PCT`
+            ("+27% vs LY") — MONEY/COUNT metrics, plus the PERCENT metric
+            ACTIVITY_RATIO since S-P4-02 v1.14.0, where it is the relative
+            change of the ratio ((current − prior) / prior × 100), not a
+            point difference, and the DECIMAL metric PRODUCTIVITY since
+            S-P4-02 v1.15.0 (relative change of the exact decimal values,
+            e.g. 9.7 vs 9.3 ⇒ 5, not the +0.4 difference); the MONEY metric
+            AVERAGE_CASE_SIZE moved from ABS in S-P4-02 v1.16.0 (relative
+            change of the exact decimal amounts, e.g. RM 5,200 vs RM 4,800
+            ⇒ 9, not +RM 400). S-P4-02 v1.13.0:
+            for metrics opted into the shared percent round-up rule
+            (widget-contracts.md §2, `R-PCT-ROUNDUP` — MANPOWER,
+            ACTIVITY_RATIO, PRODUCTIVITY, AVERAGE_CASE_SIZE) the domain emits an
+            already-rounded integer, rounded away from zero from the exact
+            unrounded change (+23.4 ⇒ 24, −23.4 ⇒ −24); consumers render it
+            as-is.
         pp:
           type: number
-          description: Percentage-point change for PERCENT metrics ("+2pp").
+          description: >-
+            Percentage-point change for PERCENT metrics whose catalog
+            `changeDisplay=PP` ("+2pp"). ACTIVITY_RATIO moved to
+            `changeDisplay=PCT` in S-P4-02 v1.14.0 (ARVIJ-160); a `pp` value
+            may still be present for it but is not rendered.
         abs:
           allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
           description: >-
             Absolute change for metrics whose catalog `changeDisplay=ABS`
-            (AVERAGE_CASE_SIZE "+RM 20,000", MANPOWER "+7", PRODUCTIVITY "+0.4").
+            (NEW_RECRUIT_CONTRACTED "+7"). MANPOWER moved to
+            `changeDisplay=PCT` in S-P4-02 v1.13.0 (ARVIJ-159), PRODUCTIVITY
+            (was "+0.4") in S-P4-02 v1.15.0 (ARVIJ-161) and
+            AVERAGE_CASE_SIZE (was "+RM 20,000") in S-P4-02 v1.16.0
+            (ARVIJ-162); an `abs` value may still be present for them but is
+            not rendered.
 
     GoalProgress:
       type: object
@@ -895,7 +1063,9 @@ components:
           type: array
           description: >-
             Named sub-values when the primary value decomposes
-            (MANPOWER ⇒ OPENING / CLOSING; `collected` carries CLOSING).
+            (MANPOWER ⇒ EXISTING_AGENTS / NEW_RECRUITS since S-P4-02 v1.13.0,
+            superseding OPENING / CLOSING; `collected` carries Total
+            Manpower = EXISTING_AGENTS + NEW_RECRUITS).
           items:
             type: object
             required: [measureCode, value]
@@ -966,8 +1136,18 @@ components:
         productCode:
           type: string
           description: >
-            Product bucket. Known P4 codes: LINKED_PREMIUM, REGULAR_PREMIUM,
-            PSA, SINGLE_PREMIUM, CREDIT_POINTS, UNIT_TRUST, GROUP_PREMIUM.
+            Product bucket. Known P4 codes for TPC/PTPC (v1.9.0, ARVIJ-106/164):
+            LINKED_PREMIUM, REGULAR_PREMIUM, PSA, SINGLE_PREMIUM, CREDIT_POINTS.
+            CREDIT_POINTS (v1.7.0, TPC/PTPC only) is pipeline-computed per the
+            capped formula in mongodb.md §1 ("v1.7.0 (ARVIJ-19/157, D-19)"),
+            not raw source data — see that note before mapping any new source
+            field to this row. FYP (v1.11.0, ARVIJ-107/165) uses the older
+            7-code set instead: the 5 codes above plus UNIT_TRUST and
+            GROUP_PREMIUM; FYP's CREDIT_POINTS is a plain weightPct row, not
+            the TPC/PTPC capped formula. UNIT_TRUST and GROUP_PREMIUM were
+            reserved with no consuming metric from v1.9.0 (when PTPC's
+            product-category definition was narrowed to the 5 codes above)
+            until v1.11.0 activated them for FYP.
           pattern: '^[A-Z][A-Z0-9_]{1,39}$'
           x-extensible-enum: true
         weightPct:
@@ -984,8 +1164,14 @@ components:
         variant: { $ref: '#/components/schemas/Variant' }
         columns:
           type: array
-          description: Column order for rendering.
+          description: >
+            Column order for rendering. v1.8.0 (AC-P4-02-35): exactly one
+            entry, equal to the request's businessLine (ALL renders a
+            combined Insurance+Takaful value per row, not two columns) —
+            never a fixed [INSURANCE, TAKAFUL] pair.
           items: { $ref: '#/components/schemas/BusinessLine' }
+          minItems: 1
+          maxItems: 1
         rows:
           type: array
           items: { $ref: '#/components/schemas/BreakdownRow' }
@@ -1035,8 +1221,9 @@ components:
           allOf: [{ $ref: '#/components/schemas/BarComparison' }]
           description: >-
             Year-over-year bar chart data when `capabilities.barComparison=true`
-            (NEW_RECRUIT_CONTRACTED single-measure; MANPOWER grouped
-            OPENING/CLOSING).
+            (NEW_RECRUIT_CONTRACTED single-measure; MANPOWER stacked
+            EXISTING_AGENTS/NEW_RECRUITS with per-year `totals` since S-P4-02
+            v1.13.0, superseding grouped OPENING/CLOSING).
 
     BarComparison:
       type: object
@@ -1055,6 +1242,31 @@ components:
             unitCode:
               type: string
               description: i18n key suffix, e.g. AGENTS ⇒ insights.axis.AGENTS.
+        layout:
+          type: string
+          enum: [GROUPED, STACKED]
+          x-extensible-enum: true
+          default: GROUPED
+          description: >-
+            S-P4-02 v1.13.0 (ARVIJ-159). STACKED ⇒ each year's measures stack
+            into one bar whose height is that year's `totals` entry (MANPOWER:
+            EXISTING_AGENTS + NEW_RECRUITS). Absent/GROUPED ⇒ the pre-v1.13.0
+            behavior (side-by-side when ≥2 measures, simple bars when 1).
+        totals:
+          type: array
+          description: >-
+            Required when `layout=STACKED`, absent otherwise. One entry per
+            `years` entry, same order; `value` equals the sum of the
+            measures' points for that year (domain-computed, never summed by
+            the UI). `change` is vs the previous year's total and is the
+            only delta chip rendered in STACKED layout.
+          items:
+            type: object
+            required: [year, value]
+            properties:
+              year: { type: integer }
+              value: { $ref: '#/components/schemas/MetricScalar' }
+              change: { $ref: '#/components/schemas/Change' }
         measures:
           type: array
           minItems: 1
@@ -1076,7 +1288,11 @@ components:
                     value: { $ref: '#/components/schemas/MetricScalar' }
                     change:
                       allOf: [{ $ref: '#/components/schemas/Change' }]
-                      description: Vs same measure previous year (bar delta chip).
+                      description: >-
+                        Vs same measure previous year (bar delta chip).
+                        Omitted when the parent `layout=STACKED` — the
+                        chip then comes from `totals[].change` (S-P4-02
+                        v1.13.0).
 
     # ---------- Series ----------
     SeriesPoint:
@@ -1176,6 +1392,130 @@ components:
           type: array
           items: { $ref: '#/components/schemas/MilestoneProgress' }
 
+    # ---------- Team Drilldown ----------
+    TeamMember:
+      type: object
+      required: [agentId, displayName, hierarchyBasis, roleCode]
+      properties:
+        agentId:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{3,32}$'
+        displayName:
+          type: string
+        hierarchyBasis:
+          $ref: '#/components/schemas/DrilldownBasis'
+        roleCode:
+          type: string
+          description: Role/group label from hierarchy source (e.g. AGENT, AM, UM).
+          pattern: '^[A-Z][A-Z0-9_]{1,39}$'
+        teamView:
+          $ref: '#/components/schemas/TeamView'
+        badges:
+          type: array
+          description: >-
+            (1.6.0) Qualification badges in display order. Absent when the
+            source has none or no approved source exists (OQ-79) — never
+            synthesized.
+          items: { $ref: '#/components/schemas/MemberBadgeCode' }
+        goalStatus:
+          $ref: '#/components/schemas/TeamMemberGoalStatus'
+        tpc:
+          description: (1.6.0) Member TPC for the requested period; absent when unavailable.
+          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
+        ptpc:
+          description: (1.6.0) Member PTPC for the requested period; absent when unavailable.
+          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
+        directReportCount:
+          type: integer
+          minimum: 0
+          description: >-
+            (1.6.0) Number of direct reports. Present and > 0 only for members
+            who lead a team (UM/AM); drives the subteam affordance.
+        photoUrl:
+          type: string
+          format: uri
+          description: (1.6.0) Optional avatar image; absent ⇒ client renders an initials avatar.
+
+    TeamMemberList:
+      type: object
+      required: [teamView, items]
+      properties:
+        basis:
+          description: (1.6.0) Absent when the request omitted `basis` (all levels).
+          allOf: [{ $ref: '#/components/schemas/DrilldownBasis' }]
+        teamView:
+          $ref: '#/components/schemas/TeamView'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMember'
+        parent:
+          description: (1.6.0) The member whose team is listed when `parentMemberAgentId` was supplied.
+          allOf: [{ $ref: '#/components/schemas/TeamMember' }]
+        summary:
+          type: array
+          description: >-
+            (1.6.0) Team KPI tiles computed over the FILTERED member set
+            (D-P4-07-02), in config order (MANPOWER, ACTIVITY_RATIO,
+            PRODUCTIVITY, AVERAGE_CASE_SIZE for MY). A tile whose value is
+            unavailable carries no `value` — never zero-filled.
+          items:
+            type: object
+            required: [metricCode]
+            properties:
+              metricCode: { $ref: '#/components/schemas/MetricCode' }
+              value: { $ref: '#/components/schemas/MetricScalar' }
+
+    MemberBadgeCode:
+      type: string
+      x-extensible-enum: true
+      description: >-
+        (1.6.0) Member qualification badge. Groups (C4 `badgeGroups`):
+        MDRT = MDRT|COT|TOT; PRUWEALTH_PLANNER = WP|EWP|SWP|PWP|MWP; PV; ROOKIE.
+        VIOLET is display-only — not filterable, meaning owned by Product (OQ-80).
+      enum: [MDRT, COT, TOT, WP, EWP, SWP, PWP, MWP, PV, ROOKIE, VIOLET]
+
+    TeamMemberGoalStatus:
+      type: string
+      description: (1.6.0) Whether the member has set goals for the current cycle ("Goal set" / "Goal not set").
+      enum: [SET, NOT_SET]
+
+    TeamMemberSortBy:
+      type: string
+      description: (1.6.0) Team Drilldown member ordering (descending).
+      enum: [TPC, PTPC]
+      default: TPC
+
+    TeamMemberDashboard:
+      type: object
+      required: [member, dashboard]
+      properties:
+        member:
+          $ref: '#/components/schemas/TeamMember'
+        dashboard:
+          type: object
+          description: Dashboard snapshot composed for the selected member.
+          required: [context, metrics]
+          properties:
+            context:
+              type: object
+              required: [period, businessLine, basis, asOfDate]
+              properties:
+                period:
+                  type: object
+                  required: [type, startDate, endDate]
+                  properties:
+                    type: { $ref: '#/components/schemas/PeriodType' }
+                    startDate: { type: string, format: date }
+                    endDate: { type: string, format: date }
+                businessLine: { $ref: '#/components/schemas/BusinessLine' }
+                basis: { $ref: '#/components/schemas/Basis' }
+                teamView: { $ref: '#/components/schemas/TeamView' }
+                asOfDate: { type: string, format: date }
+            metrics:
+              type: array
+              items: { $ref: '#/components/schemas/MetricSnapshot' }
+
     # ---------- Definitions & preferences ----------
     MetricCapabilities:
       type: object
@@ -1225,8 +1565,9 @@ components:
         scopeOverrides:
           type: object
           description: >-
-            Per-scope overrides of category/defaultSelected/defaultOrder
-            (NEW_RECRUIT_CONTRACTED is FOCUS for SELF, PRIORITY for TEAM).
+            Per-scope overrides of category/defaultSelected/defaultOrder.
+            No MY metric uses a category override since 1.5.1
+            (NEW_RECRUIT_CONTRACTED is FOCUS at both SELF and TEAM).
           additionalProperties:
             type: object
             properties:
@@ -1256,7 +1597,11 @@ components:
           type: string
           enum: [PCT, PP, ABS]
           default: PCT
-          description: Which Change field the UI renders for this metric (D-10).
+          description: >-
+            Which Change field the UI renders for this metric (D-10).
+            MANPOWER is PCT since S-P4-02 v1.13.0 (was ABS). ACTIVITY_RATIO
+            is PCT since S-P4-02 v1.14.0 (was PP; ARVIJ-160). PRODUCTIVITY
+            is PCT since S-P4-02 v1.15.0 (was ABS; ARVIJ-161).
         capabilities: { $ref: '#/components/schemas/MetricCapabilities' }
         dimensions:
           type: object
