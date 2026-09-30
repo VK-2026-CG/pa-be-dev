@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Retired: handoff/receipt validation is no longer a development gate; kept for history.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 tmp="$(mktemp -d)"

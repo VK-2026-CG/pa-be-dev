@@ -1,15 +1,20 @@
-# Agent handoff protocol
+# Agent handoff protocol (retired)
 
-Agents communicate through committed JSON artifacts, not ephemeral chat or
-concurrent cross-repository edits. `handoffId` is the correlation key across all
-three repositories.
+> **Retired — historical and non-blocking.** Specs (`pa-spec-dev`, vendored in
+> `vendor/spec/`) are reference material, not gates. No READY/approval/handoff/
+> receipt status is needed to implement, change or ship behavior. Existing
+> handoff and receipt files are kept as history only; the protocol below
+> describes how they were used and is no longer required.
 
-New handoffs may also carry `specId` and `jiraId`; bug receipts may carry
-`bugJiraId` and `defectClassification`. Use `/develop-backend` and
-`/fix-backend-bug` as the human-facing commands. Agents execute the npm lifecycle
-steps below internally; all immutable revision and completion rules remain.
+Agents previously communicated through committed JSON artifacts. `handoffId`
+was the correlation key across all three repositories.
 
-## Folder ownership
+Handoffs could carry `specId` and `jiraId`; bug receipts could carry
+`bugJiraId` and `defectClassification`. `/develop-backend` and
+`/fix-backend-bug` remain the human-facing commands and do not require any
+handoff or receipt.
+
+## Folder ownership (historical)
 
 - `PruactionSpec/handoffs/outbound/` — spec agent publishes handoffs.
 - `PruactionSpec/handoffs/receipts/backend|frontend/` — application receipts.
@@ -18,10 +23,9 @@ steps below internally; all immutable revision and completion rules remain.
 - `PruactionWeb/handoffs/inbox/spec/` — immutable inbound spec handoffs.
 - `PruactionWeb/handoffs/outbox/receipts/` — frontend receipts.
 
-Schemas live under each repository's `handoffs/schemas/` so every agent can
-validate locally without reaching into another worktree.
+Schemas live under each repository's `handoffs/schemas/` for reference.
 
-## Lifecycle
+## Former lifecycle (historical, not required)
 
 1. Spec agent writes `DRAFT` while its worktree is dirty (`commit: null`).
 2. Spec agent commits contracts, replaces the commit with the full 40-character
@@ -41,9 +45,6 @@ validate locally without reaching into another worktree.
    passing evidence, operation/AC coverage, migration evidence, and no gaps.
 7. Receipts are copied or submitted back to the matching Spec receipt folder.
 
-Never promote dirty work to `READY`/`COMPLETE`, use a mutable branch name as the
-recorded revision, or edit vendored contracts to satisfy application code.
-
-The backend repository owns the cross-repository regression test:
-`npm run handoff:test`. It creates temporary Spec/application clones and verifies
-the two-commit publish/sync/correlation flow without modifying real worktrees.
+The related scripts (`scripts/validate-handoffs.mjs`,
+`scripts/create-handoff-receipt.mjs`, `scripts/test-handoff-e2e.sh`) are retired
+and kept for history; they are not wired to npm scripts and gate nothing.

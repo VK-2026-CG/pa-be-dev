@@ -1,9 +1,9 @@
 # Repository instructions
 
-Read `AGENTS.md` first. The OpenAPI files under `vendor/spec` are verbatim
-contracts synced from `PruactionSpec`; do not invent response fields or routes.
+Read `AGENTS.md` first. The OpenAPI files under `vendor/spec` are reference
+contracts synced from `pa-spec-dev`; consult them, but they do not gate work.
 
-Use `/develop-backend <SPEC-ID-or-JIRA-ID>` for approved work and
+Use `/develop-backend <SPEC-ID-or-JIRA-ID>` for feature work and
 `/fix-backend-bug <BUG-JIRA-ID> [SPEC-ID]` for defects. The shared workflows in
 `docs/agent-workflows/` resolve an accessible Spec workspace, run lifecycle npm
 automation internally, and localize bugs across frontend, BFF, backend, data and
@@ -15,7 +15,10 @@ or its query/catalogue repositories. One backend deployment serves one
 database fallbacks are forbidden. Run `npm test`, `npm run typecheck`, and
 `npm run build` for behavioral changes.
 
-For contract work, read the canonical files in the accessible `pa-spec-dev`
-working tree and run `npm run sync:specs` as needed. Handoff status and receipts
-are not development gates. Do not hand-edit generated vendored contracts; edit
-the spec source, sync it, and record meaningful changes in `CHANGELOG.md`.
+Specs are reference material — requirements, contracts, copy and designs to
+consult and trace against. No READY/approval/handoff/receipt status is needed to
+implement, change or ship behavior; when code and spec differ, decide on the
+merits and update the spec afterwards if it helps others. Security,
+authorization, data-privacy and environment safeguards still apply. Refresh
+`vendor/spec/` with `npm run sync:specs` rather than hand-editing it, and record
+meaningful changes in `CHANGELOG.md`.

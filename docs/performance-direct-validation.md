@@ -1,8 +1,8 @@
 # Direct Performance source validation — SPEC-2026-002
 
 Verified 2026-09-18 UTC. Development implementation, initial mock import and
-subsequent read-only resident-data hardening;
-no production mapping approval, READY promotion or committed completion claim.
+subsequent read-only resident-data hardening (development verification only;
+spec handoff/READY status is informational and not a gate).
 
 ## Database evidence
 
@@ -75,8 +75,8 @@ identity and supported lens; API clients send `x-agent-id` explicitly.
 The sample files have disjoint agents, not a complete combined
 dashboard per agent. Preferences are volatile; missing history, milestones and
 recommendations remain empty. Production auth/mapping/UX approvals are outstanding.
-The backend receipt remains IN_PROGRESS until immutable Spec/backend commits and
-the publication protocol exist. Contest runtime/data and old database contents
+The historical backend receipt was left IN_PROGRESS; receipts are retired and
+do not gate development. Contest runtime/data and old database contents
 were not modified; only its obsolete cross-domain synthetic seed command is retired.
 
 ## 0.3.0 resident-data hardening — latest verification

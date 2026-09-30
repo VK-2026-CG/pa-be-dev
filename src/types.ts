@@ -1,4 +1,4 @@
-/** Domain types mirroring vendor/spec/insights.v1.yaml. Field names are the contract — do not rename. */
+/** Domain types mirroring vendor/spec/insights.v1.yaml. Field names mirror the Insights API contract (C2); renaming is a breaking API change. */
 export type PeriodType = 'MTD' | 'QTD' | 'YTD';
 export type BusinessLine = 'ALL' | 'INSURANCE' | 'TAKAFUL';
 export type Basis = 'STANDARD' | 'SCHEME';

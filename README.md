@@ -17,11 +17,11 @@ use the same commands in Copilot or Claude:
 ```
 
 The agent resolves the ID entrypoint and canonical Markdown/OpenAPI files, runs
-spec synchronization, validation, receipts, tests and builds internally, and
+spec synchronization, validation, tests and builds internally, and
 reports AC evidence. A bug command traces the symptom across UI, BFF, backend,
 data and configuration; it does not assume this repository owns the defect.
-Missing or changed expected behavior is routed through `/update-spec` rather
-than invented locally. See `docs/agent-workflows/`.
+Where code and spec differ, the agent decides on the merits and may update the
+spec afterwards (e.g. `/update-spec`). See `docs/agent-workflows/`.
 
 ## Quick start
 ```bash
@@ -77,8 +77,8 @@ basis, scope, teamView) · `GET /agents/:agentId/metrics/:metricCode` ·
 
 ## Contest Administration (`/contests/v1`)
 
-The governed Contest API is defined verbatim by `vendor/spec/contests.v1.yaml`.
-The obsolete ungoverned `/v1` Contest API has been removed. Development identity
+The Contest API is documented in `vendor/spec/contests.v1.yaml`.
+The obsolete `/v1` Contest API has been removed. Development identity
 uses `x-agent-id` and `x-tenant`; `x-tenant` must match deployment-owned
 `COUNTRY_CODE` or the request is denied with `CON-4031`.
 
@@ -167,11 +167,16 @@ npm run db:reconcile:contest-data                 # guarded dry-run
 
 See [`docs/architecture/country-isolation.md`](docs/architecture/country-isolation.md).
 
-## Spec-driven development
+## Specs as reference
 
-The accessible `pa-spec-dev` working tree is the source of truth. Run
-`npm run sync:specs` to refresh `vendor/spec/` directly from its current files,
-including uncommitted spec edits. Handoffs and receipts are preserved as
-historical records, but do not gate development. Record meaningful backend
+Specs (`pa-spec-dev`, vendored in `vendor/spec/`) are reference material —
+requirements, contracts, copy and designs to consult and trace against. They do
+not gate work: no READY/approval/handoff/receipt status is needed to implement,
+change or ship behavior. When code and spec differ, decide on the merits; update
+the spec afterwards if it helps others. Security, authorization, data-privacy
+and environment safeguards are engineering rules independent of the spec and
+still apply. Run `npm run sync:specs` to refresh `vendor/spec/` directly from
+its current files, including uncommitted spec edits. Handoffs and receipts are
+preserved as historical records only. Record meaningful backend
 changes and checks in [`CHANGELOG.md`](CHANGELOG.md); keep application tests,
 typechecks, builds, and runtime safeguards in force.

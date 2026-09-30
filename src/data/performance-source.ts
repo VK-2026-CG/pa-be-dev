@@ -48,6 +48,8 @@ const levelForTier = (tier: unknown): AgentLevel | undefined => {
   return t === 'AM' ? 'P2' : /^UM\d*$/.test(t) ? 'P3' : t === 'AGENT' ? 'P4' : undefined;
 };
 const BASIS_FOR_LEVEL: Record<AgentLevel, DrilldownBasis> = { P2: 'AM', P3: 'UM', P4: 'AGENT' };
+/** Team Drilldown KPI tiles, in display order (C4 `summary.metrics`). */
+const TEAM_KPI_CODES = ['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE'] as const;
 /** Direct reportee IDs in source order, deduplicated, without the leader's own ID (UM/agent snapshots include it). */
 const reportIdsOf = (row: Document | undefined): string[] => {
   const refs = row?.subtree?.scopeProfileIds;
@@ -550,9 +552,12 @@ export class PerformanceSource implements DataSource {
 
     // Independent reads run together: one batched metric read (members + drawer parent),
     // the MANPOWER downline walk, and the caller's reporting date.
-    const [enriched, org, asOfDate] = await Promise.all([
+    const filtered = Boolean(req.basis || needle || req.badges?.length);
+    const [enriched, summary, asOfDate] = await Promise.all([
       this.withProduction(parentMember ? [...candidates, parentMember] : candidates, req.lens),
-      !parentMember && team ? this.downline(team.key, candidates.map(m => m.agentId), team.rows) : Promise.resolve(new Set<string>()),
+      parentMember ? Promise.resolve(undefined)
+        : filtered ? this.filteredSummary(team, candidates.map(m => m.agentId))
+          : this.teamKpis(agent, req),
       this.teamAsOfDate(agent, req.lens, team?.root),
     ]);
     const parent = parentMember ? enriched.pop() : undefined;
@@ -563,16 +568,41 @@ export class PerformanceSource implements DataSource {
     };
     items.sort((a, b) => amount(b) - amount(a) || a.agentId.localeCompare(b.agentId));
 
-    const summary: TeamSummaryTile[] | undefined = parent ? undefined : [
-      { metricCode: 'MANPOWER', value: { kind: 'COUNT', value: org.size } },
-      { metricCode: 'ACTIVITY_RATIO' }, { metricCode: 'PRODUCTIVITY' }, { metricCode: 'AVERAGE_CASE_SIZE' },
-    ];
     return {
       asOfDate,
       ...(req.basis ? { basis: req.basis } : {}),
       items,
       ...(parent ? { parent } : { summary }),
     };
+  }
+
+  /**
+   * Unfiltered KPI tiles: the caller's own team row in `my_mapa` (DirectUnit, or Group for
+   * teamView=GROUP), so the tiles equal the Team dashboard's Manpower / Activity Ratio /
+   * Productivity / Average Case Size. No team row ⇒ tiles without values.
+   */
+  private async teamKpis(agent: AgentRecord, req: TeamListRequest): Promise<TeamSummaryTile[]> {
+    const lens: Lens = { ...req.lens, scope: 'TEAM', teamView: req.teamView };
+    let rows: Rows = {};
+    try { rows = (await this.selection(agent, lens)).rows; }
+    catch (error) { if (!(error instanceof PerformanceSourceNotFound)) throw error; }
+    const defs = new Map(effectiveCatalog('TEAM', lens.basis).map(def => [def.metricCode, def]));
+    return TEAM_KPI_CODES.map((metricCode) => {
+      const def = defs.get(metricCode);
+      const value = def ? this.value(def, rows, lens) : undefined;
+      return { metricCode, ...(value ? { value } : {}) };
+    });
+  }
+
+  /**
+   * Filtered KPI tiles: no source carries KPIs for an arbitrary member subset, so only
+   * MANPOWER is derivable — the filtered members plus their hierarchy downlines.
+   */
+  private async filteredSummary(team: Awaited<ReturnType<PerformanceSource['visibleTeam']>>, ids: string[]): Promise<TeamSummaryTile[]> {
+    const org = team ? await this.downline(team.key, ids, team.rows) : new Set<string>();
+    return TEAM_KPI_CODES.map((metricCode) => metricCode === 'MANPOWER'
+      ? { metricCode, value: { kind: 'COUNT' as const, value: org.size } }
+      : { metricCode });
   }
 
   /** The caller's reporting-period end when it has metric rows, otherwise the hierarchy snapshot date. */

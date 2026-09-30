@@ -278,7 +278,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   /**
    * DRAFT (S-P4-05, specVersion 0.9.0): proposed BenefitCardVM payload behind
    * the draft flag — the benefits domain contract is OQ-17/18. Data mirrors the
-   * P4-uplift mock. Do NOT extend without a spec ruling.
+   * P4-uplift mock. See the spec for the proposed shape when extending.
    */
   app.get('/api/bff/v1/benefits', async () => ({
     draft: true,

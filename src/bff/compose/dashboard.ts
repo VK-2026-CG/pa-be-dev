@@ -59,22 +59,33 @@ const toQuickLink = (l: { id: string; iconToken: string; nav: { route: string };
 
 export async function composeDashboard(
   api: DomainApi, persona: Persona, lens: LensInput,
+  opts: { emptyWhenNoData?: boolean } = {},
 ): Promise<PerformanceDashboardVM> {
   const cfg = dashboardScopeConfig(lens.scope);
   const failed: string[] = [];
 
-  const metricsP = api.metrics(persona.agentId, persona.agentId, {
+  // With `emptyWhenNoData`, an agent without any rows is empty, not a failed section.
+  const noData = (error: unknown) => {
+    const e = error as { status?: number; code?: string };
+    return Boolean(opts.emptyWhenNoData && e?.status === 404 && e?.code === 'INS-4040');
+  };
+  const metricsLens = {
     period: lens.period, businessLine: lens.businessLine, basis: lens.basis,
     scope: lens.scope, ...(lens.scope === 'TEAM' ? { teamView: lens.teamView ?? 'DIRECT' } : {}),
+  };
+  const metricsP = api.metrics(persona.agentId, persona.agentId, metricsLens).catch((error) => {
+    // Viewing mode: a downline member without metric rows renders EMPTY cards, not a 404 page.
+    if (noData(error)) return api.emptyMetrics(metricsLens);
+    throw error;
   });
   // Preferences are per-scope docs; SCHEME re-composes from catalog defaults (OQ-20 — no segment prefs yet).
   const prefsP = lens.basis === 'STANDARD'
     ? api.preferences(persona.agentId, persona.agentId, lens.scope).catch(() => null)
     : Promise.resolve(null);
-  const milestonesP = api.milestones(persona.agentId, persona.agentId).catch(() => { failed.push('milestones'); return null; });
+  const milestonesP = api.milestones(persona.agentId, persona.agentId).catch((e) => { if (!noData(e)) failed.push('milestones'); return null; });
   const recoCfg = cfg.features?.recommendations;
   const recoP = recoCfg?.enabled
-    ? api.recommendations(persona.agentId, persona.agentId, lens.scope).catch(() => { failed.push('recommendations'); return null; })
+    ? api.recommendations(persona.agentId, persona.agentId, lens.scope).catch((e) => { if (!noData(e)) failed.push('recommendations'); return null; })
     : Promise.resolve(null);
 
   const [metrics, prefs, milestones, reco] = await Promise.all([metricsP, prefsP, milestonesP, recoP]);
@@ -214,7 +225,7 @@ export async function composeViewingDashboard(
   };
   const vm = await composeDashboard(api, subject, {
     ...lens, scope, ...(leads ? { teamView: TEAM_DRILLDOWN_CONFIG.viewing.teamView } : {}),
-  });
+  }, { emptyWhenNoData: true });
 
   const viewingCfg = TEAM_DRILLDOWN_CONFIG.viewing;
   const allLinks = [...(CONFIG.screens.dashboard.scopes.SELF?.quickLinks ?? []), ...(CONFIG.screens.dashboard.scopes.TEAM?.quickLinks ?? [])];

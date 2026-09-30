@@ -14,7 +14,7 @@ This is not production authentication or approved production source mapping.
 `8d01e03dadb4825342a3e1e78690ca4e31abe64f`. The BSON schema export is preserved in
 `vendor/spec/performance-source.schema.json` with SHA-256
 `920c2d971a23be193e50bbc9525eb350ffb46a0c451072cfdf462f1bce81bff0`.
-No dirty/READY handoff or production implementation-complete claim is made.
+(Informational: handoff/READY status is not tracked and does not gate development.)
 
 ## Local configuration
 

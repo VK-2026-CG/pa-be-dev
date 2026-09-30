@@ -40,7 +40,10 @@ function fakeDb(data: Partial<Record<PerformanceCollection, Document[]>> & Recor
   const matches = (row: Document, query: Document): boolean => Object.entries(query).every(([key, value]) => {
       if (key === '$or') return (value as Document[]).some(q => matches(row, q));
     if (value && typeof value === 'object' && '$in' in value) return (value.$in as unknown[]).map(String).includes(String(get(row, key)));
-    return String(get(row, key)) === String(value);
+    const field = get(row, key);
+    // Mongo semantics: an array field matches when any element equals the value.
+    if (Array.isArray(field)) return field.map(String).includes(String(value));
+    return String(field) === String(value);
   });
   const db = { databaseName: name, collection: (collection: string) => {
     queried.push(collection);
@@ -564,7 +567,8 @@ describe('three-collection import safety', () => {
       snap('SUB', 'Agent', ['SUB', 'AG3']),
     ];
     const prod = (agentId: string, ytd: number) => ({ ...production, agentId, ptd: { ...production.ptd, tpc: { withoutRepricing: { ytd } } } });
-    const make = () => dualDb({ my_agent_hierarchy: hierarchy, my_production: [prod('UM1', 1), prod('AG1', 100), prod('SUB', 900)] }, {});
+    const teamMapa = { ...mapa, agentId: 'UM1', agentAggregation: 'DirectUnit', period };
+    const make = () => dualDb({ my_agent_hierarchy: hierarchy, my_production: [prod('UM1', 1), prod('AG1', 100), prod('SUB', 900)], my_mapa: [teamMapa] }, {});
     const req = { teamView: 'DIRECT' as const, sortBy: 'TPC' as const, lens };
 
     it('lists direct reports (self excluded, deduped) with source TPC, tiers and downline counts', async () => {
@@ -573,8 +577,13 @@ describe('three-collection import safety', () => {
       expect(list?.items.map(m => [m.agentId, m.hierarchyBasis, m.tpc?.kind === 'MONEY' ? m.tpc.amount : undefined, m.directReportCount]))
         .toEqual([['SUB', 'AGENT', '900.00', 1], ['AG1', 'AGENT', '100.00', undefined], ['AG2', 'AGENT', undefined, undefined]]);
       expect(list?.items.every(m => m.displayName === m.agentId && !m.badges && !m.photoUrl)).toBe(true);
-      expect(list?.summary?.find(t => t.metricCode === 'MANPOWER')?.value).toEqual({ kind: 'COUNT', value: 4 });
-      expect(list?.summary?.filter(t => t.metricCode !== 'MANPOWER').every(t => t.value === undefined)).toBe(true);
+      // Unfiltered tiles are the leader's own my_mapa team row — the same values as the Team dashboard.
+      expect(list?.summary).toEqual([
+        { metricCode: 'MANPOWER', value: { kind: 'COUNT', value: 12 } },
+        { metricCode: 'ACTIVITY_RATIO', value: { kind: 'PERCENT', value: 12 } },
+        { metricCode: 'PRODUCTIVITY', value: { kind: 'DECIMAL', value: 1, precision: 1 } },
+        { metricCode: 'AVERAGE_CASE_SIZE', value: { kind: 'MONEY', amount: '3922.00', currency: 'MYR' } },
+      ]);
       // Member TPC/PTPC come from one batched `$in` read per collection, not per member.
       const memberReads = pamb.requests.filter(r => r.query.agentId?.$in);
       expect(memberReads.map(r => r.collection).sort()).toEqual(['my_mapa', 'my_persistency', 'my_production']);
@@ -585,6 +594,10 @@ describe('three-collection import safety', () => {
 
     it('filters by basis/search, and a badge filter matches nobody (no badge source)', async () => {
       const source = new PerformanceSource(make().dbs, agents);
+      // A filtered subset has no KPI source: MANPOWER counts the matching members' organisation only.
+      const searched = await source.listTeamMembers(um, { ...req, query: 'sub' });
+      expect(searched?.summary).toEqual([{ metricCode: 'MANPOWER', value: { kind: 'COUNT', value: 2 } },
+        { metricCode: 'ACTIVITY_RATIO' }, { metricCode: 'PRODUCTIVITY' }, { metricCode: 'AVERAGE_CASE_SIZE' }]);
       expect((await source.listTeamMembers(um, { ...req, query: 'ag2' }))?.items.map(m => m.agentId)).toEqual(['AG2']);
       expect((await source.listTeamMembers(am, { ...req, basis: 'UM' }))?.items.map(m => m.agentId)).toEqual(['UM1']);
       expect((await source.listTeamMembers(um, { ...req, badges: ['PV'] }))?.items).toEqual([]);
@@ -608,6 +621,20 @@ describe('three-collection import safety', () => {
       expect(res.statusCode).toBe(200);
       const members = res.json().members as Array<{ agentId: string; tpc?: { amount: string } }>;
       expect(members.map(m => [m.agentId, m.tpc?.amount])).toEqual([['SUB', '900.00'], ['AG1', '100.00'], ['AG2', undefined]]);
+    });
+
+    it('viewing a downline member without metric rows returns EMPTY cards, not a 404', async () => {
+      const app = buildApp(new PerformanceSource(make().dbs, new Map())); apps.push(app);
+      const view = await app.inject({ url: '/api/bff/v1/performance/dashboard?subjectAgentId=AG2&businessLine=INSURANCE', headers: { 'x-agent-id': 'UM1', 'x-tenant': 'MY' } });
+      expect(view.statusCode).toBe(200);
+      const vm = view.json();
+      expect(vm.viewing.member.agentId).toBe('AG2');
+      expect(vm.meta.partial).toBe(false);
+      expect(vm.priorityMetrics.length).toBeGreaterThan(0);
+      expect(vm.priorityMetrics.every((c: { dataState?: string; value?: unknown }) => c.dataState === 'EMPTY' && c.value === undefined)).toBe(true);
+      // Outside viewing mode the same agent's own dashboard still reports not-found.
+      const own = await app.inject({ url: '/api/bff/v1/performance/dashboard?businessLine=INSURANCE', headers: { 'x-agent-id': 'AG2', 'x-tenant': 'MY' } });
+      expect(own.statusCode).toBe(404);
     });
 
     it('resolves identity for mixed-case tiers', async () => {

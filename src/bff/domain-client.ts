@@ -8,7 +8,7 @@
 import type { DataSource } from '../data/source.js';
 import { findAgent } from '../data/registry.js';
 import type { AgentRecord } from '../data/registry.js';
-import { CATALOG } from '../data/catalog.js';
+import { CATALOG, effectiveCatalog } from '../data/catalog.js';
 import { ANCHOR_YEAR, type Lens } from '../data/values.js';
 import type { MemberBadgeCode, TeamMember, TeamMemberDashboard, TeamMemberList, TeamMemberSortBy } from '../types.js';
 
@@ -94,6 +94,16 @@ export function createInsightsDomain(source: DataSource) {
       const list = await source.metricList(agent, lensOf(p), listScope, codes);
       if (!list) throw new DomainError(404, 'INS-4040', 'No data materialized for this lens');
       return list;
+    },
+    /** Every catalog metric for the lens as EMPTY (no value, never zero-filled): an agent with no metric rows at all. */
+    emptyMetrics: (p: LensParams): any => {
+      const lens = lensOf(p);
+      // No reporting period exists for this agent; the date is the generation date, not a business date.
+      const asOfDate = new Date().toISOString().slice(0, 10);
+      return {
+        context: { businessLine: lens.businessLine, basis: lens.basis, scope: lens.scope, ...(lens.teamView ? { teamView: lens.teamView } : {}), asOfDate },
+        items: effectiveCatalog(lens.scope, lens.basis).map((def) => ({ metricCode: def.metricCode, valueType: def.valueType, asOfDate, dataState: 'EMPTY' })),
+      };
     },
     metricDetail: async (_caller: string, agentId: string, code: string, p: LensParams): Promise<any> => {
       const agent = await agentOrThrow(agentId);

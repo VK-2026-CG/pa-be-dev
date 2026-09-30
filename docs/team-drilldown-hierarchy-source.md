@@ -10,7 +10,9 @@ newest snapshot (PAMB first, PBTB when absent) supplies direct reports via
 AGENT leaves. TPC/PTPC come from `my_production`. Names stay encrypted and are never
 projected; the agent ID is the display name.
 
-The notes below are the original pre-implementation record.
+The notes below are the original pre-implementation record. They are history,
+not gates: the `READY` handoff/approval items they mention are no longer required
+(specs are reference material only).
 
 ## Original status
 

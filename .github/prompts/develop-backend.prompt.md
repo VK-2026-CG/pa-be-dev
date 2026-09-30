@@ -1,5 +1,5 @@
 ---
-description: Implement an approved backend specification by Spec ID or Jira ID
+description: Implement a backend feature by Spec ID or Jira ID, using the spec as reference
 agent: agent
 ---
 

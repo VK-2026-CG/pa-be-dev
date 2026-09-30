@@ -1,6 +1,6 @@
 ---
 name: fix-backend-bug
-description: Investigate, localize, classify and fix a PRUAction backend bug against an approved specification.
+description: Investigate, localize, classify and fix a PRUAction backend bug using the specification as reference.
 argument-hint: "<bug-jira-id> [spec-id] [context]"
 ---
 

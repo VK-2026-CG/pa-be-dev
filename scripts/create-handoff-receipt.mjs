@@ -1,3 +1,4 @@
+// Retired: handoff/receipt validation is no longer a development gate; kept for history.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
