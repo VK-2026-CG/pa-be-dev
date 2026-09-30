@@ -1,0 +1,1905 @@
+{
+  "collections": {
+    "pa_performance_PAMB-dev.my_production": {
+      "ns": "pa_performance_PAMB-dev.my_production",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "agent_aggregation",
+          "agent_id",
+          "agent_name",
+          "agent_segment",
+          "agent_status",
+          "agent_tier",
+          "agent_type",
+          "agentKey",
+          "asOnDate",
+          "audit",
+          "branch_code",
+          "branch_name",
+          "case_status",
+          "entity",
+          "entityType",
+          "id",
+          "period",
+          "ptd",
+          "region_code",
+          "region_name",
+          "scheme_type",
+          "snapshot"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "agent_aggregation": {
+            "bsonType": "string"
+          },
+          "agent_id": {
+            "bsonType": "string"
+          },
+          "agent_name": {
+            "bsonType": "string"
+          },
+          "agent_segment": {
+            "bsonType": "string"
+          },
+          "agent_status": {
+            "bsonType": "string"
+          },
+          "agent_tier": {
+            "bsonType": "string"
+          },
+          "agent_type": {
+            "bsonType": "string"
+          },
+          "agentKey": {
+            "bsonType": "string"
+          },
+          "asOnDate": {
+            "bsonType": "string"
+          },
+          "audit": {
+            "bsonType": "object",
+            "properties": {
+              "createdAt": {
+                "bsonType": "date"
+              },
+              "schemaVersion": {
+                "bsonType": "double"
+              },
+              "updatedAt": {
+                "bsonType": "date"
+              }
+            },
+            "required": [
+              "createdAt",
+              "schemaVersion",
+              "updatedAt"
+            ]
+          },
+          "branch_code": {
+            "bsonType": "string"
+          },
+          "branch_name": {
+            "bsonType": "string"
+          },
+          "case_status": {
+            "bsonType": "string"
+          },
+          "entity": {
+            "bsonType": "string"
+          },
+          "entityType": {
+            "bsonType": "string"
+          },
+          "id": {
+            "bsonType": "string"
+          },
+          "period": {
+            "bsonType": "object",
+            "properties": {
+              "month": {
+                "bsonType": "int"
+              },
+              "quarter": {
+                "bsonType": "string"
+              },
+              "year": {
+                "bsonType": "int"
+              },
+              "yyyymm": {
+                "bsonType": "string"
+              }
+            },
+            "required": [
+              "month",
+              "quarter",
+              "year",
+              "yyyymm"
+            ]
+          },
+          "ptd": {
+            "bsonType": "object",
+            "properties": {
+              "ape": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "qtd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "ytd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "api": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "qtd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "ytd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "caseCount": {
+                "bsonType": "object",
+                "properties": {
+                  "min1800": {
+                    "bsonType": "object",
+                    "properties": {
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mtd",
+                      "qtd",
+                      "ytd"
+                    ]
+                  },
+                  "total": {
+                    "bsonType": "object",
+                    "properties": {
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mtd",
+                      "qtd",
+                      "ytd"
+                    ]
+                  }
+                },
+                "required": [
+                  "min1800",
+                  "total"
+                ]
+              },
+              "fyc": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "null"
+                  },
+                  "qtd": {
+                    "bsonType": "null"
+                  },
+                  "ytd": {
+                    "bsonType": "null"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "fyp": {
+                "bsonType": "object",
+                "properties": {
+                  "linked": {
+                    "bsonType": "object",
+                    "properties": {
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mtd",
+                      "qtd",
+                      "ytd"
+                    ]
+                  },
+                  "mtd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "psa": {
+                    "bsonType": "object",
+                    "properties": {
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mtd",
+                      "qtd",
+                      "ytd"
+                    ]
+                  },
+                  "qtd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "regular": {
+                    "bsonType": "object",
+                    "properties": {
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mtd",
+                      "qtd",
+                      "ytd"
+                    ]
+                  },
+                  "sp": {
+                    "bsonType": "object",
+                    "properties": {
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "mtd",
+                      "qtd",
+                      "ytd"
+                    ]
+                  },
+                  "ytd": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "linked",
+                  "mtd",
+                  "psa",
+                  "qtd",
+                  "regular",
+                  "sp",
+                  "ytd"
+                ]
+              },
+              "ptpc": {
+                "bsonType": "object",
+                "properties": {
+                  "withoutRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "linked": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "linked",
+                      "mtd",
+                      "psa",
+                      "qtd",
+                      "regular",
+                      "sp",
+                      "ytd"
+                    ]
+                  },
+                  "withRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "linked": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "linked",
+                      "mtd",
+                      "psa",
+                      "qtd",
+                      "regular",
+                      "sp",
+                      "ytd"
+                    ]
+                  }
+                },
+                "required": [
+                  "withoutRepricing",
+                  "withRepricing"
+                ]
+              },
+              "tpc": {
+                "bsonType": "object",
+                "properties": {
+                  "withoutRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "linked": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "linked",
+                      "mtd",
+                      "psa",
+                      "qtd",
+                      "regular",
+                      "sp",
+                      "ytd"
+                    ]
+                  },
+                  "withRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "linked": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "mtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "qtd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": "object",
+                        "properties": {
+                          "mtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "qtd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          },
+                          "ytd": {
+                            "bsonType": [
+                              "double",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mtd",
+                          "qtd",
+                          "ytd"
+                        ]
+                      },
+                      "ytd": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "linked",
+                      "mtd",
+                      "psa",
+                      "qtd",
+                      "regular",
+                      "sp",
+                      "ytd"
+                    ]
+                  }
+                },
+                "required": [
+                  "withoutRepricing",
+                  "withRepricing"
+                ]
+              }
+            },
+            "required": [
+              "ape",
+              "api",
+              "caseCount",
+              "fyc",
+              "fyp",
+              "ptpc",
+              "tpc"
+            ]
+          },
+          "region_code": {
+            "bsonType": "string"
+          },
+          "region_name": {
+            "bsonType": "string"
+          },
+          "scheme_type": {
+            "bsonType": "null"
+          },
+          "snapshot": {
+            "bsonType": "object",
+            "properties": {
+              "ape": {
+                "bsonType": [
+                  "double",
+                  "null"
+                ]
+              },
+              "caseCount": {
+                "bsonType": "object",
+                "properties": {
+                  "endorsement": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "min1800": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "nb": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "total": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "endorsement",
+                  "min1800",
+                  "nb",
+                  "total"
+                ]
+              },
+              "fyc": {
+                "bsonType": "null"
+              },
+              "fyp": {
+                "bsonType": "object",
+                "properties": {
+                  "linked": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "psa": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "regular": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "sp": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "total": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "linked",
+                  "psa",
+                  "regular",
+                  "sp",
+                  "total"
+                ]
+              },
+              "ptpc": {
+                "bsonType": "object",
+                "properties": {
+                  "withoutRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "linked": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "linked",
+                      "psa",
+                      "regular",
+                      "sp"
+                    ]
+                  },
+                  "withRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "linked": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "linked",
+                      "psa",
+                      "regular",
+                      "sp"
+                    ]
+                  }
+                },
+                "required": [
+                  "withoutRepricing",
+                  "withRepricing"
+                ]
+              },
+              "tpc": {
+                "bsonType": "object",
+                "properties": {
+                  "withoutRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "credit_points": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "linked": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "total": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "credit_points",
+                      "linked",
+                      "psa",
+                      "regular",
+                      "sp",
+                      "total"
+                    ]
+                  },
+                  "withRepricing": {
+                    "bsonType": "object",
+                    "properties": {
+                      "credit_points": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "linked": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "psa": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "regular": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "sp": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      },
+                      "total": {
+                        "bsonType": [
+                          "double",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "credit_points",
+                      "linked",
+                      "psa",
+                      "regular",
+                      "sp",
+                      "total"
+                    ]
+                  }
+                },
+                "required": [
+                  "withoutRepricing",
+                  "withRepricing"
+                ]
+              }
+            },
+            "required": [
+              "ape",
+              "caseCount",
+              "fyc",
+              "fyp",
+              "ptpc",
+              "tpc"
+            ]
+          }
+        }
+      }
+    },
+    "pa_performance_PAMB-dev.my_mapa": {
+      "ns": "pa_performance_PAMB-dev.my_mapa",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "agentAggregation",
+          "agentBranchCode",
+          "agentBranchName",
+          "agentId",
+          "agentKey",
+          "agentName",
+          "agentRecruitmentType",
+          "agentRegionCode",
+          "agentRegionName",
+          "agentSegment",
+          "agentStatus",
+          "agentTier",
+          "agentType",
+          "asOnDate",
+          "audit",
+          "entity",
+          "entityType",
+          "id",
+          "period",
+          "ptd",
+          "schemeType",
+          "snapshot"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "agentAggregation": {
+            "bsonType": "string"
+          },
+          "agentBranchCode": {
+            "bsonType": "string"
+          },
+          "agentBranchName": {
+            "bsonType": "string"
+          },
+          "agentId": {
+            "bsonType": "string"
+          },
+          "agentKey": {
+            "bsonType": "string"
+          },
+          "agentName": {
+            "bsonType": "string"
+          },
+          "agentRecruitmentType": {
+            "bsonType": "string"
+          },
+          "agentRegionCode": {
+            "bsonType": "string"
+          },
+          "agentRegionName": {
+            "bsonType": "string"
+          },
+          "agentSegment": {
+            "bsonType": "string"
+          },
+          "agentStatus": {
+            "bsonType": "string"
+          },
+          "agentTier": {
+            "bsonType": "string"
+          },
+          "agentType": {
+            "bsonType": "string"
+          },
+          "asOnDate": {
+            "bsonType": "date"
+          },
+          "audit": {
+            "bsonType": "object",
+            "properties": {
+              "createdAt": {
+                "bsonType": "string"
+              },
+              "schemaVersion": {
+                "bsonType": "int"
+              },
+              "updatedAt": {
+                "bsonType": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "schemaVersion",
+              "updatedAt"
+            ]
+          },
+          "entity": {
+            "bsonType": "string"
+          },
+          "entityType": {
+            "bsonType": "string"
+          },
+          "id": {
+            "bsonType": "string"
+          },
+          "period": {
+            "bsonType": "object",
+            "properties": {
+              "asOnMonthDay": {
+                "bsonType": "string"
+              },
+              "month": {
+                "bsonType": "int"
+              },
+              "quarter": {
+                "bsonType": "string"
+              },
+              "year": {
+                "bsonType": "int"
+              },
+              "yyyymm": {
+                "bsonType": "string"
+              }
+            },
+            "required": [
+              "asOnMonthDay",
+              "month",
+              "quarter",
+              "year",
+              "yyyymm"
+            ]
+          },
+          "ptd": {
+            "bsonType": "object",
+            "properties": {
+              "activityRatio": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "averageCaseSize": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "manpowerTotal": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "newAgentProductivity": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "newRecruits": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "productivity": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              },
+              "recruitmentActivityRatio": {
+                "bsonType": "object",
+                "properties": {
+                  "mtd": {
+                    "bsonType": "int"
+                  },
+                  "qtd": {
+                    "bsonType": "int"
+                  },
+                  "ytd": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "mtd",
+                  "qtd",
+                  "ytd"
+                ]
+              }
+            },
+            "required": [
+              "activityRatio",
+              "averageCaseSize",
+              "manpowerTotal",
+              "newAgentProductivity",
+              "newRecruits",
+              "productivity",
+              "recruitmentActivityRatio"
+            ]
+          },
+          "schemeType": {
+            "bsonType": "null"
+          },
+          "snapshot": {
+            "bsonType": "object",
+            "properties": {
+              "avgCaseSize": {
+                "bsonType": "int"
+              },
+              "manpower": {
+                "bsonType": "object",
+                "properties": {
+                  "active": {
+                    "bsonType": "int"
+                  },
+                  "activeNew": {
+                    "bsonType": "int"
+                  },
+                  "activityRatio": {
+                    "bsonType": "int"
+                  },
+                  "total": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "active",
+                  "activeNew",
+                  "activityRatio",
+                  "total"
+                ]
+              },
+              "mapaApe": {
+                "bsonType": "int"
+              },
+              "newAgentCount": {
+                "bsonType": "int"
+              },
+              "productivity": {
+                "bsonType": "int"
+              },
+              "recruitment": {
+                "bsonType": "object",
+                "properties": {
+                  "activityRatio": {
+                    "bsonType": "int"
+                  },
+                  "productivity": {
+                    "bsonType": "int"
+                  }
+                },
+                "required": [
+                  "activityRatio",
+                  "productivity"
+                ]
+              }
+            },
+            "required": [
+              "avgCaseSize",
+              "manpower",
+              "mapaApe",
+              "newAgentCount",
+              "productivity",
+              "recruitment"
+            ]
+          }
+        }
+      }
+    },
+    "pa_performance_PAMB-dev.my_persistency": {
+      "ns": "pa_performance_PAMB-dev.my_persistency",
+      "jsonSchema": {
+        "bsonType": "object",
+        "required": [
+          "_id",
+          "agentAggregation",
+          "agentId",
+          "agentKey",
+          "agentName",
+          "agentRefererAgentId",
+          "agentStatus",
+          "agentTier",
+          "agentType",
+          "asOnDate",
+          "audit",
+          "entity",
+          "entityType",
+          "id",
+          "metrics",
+          "period",
+          "schemeType"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "objectId"
+          },
+          "agentAggregation": {
+            "bsonType": "string"
+          },
+          "agentId": {
+            "bsonType": "string"
+          },
+          "agentKey": {
+            "bsonType": "string"
+          },
+          "agentName": {
+            "bsonType": "string"
+          },
+          "agentRefererAgentId": {
+            "bsonType": "string"
+          },
+          "agentStatus": {
+            "bsonType": "string"
+          },
+          "agentTier": {
+            "bsonType": "string"
+          },
+          "agentType": {
+            "bsonType": "string"
+          },
+          "asOnDate": {
+            "bsonType": "date"
+          },
+          "audit": {
+            "bsonType": "object",
+            "properties": {
+              "createdAt": {
+                "bsonType": "date"
+              },
+              "schemaVersion": {
+                "bsonType": "double"
+              },
+              "updatedAt": {
+                "bsonType": "date"
+              }
+            },
+            "required": [
+              "createdAt",
+              "schemaVersion",
+              "updatedAt"
+            ]
+          },
+          "entity": {
+            "bsonType": "string"
+          },
+          "entityType": {
+            "bsonType": "string"
+          },
+          "id": {
+            "bsonType": "string"
+          },
+          "metrics": {
+            "bsonType": "object",
+            "properties": {
+              "bonus": {
+                "bsonType": "object",
+                "properties": {
+                  "first_year_persistency": {
+                    "bsonType": "double"
+                  },
+                  "second_year_persistency": {
+                    "bsonType": "double"
+                  }
+                },
+                "required": [
+                  "first_year_persistency",
+                  "second_year_persistency"
+                ]
+              },
+              "cpd": {
+                "bsonType": "object",
+                "properties": {
+                  "completed_hours": {
+                    "bsonType": "string"
+                  },
+                  "pending_hours": {
+                    "bsonType": "null"
+                  }
+                },
+                "required": [
+                  "completed_hours",
+                  "pending_hours"
+                ]
+              },
+              "monthly": {
+                "bsonType": "object",
+                "properties": {
+                  "amp": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "hbfp": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "introducer_credit": {
+                    "bsonType": "null"
+                  },
+                  "nnbapi": {
+                    "bsonType": [
+                      "null",
+                      "double"
+                    ]
+                  },
+                  "pp": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  },
+                  "rgb": {
+                    "bsonType": [
+                      "double",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "amp",
+                  "hbfp",
+                  "introducer_credit",
+                  "nnbapi",
+                  "pp",
+                  "rgb"
+                ]
+              },
+              "persistency": {
+                "bsonType": "object",
+                "properties": {
+                  "first_year": {
+                    "bsonType": "double"
+                  },
+                  "second_year": {
+                    "bsonType": "double"
+                  }
+                },
+                "required": [
+                  "first_year",
+                  "second_year"
+                ]
+              },
+              "ytd": {
+                "bsonType": "object",
+                "properties": {
+                  "current_year_persistency": {
+                    "bsonType": "double"
+                  },
+                  "first_year_bonus": {
+                    "bsonType": "double"
+                  },
+                  "first_year_persistency": {
+                    "bsonType": "double"
+                  },
+                  "second_year_bonus": {
+                    "bsonType": "double"
+                  },
+                  "second_year_persistency": {
+                    "bsonType": "double"
+                  }
+                },
+                "required": [
+                  "current_year_persistency",
+                  "first_year_bonus",
+                  "first_year_persistency",
+                  "second_year_bonus",
+                  "second_year_persistency"
+                ]
+              }
+            },
+            "required": [
+              "bonus",
+              "cpd",
+              "monthly",
+              "persistency",
+              "ytd"
+            ]
+          },
+          "period": {
+            "bsonType": "object",
+            "properties": {
+              "as_on_month_day": {
+                "bsonType": "null"
+              },
+              "month": {
+                "bsonType": "int"
+              },
+              "quarter": {
+                "bsonType": "string"
+              },
+              "year": {
+                "bsonType": "int"
+              },
+              "yyyymm": {
+                "bsonType": "string"
+              }
+            },
+            "required": [
+              "as_on_month_day",
+              "month",
+              "quarter",
+              "year",
+              "yyyymm"
+            ]
+          },
+          "schemeType": {
+            "bsonType": "null"
+          }
+        }
+      }
+    }
+  },
+  "relationships": []
+}
