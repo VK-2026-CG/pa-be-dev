@@ -1,11 +1,11 @@
 /** Performance data boundary: three source collections in Mongo, or isolated offline tests. */
-import { getPerformanceDb } from '../db/mongo.js';
+import { getPerformanceDb, getPreferencesDb } from '../db/mongo.js';
 import { PerformanceSource } from './performance-source.js';
 import { AGENTS, findAgent as findRegisteredAgent, type AgentRecord } from './registry.js';
 import { listTeam, teamAgentRecord, visibleMember } from './team-tree.js';
 import { CATALOG } from './catalog.js';
 import { ANCHOR_YEAR, AS_OF_DATE, contextFor, metricDetail, metricList, metricSeries, milestones, type Lens } from './values.js';
-import { getPreferences, putPreferences, type PrefError } from './preferences.js';
+import { getPreferences, memoryPreferences, MongoPreferenceStore, PREFERENCES_COLLECTION, putPreferences, type PrefError } from './preferences.js';
 import { recommendations, recordFeedback, type RecommendationListPayload } from './recommendations.js';
 import { mockTeamMemberDashboard } from './mocks/team-members.js';
 import type {
@@ -75,9 +75,9 @@ class MemorySource implements DataSource {
   async metricDetail(agent: AgentRecord, code: string, l: Lens) { return metricDetail(code, l, agent.demoDataState); }
   async metricSeries(_agent: AgentRecord, code: string, l: Lens, year: number, back: number) { return metricSeries(code, l, year, back); }
   async milestones() { return milestones(); }
-  async getPreferences(agent: AgentRecord, scope: Scope, basis: Basis) { return getPreferences(agent.tenant, agent.agentId, scope, basis); }
+  async getPreferences(agent: AgentRecord, scope: Scope, basis: Basis) { return getPreferences(memoryPreferences, agent.tenant, agent.agentId, scope, basis); }
   async putPreferences(agent: AgentRecord, scope: Scope, basis: Basis, body: { priorityMetricCodes: string[]; focusMetricCodes: string[] }) {
-    return putPreferences(agent.tenant, agent.agentId, scope, basis, body);
+    return putPreferences(memoryPreferences, agent.tenant, agent.agentId, scope, basis, body);
   }
   async recommendations(agent: AgentRecord, scope: Scope) { return recommendations(agent.agentId, scope); }
   async recordFeedback(agent: AgentRecord, id: string, rating: 'UP' | 'DOWN') { return recordFeedback(agent.agentId, id, rating); }
@@ -125,11 +125,14 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
   if (!['development', 'test'].includes(process.env.NODE_ENV ?? '')) throw new Error('Performance source mode requires development/test');
   const [pamb, pbtb] = await Promise.all([getPerformanceDb('PAMB'), getPerformanceDb('PBTB')]);
   const dbs = { PAMB: pamb, PBTB: pbtb };
+  const preferencesDb = await getPreferencesDb();
+  const preferences = new MongoPreferenceStore(preferencesDb.collection(PREFERENCES_COLLECTION));
+  log(`preferences: ${preferencesDb.databaseName}.${PREFERENCES_COLLECTION}`);
   log('data source: direct Performance Mongo DEVELOPMENT profile (three metric collections + read-only my_agent_hierarchy)');
   if (process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true' || process.env.INSIGHTS_TEAM_DRILLDOWN_MOCK === 'true' || process.env.INSIGHTS_HIERARCHY_SOURCE !== undefined) {
     log('data source: ignoring deprecated mock/hierarchy flags; runtime mock fallbacks are disabled and hierarchy is always read');
   }
-  return new PerformanceSource(dbs, new Map(), log);
+  return new PerformanceSource(dbs, new Map(), log, false, false, preferences);
 }
 
 export { AGENTS, ANCHOR_YEAR, CATALOG, contextFor };

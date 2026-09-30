@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-01
+- Customize Metrics preferences are persisted in MongoDB (database `MONGODB_PREFERENCES_DB`, default `pa-performance-preferences-coedev3`; collection `metrics_preferences`) instead of process memory, so they survive restarts. One document per `_id: { tenant, agentId, scope }` with `priorityMetricCodes`, `focusMetricCodes`, `updatedAt` (C1 §5 shape); writes are upserts. Store failures return a sanitized 503 `INS-5030`. The offline memory engine and tests keep an in-memory store.
 - Specs are reference material, not gates: rewrote AGENTS.md, CLAUDE.md, Copilot/skill/workflow docs and handoff docs so no spec status, approval, handoff or receipt blocks development; security, authorization and environment safeguards unchanged. Retired handoff scripts marked as history.
 - Viewing a downline member with no metric rows (S-P4-01 viewing mode) returns the viewing dashboard with EMPTY cards (no values, not zero-filled) instead of a 404. The member's missing milestones/recommendations are no longer reported as failed sections. Outside viewing mode, no rows still returns 404.
 - Team Drilldown KPI tiles (unfiltered) now come from the leader's own `my_mapa` team row (DirectUnit, or Group for teamView=GROUP): the same Manpower / Activity Ratio / Productivity / Average Case Size as the Team dashboard. Before, the tile was a hierarchy head count (e.g. 18 vs 9) and the other tiles were blank. With a search/level/badge filter, MANPOWER counts the matching members' organisation and the other tiles have no value.

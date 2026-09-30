@@ -2,7 +2,7 @@ import type { Db, Document } from 'mongodb';
 import type { DataSource, TeamListRequest } from './source.js';
 import type { AgentRecord } from './registry.js';
 import { effectiveCatalog, type EffectiveDef } from './catalog.js';
-import { getPreferences, putPreferences } from './preferences.js';
+import { getPreferences, memoryPreferences, putPreferences, type PreferenceStore } from './preferences.js';
 import type { AgentLevel } from './registry.js';
 import {
   PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_HIERARCHY_COLLECTION, PERFORMANCE_READ_TIMEOUT_MS,
@@ -108,6 +108,8 @@ export class PerformanceSource implements DataSource {
     _deprecatedDevMockFallback = false,
     /** Kept for constructor compatibility; `my_agent_hierarchy` is always read. */
     _deprecatedHierarchyEnabled = false,
+    /** Agent preferences; `createSource` passes the Mongo `metrics_preferences` store. */
+    private readonly preferences: PreferenceStore = memoryPreferences,
   ) {
     if (dbs.PAMB.databaseName !== PERFORMANCE_DATABASES.PAMB || dbs.PBTB.databaseName !== PERFORMANCE_DATABASES.PBTB) {
       throw new Error('Invalid Performance source database');
@@ -465,9 +467,9 @@ export class PerformanceSource implements DataSource {
     const { context } = await this.selection(agent, { period: 'YTD', scope: 'SELF', basis: 'STANDARD', businessLine: 'INSURANCE' });
     return { asOfDate: context.asOfDate, items: [] };
   }
-  async getPreferences(agent: AgentRecord, scope: Scope, basis: Basis) { return getPreferences(agent.tenant, agent.agentId, scope, basis); }
+  async getPreferences(agent: AgentRecord, scope: Scope, basis: Basis) { return getPreferences(this.preferences, agent.tenant, agent.agentId, scope, basis); }
   async putPreferences(agent: AgentRecord, scope: Scope, basis: Basis, body: { priorityMetricCodes: string[]; focusMetricCodes: string[] }) {
-    return putPreferences(agent.tenant, agent.agentId, scope, basis, body);
+    return putPreferences(this.preferences, agent.tenant, agent.agentId, scope, basis, body);
   }
   async recommendations(agent: AgentRecord, _scope: Scope = 'SELF') {
     void agent;

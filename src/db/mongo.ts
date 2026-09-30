@@ -6,6 +6,7 @@
  *   MONGODB_PAMB_DB pa_performance_PAMB-dev (INSURANCE/ALL Performance reads)
  *   MONGODB_PBTB_DB pa_performance_PBTB-dev (TAKAFUL Performance reads)
  *   MONGODB_PERFORMANCE_URI optional dedicated Performance connection (same cluster/credentials for both databases)
+ *   MONGODB_PREFERENCES_DB pa-performance-preferences-coedev3 (agent preferences, collection `metrics_preferences`)
  *   MONGODB_DB legacy migration source only; not used by Performance requests
  *
  * Only the explicit offline/test source path uses the in-memory engine; a
@@ -63,11 +64,23 @@ export async function getContestDb(): Promise<Db> {
   return (await connect()).db(CONTEST_DB_NAME);
 }
 
+/** Agent Customize Metrics preferences (service-written); same connection as the Performance source. */
+export const PREFERENCES_DB_NAME = process.env.MONGODB_PREFERENCES_DB || 'pa-performance-preferences-coedev3';
+
 /** Separate named Performance source database; never changes Contest storage. */
 export async function getPerformanceDb(key: PerformanceDatabaseKey = 'PAMB'): Promise<Db> {
-  const { databases, uri } = performanceConnection();
-  const database = databases[key];
-  if (process.env.MONGODB_PERFORMANCE_URI === undefined) return (await connect()).db(database);
+  const { databases } = performanceConnection();
+  return (await performanceMongoClient()).db(databases[key]);
+}
+
+/** Preferences database on the Performance connection (`MONGODB_PREFERENCES_DB`). */
+export async function getPreferencesDb(): Promise<Db> {
+  return (await performanceMongoClient()).db(PREFERENCES_DB_NAME);
+}
+
+async function performanceMongoClient(): Promise<MongoClient> {
+  const { uri } = performanceConnection();
+  if (process.env.MONGODB_PERFORMANCE_URI === undefined) return connect();
   if (!performanceConnectionPromise) {
     const dedicated = new MongoClient(uri, {
       appName: 'pruaction-performance-source', serverSelectionTimeoutMS: PERFORMANCE_READ_TIMEOUT_MS,
@@ -78,7 +91,7 @@ export async function getPerformanceDb(key: PerformanceDatabaseKey = 'PAMB'): Pr
       throw new Error('Performance database connection failed');
     });
   }
-  return (await performanceConnectionPromise).db(database);
+  return performanceConnectionPromise;
 }
 
 export async function closeDb(): Promise<void> {
