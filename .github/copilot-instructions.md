@@ -15,6 +15,7 @@ or its query/catalogue repositories. One backend deployment serves one
 database fallbacks are forbidden. Run `npm test`, `npm run typecheck`, and
 `npm run build` for behavioral changes.
 
-For contract work, consume only `READY` files in `handoffs/inbox/spec` after
-syncing their exact commit. Never modify inbound handoffs or vendored contracts.
-Update the correlated backend receipt and run `npm run handoff:validate`.
+For contract work, read the canonical files in the accessible `pa-spec-dev`
+working tree and run `npm run sync:specs` as needed. Handoff status and receipts
+are not development gates. Do not hand-edit generated vendored contracts; edit
+the spec source, sync it, and record meaningful changes in `CHANGELOG.md`.

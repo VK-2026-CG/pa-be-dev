@@ -160,7 +160,7 @@ the headers above. The selector does not grant access or join different agents.
 
 ## Validation
 
-`npm run typecheck`, `npm test`, `npm run build`, `npm run handoff:validate`.
+`npm run typecheck`, `npm test`, and `npm run build`.
 Backend tests cover source AC-PA-DIRECT-01–11, resident-read AC-PA-DIRECT-18–24,
 and multi-business-line routing/status/ordering AC-PA-DIRECT-25–30, using
 synthetic data and fake Mongo. Frontend owns AC-PA-DIRECT-12–17. Live

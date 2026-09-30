@@ -167,12 +167,11 @@ npm run db:reconcile:contest-data                 # guarded dry-run
 
 See [`docs/architecture/country-isolation.md`](docs/architecture/country-isolation.md).
 
-## Agent handoffs
+## Spec-driven development
 
-Spec and application agents exchange committed, machine-readable artifacts under
-[`handoffs/`](handoffs/README.md). Sync immutable contract and instruction
-revisions with `SPEC_REF=<contract-commit> HANDOFF_REF=<handoff-commit>
-npm run sync:specs`, validate them with
-`npm run handoff:validate`, then publish backend evidence under
-`handoffs/outbox/receipts/`. A dirty spec handoff remains `DRAFT` and is not an
-implementation-complete contract.
+The accessible `pa-spec-dev` working tree is the source of truth. Run
+`npm run sync:specs` to refresh `vendor/spec/` directly from its current files,
+including uncommitted spec edits. Handoffs and receipts are preserved as
+historical records, but do not gate development. Record meaningful backend
+changes and checks in [`CHANGELOG.md`](CHANGELOG.md); keep application tests,
+typechecks, builds, and runtime safeguards in force.

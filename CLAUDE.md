@@ -15,10 +15,10 @@ Human-facing Claude Code workflows are `/develop-backend
 skills under `.claude/skills/` use `docs/agent-workflows/` and run the lower-level
 commands above internally.
 
-For spec-driven work, first read `handoffs/README.md` and the matching inbound
-handoff. Never implement a dirty `DRAFT` as complete. Sync the handoff's exact
-commit, run `npm run handoff:validate`, and maintain the backend receipt in
-`handoffs/outbox/receipts/` through `IN_PROGRESS`/`BLOCKED`/`COMPLETE`.
+For spec-driven work, read the canonical files in the accessible `pa-spec-dev`
+working tree and run `npm run sync:specs` to refresh vendored contracts. Handoff
+status, publication commits, and receipts are not prerequisites for development.
+Update the root `CHANGELOG.md` for meaningful changes.
 
 Auth is a stub: identity comes from `x-agent-id` (see
 `src/data/registry.ts`: A1001 P4 agent · A1002 EMPTY demo · A1003 PROCESSING

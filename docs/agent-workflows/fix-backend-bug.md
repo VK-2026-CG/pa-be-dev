@@ -19,8 +19,7 @@ Invocation: `/fix-backend-bug <bug-jira-id> [spec-id] [context]`
 6. Do not change approved behavior for `SPEC_DEFECT` or `NEW_REQUIREMENT`; route
    through `/update-spec` first. Do not weaken auth, country or data safeguards
    as a workaround.
-7. Run relevant focused checks, then all repository completion gates. Update the
-   correlated receipt with optional `bugJiraId`/`defectClassification`, evidence,
-   AC coverage, migrations and remaining gaps.
+7. Run relevant focused checks, then repository tests, typecheck and build as
+   applicable. Record meaningful fixes and checks in `CHANGELOG.md`.
 8. Report localization, root cause, fix, regression test, validation and any
    containment/data remediation separately.
