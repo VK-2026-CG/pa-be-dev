@@ -8,13 +8,11 @@ export function performanceProfile(env = process.env) {
     if ((env.COUNTRY_CODE ?? 'MY') !== 'MY')
         throw new Error('Performance source profile requires the MY deployment');
 }
-/** Validate the separately authorized read-only organization source profile. */
+/** Validate the read-only `my_agent_hierarchy` source profile (always on in Performance source mode). */
 export function hierarchyProfile(env = process.env) {
     if (!['development', 'test'].includes(env.NODE_ENV ?? ''))
         throw new Error('Hierarchy source requires development/test');
     performanceDatabases(env);
     if ((env.COUNTRY_CODE ?? 'MY') !== 'MY')
         throw new Error('Hierarchy source requires the MY deployment');
-    if (env.INSIGHTS_HIERARCHY_SOURCE !== 'true')
-        throw new Error('Hierarchy source requires explicit opt-in');
 }

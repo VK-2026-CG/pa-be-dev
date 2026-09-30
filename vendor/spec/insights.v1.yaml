@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PRUAction — Insights Domain API
-  version: 1.7.0
+  version: 1.8.0
   description: |
     Domain API for the **Insights** bounded context (agent performance):
     metric snapshots, metric detail, historical series, milestone progress,
@@ -89,6 +89,13 @@ info:
       `GET /agents/{agentId}/organization`, a nested read-only organization
       view resolved from `my_agent_hierarchy`; see its operation contract and
       C1 mapping. Existing metric and Team Drilldown permissions are unchanged.
+    - **1.8.0** (SPEC-2026-004 0.2.0-draft + SPEC-2026-005 0.2.0-draft,
+      requester-approved 2026-10-01; no schema change): `listTeamMembers`
+      resolves members from `my_agent_hierarchy` (C1 §6c) instead of
+      returning an empty list in source mode. Organization and Team
+      Drilldown traversal skip the leader's own ID in
+      `subtree.scopeProfileIds`, and `displayRows.tier` maps
+      case-insensitively. Hierarchy reads need no opt-in flag.
   contact:
     name: Insights Domain Team
   x-domain: insights
@@ -143,13 +150,16 @@ paths:
         document by matching `hierarchy.leaderId` to that ID.
         Duplicate documents sort by `asOnDate`, `audit.updatedAt`, then `_id`,
         descending. Deduplicate repeated profile IDs at first encounter and
-        preserve source-array order. Missing descendants are
+        preserve source-array order. (1.8.0) A document that lists its own
+        `hierarchy.leaderId` in `subtree.scopeProfileIds` (UM and agent
+        snapshots do) skips that entry; it is not a cycle. Missing descendants are
         ID-only leaves (displayName equal to agentId, empty reports, tier
         omitted). Cycles or malformed records cannot return partial results.
 
         `displayName` is the profile ID. Never expose or log encrypted names,
         vault references, or raw source documents. Read role values from
-        `displayRows.tier`: AM→P2, UM/UM1/UM2→P3, AGENT→P4. All reads
+        `displayRows.tier`, case-insensitively (observed `Agent`/`agent`):
+        AM→P2, UM/UM1/UM2→P3, AGENT→P4. All reads
         use the existing 8-second Mongo execution budget; no writes or
         provisioning occur.
       parameters:
@@ -691,6 +701,25 @@ paths:
 
         Gating follows existing team-view rulings: P3 leaders can request
         `teamView=DIRECT` only; P2 leaders can request `DIRECT` or `GROUP`.
+
+        (1.8.0) Source: the caller's newest `my_agent_hierarchy` snapshot,
+        selected as in `getAgentOrganization` (PAMB first; PBTB only when the
+        root is absent; `asOnDate`, `audit.updatedAt`, `_id` descending).
+        Members are the IDs in `subtree.scopeProfileIds`, in source order,
+        deduplicated, excluding the caller's own ID. Each member resolves by
+        `hierarchy.leaderId`. Its tier gives `hierarchyBasis`/`roleCode`
+        (AM→AM, UM/UM1/UM2→UM, AGENT→AGENT, case-insensitive). The number of
+        its own reportees gives `directReportCount`. A member without a
+        hierarchy document is an `AGENT` with no `directReportCount`.
+        `displayName` is the member ID; encrypted names are never projected.
+        `tpc`/`ptpc` are the member's Personal values from the metric source
+        for the requested lens, and are omitted when the member has no rows.
+        `badges`, `goalStatus` and `photoUrl` have no approved source
+        (OQ-79), are omitted, and a `badges` filter therefore matches no
+        member. `summary` MANPOWER counts the filtered members and their
+        downlines; other tiles carry no `value` until a source is approved.
+        `parentMemberAgentId` must be visible under D-14 (P3 direct team,
+        P2 whole downline) or the call returns 403.
       parameters:
         - $ref: '#/components/parameters/AgentId'
         - $ref: '#/components/parameters/TeamView'

@@ -1,9 +1,21 @@
 # Team Drilldown hierarchy source integration status
 
-## Current status
+## Current status (2026-10-01)
 
-The proposed read-only source is
-`pa_performance_PAMB-dev.my_agent_hierarchy`. It is **not currently authorized
+Team Drilldown reads `my_agent_hierarchy` at runtime in Performance source mode
+(`PerformanceSource.listTeamMembers` / `findTeamMember`). There is no opt-in flag. The caller's
+newest snapshot (PAMB first, PBTB when absent) supplies direct reports via
+`subtree.scopeProfileIds`, minus the leader's own ID. Tiers map case-insensitively
+(AM→P2/AM, UM*→P3/UM, AGENT→P4/AGENT). Reportees without a snapshot are ID-only
+AGENT leaves. TPC/PTPC come from `my_production`. Names stay encrypted and are never
+projected; the agent ID is the display name.
+
+The notes below are the original pre-implementation record.
+
+## Original status
+
+The proposed read-only source was
+`pa_performance_PAMB-dev.my_agent_hierarchy`. It was **not authorized
 for runtime use** by the checked-in Performance source profile. `AGENTS.md`,
 `CLAUDE.md`, `README.md`, `docs/performance-direct-source.md`, and the fixed
 collection constants currently permit only `my_production`, `my_mapa`, and

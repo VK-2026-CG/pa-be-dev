@@ -539,14 +539,85 @@ describe('three-collection import safety', () => {
   });
   it('AC-ORG-08 fails cycles/malformed hierarchy and sanitizes source errors', async () => {
     const cycle = { hierarchy: { leaderId: 'MOCK_GROUP' }, subtree: { scopeProfileIds: ['MOCK_GROUP'] }, displayRows: { tier: 'AM' } };
-    const a = dualDb({ my_agent_hierarchy: [cycle] });
+    const back = { hierarchy: { leaderId: 'MOCK_UM' }, subtree: { scopeProfileIds: ['MOCK_GROUP'] }, displayRows: { tier: 'UM' } };
+    const a = dualDb({ my_agent_hierarchy: [{ ...cycle, subtree: { scopeProfileIds: ['MOCK_UM'] } }, back] });
     await expect(new PerformanceSource(a.dbs, agents, () => {}, false, true).getAgentOrganization('MOCK_GROUP')).rejects.toThrow('Hierarchy cycle');
+    // UM/agent snapshots list the leader first in its own scopeProfileIds; that entry is skipped, not a cycle.
     const self = dualDb({ my_agent_hierarchy: [{ ...cycle, subtree: { scopeProfileIds: ['MOCK_GROUP', 'MOCK_LEAF'] } }] });
-    await expect(new PerformanceSource(self.dbs, agents, () => {}, false, true).getAgentOrganization('MOCK_GROUP')).rejects.toThrow('Hierarchy cycle');
+    expect(await new PerformanceSource(self.dbs, agents).getAgentOrganization('MOCK_GROUP')).toEqual({
+      agentId: 'MOCK_GROUP', displayName: 'MOCK_GROUP', tier: 'P2', reports: [{ agentId: 'MOCK_LEAF', displayName: 'MOCK_LEAF', reports: [] }],
+    });
     const badDb = { databaseName: PERFORMANCE_DATABASES.PAMB, collection: () => ({ find: () => { throw new Error('secret mongodb:// credential'); } }) } as unknown as Db;
     const b = new PerformanceSource({ PAMB: badDb, PBTB: dualDb().dbs.PBTB }, agents, () => {}, false, true);
     await expect(b.getAgentOrganization('MOCK_GROUP')).rejects.toThrow('Hierarchy source read failed');
   });
+  describe('Team Drilldown from my_agent_hierarchy', () => {
+    const snap = (leaderId: string, tier: string, ids: string[]) => ({
+      _id: new BSON.ObjectId(), asOnDate: new Date('2026-09-28'), audit: { updatedAt: new Date('2026-09-28') },
+      hierarchy: { leaderId, level: 0 }, subtree: { scopeProfileIds: ids }, displayRows: { tier, fullName: '{"cipher_text":"SECRET"}' },
+    });
+    const um: AgentRecord = { agentId: 'UM1', tenant: 'MY', level: 'P3', name: 'UM1' };
+    const am: AgentRecord = { agentId: 'AM1', tenant: 'MY', level: 'P2', name: 'AM1' };
+    const hierarchy = [
+      snap('AM1', 'AM', ['UM1', 'LONE']),
+      snap('UM1', 'UM2', ['UM1', 'AG1', 'AG2', 'SUB', 'AG1']),
+      snap('SUB', 'Agent', ['SUB', 'AG3']),
+    ];
+    const prod = (agentId: string, ytd: number) => ({ ...production, agentId, ptd: { ...production.ptd, tpc: { withoutRepricing: { ytd } } } });
+    const make = () => dualDb({ my_agent_hierarchy: hierarchy, my_production: [prod('UM1', 1), prod('AG1', 100), prod('SUB', 900)] }, {});
+    const req = { teamView: 'DIRECT' as const, sortBy: 'TPC' as const, lens };
+
+    it('lists direct reports (self excluded, deduped) with source TPC, tiers and downline counts', async () => {
+      const { dbs, pamb } = make();
+      const list = await new PerformanceSource(dbs, agents).listTeamMembers(um, req);
+      expect(list?.items.map(m => [m.agentId, m.hierarchyBasis, m.tpc?.kind === 'MONEY' ? m.tpc.amount : undefined, m.directReportCount]))
+        .toEqual([['SUB', 'AGENT', '900.00', 1], ['AG1', 'AGENT', '100.00', undefined], ['AG2', 'AGENT', undefined, undefined]]);
+      expect(list?.items.every(m => m.displayName === m.agentId && !m.badges && !m.photoUrl)).toBe(true);
+      expect(list?.summary?.find(t => t.metricCode === 'MANPOWER')?.value).toEqual({ kind: 'COUNT', value: 4 });
+      expect(list?.summary?.filter(t => t.metricCode !== 'MANPOWER').every(t => t.value === undefined)).toBe(true);
+      // Member TPC/PTPC come from one batched `$in` read per collection, not per member.
+      const memberReads = pamb.requests.filter(r => r.query.agentId?.$in);
+      expect(memberReads.map(r => r.collection).sort()).toEqual(['my_mapa', 'my_persistency', 'my_production']);
+      expect(memberReads[0]?.query.agentId.$in).toEqual(['AG1', 'AG2', 'SUB']);
+      const hierarchyReads = pamb.requests.filter(r => r.collection === 'my_agent_hierarchy');
+      expect(hierarchyReads.every(r => r.options.maxTimeMS === 8000 && !('displayRows.fullName' in r.options.projection))).toBe(true);
+    });
+
+    it('filters by basis/search, and a badge filter matches nobody (no badge source)', async () => {
+      const source = new PerformanceSource(make().dbs, agents);
+      expect((await source.listTeamMembers(um, { ...req, query: 'ag2' }))?.items.map(m => m.agentId)).toEqual(['AG2']);
+      expect((await source.listTeamMembers(am, { ...req, basis: 'UM' }))?.items.map(m => m.agentId)).toEqual(['UM1']);
+      expect((await source.listTeamMembers(um, { ...req, badges: ['PV'] }))?.items).toEqual([]);
+    });
+
+    it('D-14: subteam drawer and member lookup stay inside the caller hierarchy', async () => {
+      const source = new PerformanceSource(make().dbs, agents);
+      const sub = await source.listTeamMembers(um, { ...req, parentMemberAgentId: 'SUB' });
+      expect(sub?.parent?.agentId).toBe('SUB');
+      expect(sub?.items.map(m => m.agentId)).toEqual(['AG3']);
+      expect(sub?.summary).toBeUndefined();
+      expect(await source.listTeamMembers(um, { ...req, parentMemberAgentId: 'AG3' })).toBeUndefined(); // P3: direct team only
+      expect(await source.listTeamMembers(am, { ...req, parentMemberAgentId: 'SUB' })).toBeDefined(); // P2: whole downline
+      expect(await source.findTeamMember(um, 'OUTSIDER', lens)).toBeUndefined();
+      expect((await source.findTeamMember(am, 'AG3', lens))?.record).toEqual({ agentId: 'AG3', tenant: 'MY', level: 'P4', name: 'AG3' });
+    });
+
+    it('BFF team-drilldown carries each reportee\'s TPC/PTPC from the Insights domain to the VM', async () => {
+      const app = buildApp(new PerformanceSource(make().dbs, new Map())); apps.push(app);
+      const res = await app.inject({ url: '/api/bff/v1/performance/team-drilldown?sortBy=TPC&businessLine=INSURANCE', headers: { 'x-agent-id': 'UM1', 'x-tenant': 'MY' } });
+      expect(res.statusCode).toBe(200);
+      const members = res.json().members as Array<{ agentId: string; tpc?: { amount: string } }>;
+      expect(members.map(m => [m.agentId, m.tpc?.amount])).toEqual([['SUB', '900.00'], ['AG1', '100.00'], ['AG2', undefined]]);
+    });
+
+    it('resolves identity for mixed-case tiers', async () => {
+      const source = new PerformanceSource(make().dbs, agents);
+      expect((await source.resolveIdentity('SUB'))?.level).toBe('P4');
+      expect((await source.resolveIdentity('UM1'))?.level).toBe('P3');
+      expect((await source.resolveIdentity('AM1'))?.level).toBe('P2');
+    });
+  });
+
   it('AC-PA-DIRECT-03 identical imports skip records; conflicts and duplicate input keys fail', async () => {
     const row = normalizeMockRecord('my_production', raw('my_production'));
     const rows: MockImport = { my_production: [row], my_mapa: [], my_persistency: [] };

@@ -65,12 +65,10 @@ export async function createSource(log = () => { }) {
         throw new Error('Performance source mode requires development/test');
     const [pamb, pbtb] = await Promise.all([getPerformanceDb('PAMB'), getPerformanceDb('PBTB')]);
     const dbs = { PAMB: pamb, PBTB: pbtb };
-    const hierarchyEnabled = process.env.INSIGHTS_HIERARCHY_SOURCE === 'true' &&
-        ['development', 'test'].includes(process.env.NODE_ENV ?? '') && (process.env.COUNTRY_CODE ?? 'MY') === 'MY';
-    log('data source: direct Performance Mongo DEVELOPMENT profile (three metric collections; hierarchy read-only opt-in)');
-    if (process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true' || process.env.INSIGHTS_TEAM_DRILLDOWN_MOCK === 'true') {
-        log('data source: ignoring deprecated mock flags; runtime mock fallbacks are disabled');
+    log('data source: direct Performance Mongo DEVELOPMENT profile (three metric collections + read-only my_agent_hierarchy)');
+    if (process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true' || process.env.INSIGHTS_TEAM_DRILLDOWN_MOCK === 'true' || process.env.INSIGHTS_HIERARCHY_SOURCE !== undefined) {
+        log('data source: ignoring deprecated mock/hierarchy flags; runtime mock fallbacks are disabled and hierarchy is always read');
     }
-    return new PerformanceSource(dbs, new Map(), log, false, hierarchyEnabled);
+    return new PerformanceSource(dbs, new Map(), log);
 }
 export { AGENTS, ANCHOR_YEAR, CATALOG, contextFor };

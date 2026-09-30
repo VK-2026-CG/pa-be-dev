@@ -3,7 +3,11 @@ import type { DataSource, TeamListRequest } from './source.js';
 import type { AgentRecord } from './registry.js';
 import { effectiveCatalog, type EffectiveDef } from './catalog.js';
 import { getPreferences, putPreferences } from './preferences.js';
-import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_READ_TIMEOUT_MS, type PerformanceCollection, type PerformanceDatabaseKey } from '../config/performance.js';
+import type { AgentLevel } from './registry.js';
+import {
+  PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_HIERARCHY_COLLECTION, PERFORMANCE_READ_TIMEOUT_MS,
+  type PerformanceCollection, type PerformanceDatabaseKey,
+} from '../config/performance.js';
 import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
 import { sourceMetricScalar } from './performance-values.js';
 import { changeFor } from './change.js';
@@ -13,19 +17,48 @@ import type {
   Basis,
   BusinessLine,
   Change,
+  DrilldownBasis,
   MetricDetail,
   MetricScalar,
   MetricSeries,
   MetricSnapshot,
   Scope,
   SnapshotContext,
+  TeamMember,
   TeamMemberDashboard,
   TeamMemberList,
+  TeamSummaryTile,
   AgentOrganization,
 } from '../types.js';
 
 type Rows = Partial<Record<PerformanceCollection, Document>>;
 type PerformanceDbs = Record<PerformanceDatabaseKey, Db>;
+const HIERARCHY_PROJECTION = { _id: 1, asOnDate: 1, 'audit.updatedAt': 1, 'hierarchy.leaderId': 1, 'subtree.scopeProfileIds': 1, 'displayRows.tier': 1 };
+const HIERARCHY_ORDER = { asOnDate: -1, 'audit.updatedAt': -1, _id: -1 } as const;
+/** Marks an ID already looked up that has no hierarchy document (treated like an absent row). */
+const ABSENT: Document = Object.freeze({});
+/** Upper bound on a resolved downline so a malformed tree cannot fan out without limit. */
+const MAX_DOWNLINE = 20_000;
+/** Hierarchy snapshots change daily; one request resolves the caller's root up to three times. */
+const HIERARCHY_ROOT_TTL_MS = 60_000;
+const HIERARCHY_ROOT_CACHE_MAX = 1_000;
+/** Source tiers vary in case and suffix across databases ('AM', 'UM', 'UM1', 'UM2', 'Agent', 'agent'). */
+const levelForTier = (tier: unknown): AgentLevel | undefined => {
+  const t = typeof tier === 'string' ? tier.trim().toUpperCase() : '';
+  return t === 'AM' ? 'P2' : /^UM\d*$/.test(t) ? 'P3' : t === 'AGENT' ? 'P4' : undefined;
+};
+const BASIS_FOR_LEVEL: Record<AgentLevel, DrilldownBasis> = { P2: 'AM', P3: 'UM', P4: 'AGENT' };
+/** Direct reportee IDs in source order, deduplicated, without the leader's own ID (UM/agent snapshots include it). */
+const reportIdsOf = (row: Document | undefined): string[] => {
+  const refs = row?.subtree?.scopeProfileIds;
+  if (!Array.isArray(refs)) return [];
+  const self = row?.hierarchy?.leaderId;
+  return [...new Set(refs.filter((id: unknown): id is string => typeof id === 'string' && id !== self))];
+};
+const isoDate = (value: unknown): string | undefined => {
+  const date = value instanceof Date ? value : typeof value === 'string' ? new Date(value) : undefined;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : undefined;
+};
 const at = (row: Document | undefined, path: string): unknown => path.split('.').reduce<unknown>((v, key) => v && typeof v === 'object' ? (v as Document)[key] : undefined, row);
 const periodRank = (row: Document): number => performanceRecordMetadata(row).rank;
 const zeroScalar = (kind: MetricDetail['valueType']): MetricScalar => kind === 'MONEY'
@@ -71,74 +104,137 @@ export class PerformanceSource implements DataSource {
     private readonly log: (msg: string) => void = () => {},
     /** Kept for constructor compatibility; Mongo mode never reads from mock fallback data. */
     _deprecatedDevMockFallback = false,
-    private readonly hierarchyEnabled = false,
+    /** Kept for constructor compatibility; `my_agent_hierarchy` is always read. */
+    _deprecatedHierarchyEnabled = false,
   ) {
     if (dbs.PAMB.databaseName !== PERFORMANCE_DATABASES.PAMB || dbs.PBTB.databaseName !== PERFORMANCE_DATABASES.PBTB) {
       throw new Error('Invalid Performance source database');
     }
     void _deprecatedDevMockFallback;
+    void _deprecatedHierarchyEnabled;
   }
   findAgent = (id: string): AgentRecord | undefined => this.agents.get(id);
 
-  async resolveIdentity(agentId: string): Promise<AgentRecord | undefined> {
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return undefined;
+  /** Newest `my_agent_hierarchy` snapshot per leader ID (asOnDate DESC, audit.updatedAt DESC, _id DESC); names and vault data are never projected. */
+  private async hierarchyRows(key: PerformanceDatabaseKey, ids: string[]): Promise<Map<string, Document>> {
+    const out = new Map<string, Document>();
+    if (!ids.length) return out;
+    let docs: Document[];
+    try {
+      docs = await this.dbs[key].collection(PERFORMANCE_HIERARCHY_COLLECTION).find(
+        ids.length === 1 ? { 'hierarchy.leaderId': ids[0] } : { 'hierarchy.leaderId': { $in: ids } },
+        { projection: HIERARCHY_PROJECTION, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
+      ).sort(HIERARCHY_ORDER).toArray();
+    } catch {
+      throw new Error('Hierarchy source read failed');
+    }
+    for (const row of docs) {
+      const id = row.hierarchy?.leaderId;
+      if (typeof id === 'string' && !out.has(id)) out.set(id, row);
+    }
+    return out;
+  }
+
+  private readonly rootCache = new Map<string, { expires: number; value: Promise<{ key: PerformanceDatabaseKey; row: Document } | undefined> }>();
+
+  /** Root lookup, memoized briefly: identity resolution and team visibility both need it on every request. */
+  private hierarchyRoot(agentId: string): Promise<{ key: PerformanceDatabaseKey; row: Document } | undefined> {
+    const now = Date.now();
+    const hit = this.rootCache.get(agentId);
+    if (hit && hit.expires > now) return hit.value;
+    if (this.rootCache.size >= HIERARCHY_ROOT_CACHE_MAX) this.rootCache.clear();
+    const value = this.loadHierarchyRoot(agentId);
+    this.rootCache.set(agentId, { expires: now + HIERARCHY_ROOT_TTL_MS, value });
+    value.catch(() => this.rootCache.delete(agentId));
+    return value;
+  }
+
+  /** PAMB first, PBTB only when the root is absent; descendants resolve in the same database. */
+  private async loadHierarchyRoot(agentId: string): Promise<{ key: PerformanceDatabaseKey; row: Document } | undefined> {
     for (const key of ['PAMB', 'PBTB'] as const) {
-      try {
-        const rows = await this.dbs[key].collection('my_agent_hierarchy').find(
-          { 'hierarchy.leaderId': agentId },
-          { projection: { _id: 1, 'hierarchy.leaderId': 1, 'displayRows.tier': 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
-        ).sort({ asOnDate: -1, 'audit.updatedAt': -1, _id: -1 }).limit(1).toArray();
-        const row = rows[0];
-        if (!row) continue;
-        if (row.hierarchy?.leaderId !== agentId) throw new Error('Malformed identity hierarchy');
-        const tier = row.displayRows?.tier;
-        const level = tier === 'AM' ? 'P2' : ['UM', 'UM1', 'UM2'].includes(tier) ? 'P3' : tier === 'AGENT' ? 'P4' : undefined;
-        if (!level) throw new Error('Malformed identity hierarchy');
-        return { agentId, tenant: 'MY', level, name: agentId };
-      } catch (error) {
-        if (error instanceof Error && error.message === 'Malformed identity hierarchy') throw error;
-        throw new Error('Identity hierarchy source read failed');
-      }
+      const row = (await this.hierarchyRows(key, [agentId])).get(agentId);
+      if (row) return { key, row };
     }
     return undefined;
   }
 
-  async getAgentOrganization(agentId: string): Promise<AgentOrganization | undefined> {
-    if (!this.hierarchyEnabled) return undefined;
-    const find = async (key: PerformanceDatabaseKey, id: string): Promise<Document | undefined> => {
-      const rows = await this.dbs[key].collection('my_agent_hierarchy').find(
-        { 'hierarchy.leaderId': id },
-        { projection: { _id: 1, 'hierarchy.leaderId': 1, 'subtree.scopeProfileIds': 1, 'displayRows.tier': 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
-      ).sort({ asOnDate: -1, 'audit.updatedAt': -1, _id: -1 }).limit(1).toArray();
-      return rows[0];
-    };
-    let key: PerformanceDatabaseKey = 'PAMB';
+  private async listedAsReportee(agentId: string): Promise<boolean> {
+    for (const key of ['PAMB', 'PBTB'] as const) {
+      const rows = await this.dbs[key].collection(PERFORMANCE_HIERARCHY_COLLECTION).find(
+        { 'subtree.scopeProfileIds': agentId },
+        { projection: { _id: 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
+      ).limit(1).toArray();
+      if (rows.length) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Loads snapshots for IDs not yet in `rows`. IDs without a document are stored as `ABSENT`,
+   * so a later walk does not query them again.
+   */
+  private async loadRows(key: PerformanceDatabaseKey, ids: string[], rows: Map<string, Document>): Promise<void> {
+    const missing = [...new Set(ids)].filter(id => !rows.has(id));
+    if (!missing.length) return;
+    const found = await this.hierarchyRows(key, missing);
+    for (const id of missing) rows.set(id, found.get(id) ?? ABSENT);
+  }
+
+  /** Every ID reachable from `ids` (inclusive), breadth-first with dedupe so cycles terminate. */
+  private async downline(key: PerformanceDatabaseKey, ids: string[], rows: Map<string, Document>): Promise<Set<string>> {
+    const seen = new Set(ids);
+    let frontier = [...ids];
+    while (frontier.length && seen.size < MAX_DOWNLINE) {
+      await this.loadRows(key, frontier, rows);
+      const next: string[] = [];
+      for (const id of frontier) {
+        for (const reportId of reportIdsOf(rows.get(id))) {
+          if (!seen.has(reportId)) { seen.add(reportId); next.push(reportId); }
+        }
+      }
+      frontier = next;
+    }
+    return seen;
+  }
+
+  async resolveIdentity(agentId: string): Promise<AgentRecord | undefined> {
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return undefined;
+    let root;
     try {
-      let root = await find('PAMB', agentId);
-      if (!root) { key = 'PBTB'; root = await find('PBTB', agentId); }
+      root = await this.hierarchyRoot(agentId);
+      // A reportee without its own snapshot is still a known agent (an ID-only leaf in its leader's tree).
+      if (!root) return await this.listedAsReportee(agentId) ? { agentId, tenant: 'MY', level: 'P4', name: agentId } : undefined;
+    } catch { throw new Error('Identity hierarchy source read failed'); }
+    const level = levelForTier(root.row.displayRows?.tier);
+    if (root.row.hierarchy?.leaderId !== agentId || !level) throw new Error('Malformed identity hierarchy');
+    return { agentId, tenant: 'MY', level, name: agentId };
+  }
+
+  async getAgentOrganization(agentId: string): Promise<AgentOrganization | undefined> {
+    try {
+      const root = await this.hierarchyRoot(agentId);
       if (!root) return undefined;
+      const { key } = root;
       const seen = new Set<string>();
       const build = async (id: string, row: Document | undefined, ancestors: Set<string>): Promise<AgentOrganization> => {
         if (ancestors.has(id)) throw new Error('Hierarchy cycle');
         seen.add(id);
         if (!row) return { agentId: id, displayName: id, reports: [] };
-        const leaderId = row.hierarchy?.leaderId;
         const refs = row.subtree?.scopeProfileIds;
-        if (leaderId !== id || !Array.isArray(refs) || refs.some((value: unknown) => typeof value !== 'string')) throw new Error('Malformed hierarchy');
-        const rawTier = row.displayRows?.tier;
-        const tier = rawTier === 'AM' ? 'P2' : ['UM', 'UM1', 'UM2'].includes(rawTier) ? 'P3' : rawTier === 'AGENT' ? 'P4' : undefined;
+        if (row.hierarchy?.leaderId !== id || !Array.isArray(refs) || refs.some((value: unknown) => typeof value !== 'string')) throw new Error('Malformed hierarchy');
+        const tier = levelForTier(row.displayRows?.tier);
         if (!tier) throw new Error('Malformed hierarchy');
         const next = new Set(ancestors).add(id);
         const reports: AgentOrganization[] = [];
-        for (const reportId of refs as string[]) {
-          if (ancestors.has(reportId) || reportId === id) throw new Error('Hierarchy cycle');
+        // UM/agent snapshots list the leader itself first; that entry is not a reportee.
+        for (const reportId of reportIdsOf(row)) {
+          if (ancestors.has(reportId)) throw new Error('Hierarchy cycle');
           if (seen.has(reportId)) continue;
-          reports.push(await build(reportId, await find(key, reportId), next));
+          reports.push(await build(reportId, (await this.hierarchyRows(key, [reportId])).get(reportId), next));
         }
-        return { agentId: id, displayName: id, ...(tier ? { tier } : {}), reports };
+        return { agentId: id, displayName: id, tier, reports };
       };
-      if (!root.subtree || !Array.isArray(root.subtree.scopeProfileIds)) throw new Error('Malformed hierarchy');
-      return await build(agentId, root, new Set());
+      return await build(agentId, root.row, new Set());
     } catch (error) {
       if (error instanceof Error && ['Hierarchy cycle', 'Malformed hierarchy'].includes(error.message)) throw error;
       throw new Error('Hierarchy source read failed');
@@ -170,6 +266,42 @@ export class PerformanceSource implements DataSource {
       return [name, docs[0]] as const;
     }));
     return Object.fromEntries(entries.filter(([, row]) => row)) as Rows;
+  }
+
+  /**
+   * `latest()` for many agents at once: one `$in` read per collection instead of three per agent.
+   * Same filters and ordering; the first row seen per agent in the sorted result is its latest.
+   */
+  private async latestMany(agentIds: string[], businessLine: BusinessLine, aggregation: string): Promise<Map<string, Rows>> {
+    const out = new Map<string, Rows>();
+    const ids = [...new Set(agentIds)].filter(id => /^[A-Za-z0-9_-]{1,40}$/.test(id));
+    if (!ids.length) return out;
+    const db = this.dbs[databaseKeyFor(businessLine)];
+    const entity = entityFor(businessLine);
+    await Promise.all(PERFORMANCE_COLLECTIONS.map(async name => {
+      const keys = PERFORMANCE_SOURCE_KEYS[name];
+      const query: Document = { [keys.identity]: { $in: ids }, entity, [keys.aggregation]: aggregation };
+      if (name === 'my_production') query[keys.caseStatus] = 'Collected';
+      let docs: Document[];
+      try {
+        docs = await db.collection(name).find(query, {
+          projection: { _id: 0, [keys.identity]: 1, period: 1, asOnDate: 1, ptd: 1, metrics: 1 },
+          maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS,
+        }).sort({ 'period.year': -1, 'period.month': -1, id: -1, _id: -1 }).toArray();
+      } catch {
+        throw new Error('Performance source read failed');
+      }
+      for (const row of docs) {
+        const id = String(row[keys.identity]);
+        const rows = out.get(id) ?? {};
+        if (rows[name]) continue;
+        performanceRecordMetadata(row);
+        rows[name] = row;
+        out.set(id, rows);
+      }
+    }));
+    this.log(`performance batch read: agents=${ids.length} businessLine=${businessLine} aggregation=${aggregation} found=${out.size}`);
+    return out;
   }
 
   /**
@@ -344,34 +476,138 @@ export class PerformanceSource implements DataSource {
     return false;
   }
 
-  /**
-   * The three approved collections carry no hierarchy, badges, goal status or
-   * direct-report counts (spec OQ-79): the list stays the caller's own row, card
-   * fields are omitted, KPI tiles carry no values, and no subteam is visible.
-   */
-  async listTeamMembers(_agent: AgentRecord, req: TeamListRequest): Promise<TeamMemberList | undefined> {
-    if (req.parentMemberAgentId) return undefined;
-    const { context } = await this.selection(_agent, req.lens);
-    const items: TeamMemberList['items'] = [];
+  /** Member card from its hierarchy snapshot (absent ⇒ ID-only AGENT leaf); names stay encrypted in Mongo, so the ID is the display name. */
+  private memberOf(agentId: string, row: Document | undefined): { member: TeamMember; record: AgentRecord } {
+    const level = levelForTier(row?.displayRows?.tier) ?? 'P4';
+    const basis = BASIS_FOR_LEVEL[level];
+    const reports = reportIdsOf(row).length;
     return {
-      asOfDate: context.asOfDate,
-      ...(req.basis ? { basis: req.basis } : {}),
-      items,
-      summary: ['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE'].map((metricCode) => ({ metricCode })),
+      member: { agentId, displayName: agentId, hierarchyBasis: basis, roleCode: basis, ...(reports ? { directReportCount: reports } : {}) },
+      record: { agentId, tenant: 'MY', level, name: agentId },
     };
   }
 
-  async findTeamMember(): Promise<undefined> { return undefined; }
+  /**
+   * Personal TPC/PTPC for many members from one batched read. Values match the member's own
+   * dashboard: only rows of the newest period across the collections count (as in `selection()`),
+   * and a member without rows keeps the cards empty (never zero-filled).
+   */
+  private async withProduction(members: TeamMember[], lens: Lens): Promise<TeamMember[]> {
+    if (!members.length || lens.basis !== 'STANDARD') return members;
+    const byAgent = await this.latestMany(members.map(m => m.agentId), lens.businessLine, 'Personal');
+    const selfLens: Lens = { ...lens, scope: 'SELF' };
+    const defs = effectiveCatalog('SELF', lens.basis).filter(d => d.metricCode === 'TPC' || d.metricCode === 'PTPC');
+    return members.map(member => {
+      const all = byAgent.get(member.agentId);
+      if (!all) return member;
+      const rank = Math.max(...Object.values(all).map(row => periodRank(row!)));
+      const rows = Object.fromEntries(Object.entries(all).filter(([, row]) => periodRank(row!) === rank)) as Rows;
+      const out = { ...member };
+      for (const def of defs) {
+        const value = this.value(def, rows, selfLens);
+        if (value) out[def.metricCode === 'TPC' ? 'tpc' : 'ptpc'] = value;
+      }
+      return out;
+    });
+  }
+
+  /** D-14 visibility from `my_agent_hierarchy`: P3 sees its direct team only; P2 its whole downline. */
+  private async visibleTeam(agent: AgentRecord): Promise<{ key: PerformanceDatabaseKey; root: Document; direct: string[]; visible: Set<string>; rows: Map<string, Document> } | undefined> {
+    const found = await this.hierarchyRoot(agent.agentId);
+    if (!found) return undefined;
+    const rows = new Map([[agent.agentId, found.row]]);
+    const direct = reportIdsOf(found.row);
+    const visible = agent.level === 'P2' ? await this.downline(found.key, direct, rows) : new Set(direct);
+    visible.delete(agent.agentId);
+    return { key: found.key, root: found.row, direct, visible, rows };
+  }
+
+  /**
+   * Direct reports from `my_agent_hierarchy` (`subtree.scopeProfileIds`), card
+   * TPC/PTPC from `my_production`. Badges, goal status and photos have no
+   * approved source (OQ-79) and are omitted; a badge filter therefore matches
+   * nobody. MANPOWER counts the filtered members' organisations; tiles without
+   * a source stay value-less.
+   */
+  async listTeamMembers(agent: AgentRecord, req: TeamListRequest): Promise<TeamMemberList | undefined> {
+    const team = await this.visibleTeam(agent);
+    if (req.parentMemberAgentId && !team?.visible.has(req.parentMemberAgentId)) return undefined;
+    if (team && req.parentMemberAgentId) {
+      await this.loadRows(team.key, [req.parentMemberAgentId], team.rows);
+    }
+    const ownerId = req.parentMemberAgentId ?? agent.agentId;
+    const ownerRow = team?.rows.get(ownerId);
+    const ids = ownerId === agent.agentId ? team?.direct ?? [] : reportIdsOf(ownerRow);
+    if (team) await this.loadRows(team.key, ids, team.rows);
+
+    const needle = req.query?.trim().toLowerCase() ?? '';
+    const candidates = ids
+      .map(id => this.memberOf(id, team?.rows.get(id)).member)
+      .filter(member => !req.basis || member.hierarchyBasis === req.basis)
+      .filter(member => !needle || member.agentId.toLowerCase().includes(needle))
+      .filter(() => !req.badges?.length);
+    const parentMember = req.parentMemberAgentId && team ? this.memberOf(ownerId, ownerRow).member : undefined;
+
+    // Independent reads run together: one batched metric read (members + drawer parent),
+    // the MANPOWER downline walk, and the caller's reporting date.
+    const [enriched, org, asOfDate] = await Promise.all([
+      this.withProduction(parentMember ? [...candidates, parentMember] : candidates, req.lens),
+      !parentMember && team ? this.downline(team.key, candidates.map(m => m.agentId), team.rows) : Promise.resolve(new Set<string>()),
+      this.teamAsOfDate(agent, req.lens, team?.root),
+    ]);
+    const parent = parentMember ? enriched.pop() : undefined;
+    const items = enriched;
+    const amount = (m: TeamMember) => {
+      const v = req.sortBy === 'PTPC' ? m.ptpc : m.tpc;
+      return v?.kind === 'MONEY' ? Number(v.amount) : Number.NEGATIVE_INFINITY;
+    };
+    items.sort((a, b) => amount(b) - amount(a) || a.agentId.localeCompare(b.agentId));
+
+    const summary: TeamSummaryTile[] | undefined = parent ? undefined : [
+      { metricCode: 'MANPOWER', value: { kind: 'COUNT', value: org.size } },
+      { metricCode: 'ACTIVITY_RATIO' }, { metricCode: 'PRODUCTIVITY' }, { metricCode: 'AVERAGE_CASE_SIZE' },
+    ];
+    return {
+      asOfDate,
+      ...(req.basis ? { basis: req.basis } : {}),
+      items,
+      ...(parent ? { parent } : { summary }),
+    };
+  }
+
+  /** The caller's reporting-period end when it has metric rows, otherwise the hierarchy snapshot date. */
+  private async teamAsOfDate(agent: AgentRecord, lens: Lens, root: Document | undefined): Promise<string> {
+    try {
+      return (await this.selection(agent, { ...lens, scope: 'SELF' })).context.asOfDate;
+    } catch (error) {
+      if (!(error instanceof PerformanceSourceNotFound)) throw error;
+    }
+    const date = isoDate(root?.asOnDate);
+    if (!date) throw new PerformanceSourceNotFound();
+    return date;
+  }
+
+  async findTeamMember(agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<{ member: TeamMember; record: AgentRecord } | undefined> {
+    const team = await this.visibleTeam(agent);
+    if (!team?.visible.has(memberAgentId)) return undefined;
+    await this.loadRows(team.key, [memberAgentId], team.rows);
+    const row = team.rows.get(memberAgentId);
+    const { member, record } = this.memberOf(memberAgentId, row);
+    const [withValues] = await this.withProduction([member], lens);
+    return { member: withValues!, record };
+  }
 
   async getTeamMemberDashboard(agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
-    if (memberAgentId !== agent.agentId) return undefined;
-    const list = await this.metricList(agent, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
+    const found = memberAgentId === agent.agentId ? undefined : await this.findTeamMember(agent, memberAgentId, lens);
+    if (memberAgentId !== agent.agentId && !found) return undefined;
+    const subject = found?.record ?? agent;
+    const list = await this.metricList(subject, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
     return {
-      member: {
+      member: found?.member ?? {
         agentId: agent.agentId,
         displayName: agent.name,
-        hierarchyBasis: 'AGENT',
-        roleCode: agent.level === 'P4' ? 'AGENT' : agent.level === 'P3' ? 'AM' : 'UM',
+        hierarchyBasis: BASIS_FOR_LEVEL[agent.level],
+        roleCode: BASIS_FOR_LEVEL[agent.level],
       },
       context: {
         period: list.context.period,
