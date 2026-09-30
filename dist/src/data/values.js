@@ -49,7 +49,7 @@ const PERCENT_BASE = {
 const DECIMAL_BASE = {
     PRODUCTIVITY: { current: 9.7, prior: 9.3 },
 };
-function round1(n) { return Math.round(n * 10) / 10; }
+function roundToOneDecimal(n) { return Math.round(n * 10) / 10; }
 function sentimentFor(code, delta) {
     if (delta === 0)
         return 'NEUTRAL';
@@ -119,8 +119,8 @@ function changeFor(code, current, prior) {
             const pct = pri === 0 ? 0 : pctRoundUp(diff, pri);
             return { basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff), pct };
         }
-        const pp = round1(current.value - prior.value);
-        const pct = prior.value === 0 ? 0 : round1(((current.value - prior.value) / prior.value) * 100);
+        const pp = roundToOneDecimal(current.value - prior.value);
+        const pct = prior.value === 0 ? 0 : roundToOneDecimal(((current.value - prior.value) / prior.value) * 100);
         return {
             basis: 'LAST_YEAR', direction: directionFor(pp), sentiment: sentimentFor(code, pp),
             ...(display === 'PCT' ? { pct } : { pp }),
@@ -132,10 +132,10 @@ function changeFor(code, current, prior) {
         const diff = cur - pri;
         const pct = pri === 0 ? 0
             : PCT_ROUNDUP.has(code) ? pctRoundUp(diff, pri)
-                : round1((diff / pri) * 100);
+                : roundToOneDecimal((diff / pri) * 100);
         return { basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff), pct };
     }
-    const diff = round1(current.value - prior.value);
+    const diff = roundToOneDecimal(current.value - prior.value);
     return {
         basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff),
         abs: { kind: 'DECIMAL', value: diff, precision: 1 },
@@ -547,11 +547,11 @@ export function metricSeries(code, l, anchorYear, yearsBack) {
                 const b = PERCENT_BASE[code] ?? PERCENT_BASE.PERSISTENCY_CY;
                 const drift = [1, 0.5, 1.07, -0.93, -0.93, -0.89, 0][mi] ?? 0;
                 const yearOff = year === ANCHOR_YEAR ? 0 : -0.5;
-                value = { kind: 'PERCENT', value: round1(b.current + drift + yearOff - 1) };
+                value = { kind: 'PERCENT', value: roundToOneDecimal(b.current + drift + yearOff - 1) };
             }
             else {
                 const b = DECIMAL_BASE[code] ?? DECIMAL_BASE.PRODUCTIVITY;
-                value = { kind: 'DECIMAL', value: round1(b.current - (ANCHOR_YEAR - year) * 0.4 + mi * 0.02), precision: 1 };
+                value = { kind: 'DECIMAL', value: roundToOneDecimal(b.current - (ANCHOR_YEAR - year) * 0.4 + mi * 0.02), precision: 1 };
             }
             return { month, value };
         });

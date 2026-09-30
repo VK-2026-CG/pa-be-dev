@@ -6,6 +6,7 @@ import { getPreferences, putPreferences } from './preferences.js';
 import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_READ_TIMEOUT_MS, type PerformanceCollection, type PerformanceDatabaseKey } from '../config/performance.js';
 import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
 import { sourceMetricScalar } from './performance-values.js';
+import { changeFor } from './change.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
 import {
   contextFor, metricList as stubMetricList, metricSeries as stubMetricSeries, milestones as stubMilestones, mockFillDetail, type Lens,
@@ -25,6 +26,7 @@ import type {
   SnapshotContext,
   TeamMemberDashboard,
   TeamMemberList,
+  AgentOrganization,
 } from '../types.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 
@@ -32,6 +34,25 @@ type Rows = Partial<Record<PerformanceCollection, Document>>;
 type PerformanceDbs = Record<PerformanceDatabaseKey, Db>;
 const at = (row: Document | undefined, path: string): unknown => path.split('.').reduce<unknown>((v, key) => v && typeof v === 'object' ? (v as Document)[key] : undefined, row);
 const periodRank = (row: Document): number => performanceRecordMetadata(row).rank;
+const zeroScalar = (kind: MetricDetail['valueType']): MetricScalar => kind === 'MONEY'
+  ? { kind, amount: '0.00', currency: 'MYR' }
+  : kind === 'COUNT' ? { kind, value: 0 }
+    : kind === 'PERCENT' ? { kind, value: 0 }
+      : { kind, value: 0, precision: 1 };
+const isMissingMetricValue = (row: Document, path: string): boolean => {
+  const value = at(row, path);
+  return value === null || value === undefined;
+};
+const zeroChange = (code: string, kind: MetricDetail['valueType']): Change => {
+  const base = { basis: 'LAST_YEAR' as const, direction: 'FLAT' as const, sentiment: 'NEUTRAL' as const };
+  const display = effectiveCatalog('SELF', 'STANDARD').find(def => def.metricCode === code)?.changeDisplay;
+  if (kind === 'MONEY') return display === 'ABS'
+    ? { ...base, abs: { kind, amount: '0.00', currency: 'MYR' } }
+    : { ...base, pct: 0 };
+  if (kind === 'PERCENT') return display === 'PCT' ? { ...base, pct: 0 } : { ...base, pp: 0 };
+  if (kind === 'COUNT') return display === 'ABS' ? { ...base, abs: { kind, value: 0 } } : { ...base, pct: 0 };
+  return { ...base, pct: 0 };
+};
 /** SPEC-2026-002 0.5.0-draft: businessLine picks the database; `entity` is always the database's own
  * literal name ('PAMB' in PAMB, 'PBTB' in PBTB) on every row regardless of `agentType`. */
 const databaseKeyFor = (businessLine: BusinessLine): PerformanceDatabaseKey => businessLine === 'TAKAFUL' ? 'PBTB' : 'PAMB';
@@ -59,12 +80,55 @@ export class PerformanceSource implements DataSource {
      * Mongo first; anything it cannot supply is filled from the stub engine. Real values are never replaced.
      */
     private readonly devMockFallback = false,
+    private readonly hierarchyEnabled = false,
   ) {
     if (dbs.PAMB.databaseName !== PERFORMANCE_DATABASES.PAMB || dbs.PBTB.databaseName !== PERFORMANCE_DATABASES.PBTB) {
       throw new Error('Invalid Performance source database');
     }
   }
   findAgent = (id: string): AgentRecord | undefined => this.agents.get(id);
+
+  async getAgentOrganization(agentId: string): Promise<AgentOrganization | undefined> {
+    if (!this.hierarchyEnabled) return undefined;
+    const find = async (key: PerformanceDatabaseKey, id: string): Promise<Document | undefined> => {
+      const rows = await this.dbs[key].collection('my_agent_hierarchy').find(
+        { 'hierarchy.leaderId': id },
+        { projection: { _id: 1, 'hierarchy.leaderId': 1, 'subtree.scopeProfileIds': 1, 'displayRows.tier': 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
+      ).sort({ asOnDate: -1, 'audit.updatedAt': -1, _id: -1 }).limit(1).toArray();
+      return rows[0];
+    };
+    let key: PerformanceDatabaseKey = 'PAMB';
+    try {
+      let root = await find('PAMB', agentId);
+      if (!root) { key = 'PBTB'; root = await find('PBTB', agentId); }
+      if (!root) return undefined;
+      const seen = new Set<string>();
+      const build = async (id: string, row: Document | undefined, ancestors: Set<string>): Promise<AgentOrganization> => {
+        if (ancestors.has(id)) throw new Error('Hierarchy cycle');
+        seen.add(id);
+        if (!row) return { agentId: id, displayName: id, reports: [] };
+        const leaderId = row.hierarchy?.leaderId;
+        const refs = row.subtree?.scopeProfileIds;
+        if (leaderId !== id || !Array.isArray(refs) || refs.some((value: unknown) => typeof value !== 'string')) throw new Error('Malformed hierarchy');
+        const rawTier = row.displayRows?.tier;
+        const tier = rawTier === 'AM' ? 'P2' : ['UM', 'UM1', 'UM2'].includes(rawTier) ? 'P3' : rawTier === 'AGENT' ? 'P4' : undefined;
+        if (!tier) throw new Error('Malformed hierarchy');
+        const next = new Set(ancestors).add(id);
+        const reports: AgentOrganization[] = [];
+        for (const reportId of refs as string[]) {
+          if (ancestors.has(reportId) || reportId === id) throw new Error('Hierarchy cycle');
+          if (seen.has(reportId)) continue;
+          reports.push(await build(reportId, await find(key, reportId), next));
+        }
+        return { agentId: id, displayName: id, ...(tier ? { tier } : {}), reports };
+      };
+      if (!root.subtree || !Array.isArray(root.subtree.scopeProfileIds)) throw new Error('Malformed hierarchy');
+      return await build(agentId, root, new Set());
+    } catch (error) {
+      if (error instanceof Error && ['Hierarchy cycle', 'Malformed hierarchy'].includes(error.message)) throw error;
+      throw new Error('Hierarchy source read failed');
+    }
+  }
 
   private async latest(agent: AgentRecord, businessLine: BusinessLine, aggregation?: string): Promise<Rows> {
     if (agent.tenant !== 'MY' || !this.agents.has(agent.agentId)) throw new Error('Identity not allowed in Performance profile');
@@ -175,15 +239,18 @@ export class PerformanceSource implements DataSource {
   }
 
   /** `selection`, but with the DEV fallback an agent with no Mongo rows gets the stub context instead of a 404. */
-  private async selectionOrMock(agent: AgentRecord, lens: Lens): Promise<{ rows: Rows; context: SnapshotContext }> {
+  private async selectionOrMock(agent: AgentRecord, lens: Lens): Promise<{ rows: Rows; context: SnapshotContext; year: number; month: number; day: number; aggregation?: string }> {
     try {
       return await this.selection(agent, lens);
     } catch (error) {
       if (!this.devMockFallback || !(error instanceof PerformanceSourceNotFound)) throw error;
       this.log(`performance DEV MOCK fallback: agent=${agent.agentId} no source rows, using stub context`);
-      return { rows: {}, context: contextFor(lens) };
+      const context = contextFor(lens);
+      const [year = 2026, month = 7, day = 27] = context.period.endDate.split('-').map(Number);
+      return { rows: {}, context, year, month, day };
     }
   }
+
 
   private value(def: EffectiveDef, rows: Rows, lens: Lens, repriced = false): MetricScalar | undefined {
     const mapping = PERFORMANCE_METRIC_MAPPING[def.metricCode];
@@ -202,8 +269,14 @@ export class PerformanceSource implements DataSource {
     if (!mapping) return undefined;
     const priorRow = await this.priorYearRowCached(cache, agent, lens.businessLine, aggregation, mapping.collection, year - 1, month, day);
     if (!priorRow) return undefined;
+    const path = performanceMetricPath(mapping, lens.period);
+    if (path && isMissingMetricValue(priorRow, path)) {
+      const prior = zeroScalar(def.valueType);
+      return { current, prior, priorYear: year - 1, change: zeroChange(def.metricCode, def.valueType) };
+    }
     const prior = this.value(def, { [mapping.collection]: priorRow } as Rows, lens);
-    return prior ? { current, prior, priorYear: year - 1, change: changeFor(def.metricCode, current, prior) } : undefined;
+    if (prior) return { current, prior, priorYear: year - 1, change: changeFor(def.metricCode, current, prior) };
+    return undefined;
   }
 
   async metricList(agent: AgentRecord, lens: Lens, listScope: 'PRIORITY' | 'FOCUS' | 'ALL', codes?: string[]) {
@@ -231,8 +304,18 @@ export class PerformanceSource implements DataSource {
   async metricDetail(agent: AgentRecord, code: string, lens: Lens): Promise<MetricDetail | undefined> {
     const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);
     if (!def) return undefined;
-    const { rows, context } = await this.selectionOrMock(agent, lens);
+    const { rows, context, year, month, day, aggregation } = await this.selectionOrMock(agent, lens);
+    const priorYear = year - 1;
     const collected = this.value(def, rows, lens);
+    const detailComparison = collected && !['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2'].includes(code);
+    const comparison = detailComparison ? (await this.comparisonFor(
+      def, agent, lens, collected, year, month, day, aggregation, new Map(),
+    ) ?? {
+      current: collected,
+      prior: zeroScalar(def.valueType),
+      priorYear,
+      change: zeroChange(code, def.valueType),
+    }) : undefined;
     const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
     // v1.7.0 (AC-P4-02-32) / v1.20.0 (AC-P4-02-58): Penders case count for TPC/PTPC at SELF
     // and TEAM. No collection here materializes this yet (mongodb.md v1.7.0 D-19, OQ-77) —

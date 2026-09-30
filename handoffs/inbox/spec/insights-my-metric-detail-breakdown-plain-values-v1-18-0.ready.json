@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-breakdown-plain-values-v1-18-0",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "8757c16aa3a289eefd49c9cff3d8fdbed5bb2b8e",
+    "dirty": false,
+    "version": "1.18.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "handoffs/outbound/insights-my-metric-detail-compact-money-v1-17-0.ready.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-54",
+    "AC-P4-02-55"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Supersedes insights-my-metric-detail-compact-money-v1-17-0; implement this handoff only. Applies when context.metricCode is TPC, PTPC, FYC, FYP or AVERAGE_CASE_SIZE.",
+        "AC-P4-02-54 (items 1-6): render with the existing formatMoneyCompact (widget-contracts.md section 2 R-MONEY-COMPACT: below 1,000 plain integer; 1,000+ '{n}K'; 1,000,000+ '{n}M'; one decimal, round half-up, trailing '.0' dropped; NO currency prefix): (1) GaugeSectionVM.collected on the gauge (either face); (2) GaugeSectionVM.penders money line when rendered (FYP/FYC; AVERAGE_CASE_SIZE if present); (3) ComparisonSectionVM.current; (4) ComparisonSectionVM.prior; (5) VariantValueSectionVM.value (variant.with-repricing); (6) BreakdownSectionVM.totals[].value, the Total row, in both the Without Repricing and With Repricing tables.",
+        "AC-P4-02-55 (replaces AC-P4-02-54 item 7): every BreakdownSectionVM.rows[].cells[].value (product rows, both tables, including FYP's UNIT_TRUST/GROUP_PREMIUM) renders the plain value: formatMoney's digits with NO currency prefix and NO K/M abbreviation. Thousands separators and formatMoney's existing cents rule ('.00' dropped, other cents kept) are unchanged: 24690.00 -> '24,690', 4250.70 -> '4,250.70'. Do not round to whole numbers (OQ-73 open). Add this as a prefix-less variant of formatMoney in src/lib/format.ts; no parseFloat.",
+        "Exclusions: do NOT change the delta line (DeltaVM.display, e.g. '+11.4% vs last year'), COUNT values (e.g. the TEAM penders card '6 Cases'), the weightPct '(10%)' suffix (AC-P4-02-06; OQ-72), or MONEY values for any other metric, which keep formatMoney with the 'RM' prefix. Never re-sum or adjust displayed strings; AC-P4-02-05's Total = column sum applies to the MoneyValue amounts. The choice is keyed on context.metricCode; there is no VM field and no new i18n key.",
+        "Add unit/e2e tests named after AC-P4-02-54 and AC-P4-02-55 against metric-detail-tpc.json: collected '100K', comparison current '100K' / prior '78.7K', With Repricing '120K', Total '80.1K'; Without Repricing rows '15,345' / '18,000' / '17,507' / '25,000' / '4,250.70'; no 'RM' on any of these; delta still '+27%'. Also AVERAGE_CASE_SIZE via metric-detail-average-case-size.json (5,200.00 -> '5.2K', 4,800.00 -> '4.8K'), and a negative case showing a non-listed MONEY metric still renders with the 'RM' prefix."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-73 (non-blocking): the instruction and screenshot show whole-number rows ('24,690'), but amounts can carry cents (CREDIT_POINTS 4,250.70). formatMoney's existing cents rule is kept; rounding rows to whole numbers is not adopted without a decision. Owner: requester/Product.",
+    "OQ-72 (non-blocking, not decided): the screenshot shows 'Credit Points' with no '(10%)', but metric-detail-tpc.json has CREDIT_POINTS weightPct: 10 and AC-P4-02-06 renders '(10%)'. Keep the suffix. Owner: Product/BA with Data (OQ-PA-17).",
+    "Evidence: direct requester instructions (2026-09-25). The cited screenshot was not received, so it is not stored and has no checksum.",
+    "Compatibility is declared ADDITIVE: no C1/C2/C3/C4 shape, copy or fixture change. Only the visible MONEY format for five S-P4-02 metrics changes.",
+    "Spec/code drift, not resolved here: pa-fe-dev renders a value-only gauge face with a penders line for FYP/FYC/AVERAGE_CASE_SIZE, while AC-P4-02-23's v1.5.0 note keeps donut-270 for standalone gauges. AC-P4-02-54 applies on whichever face renders."
+  ],
+  "createdAt": "2026-09-25T00:00:00Z"
+}

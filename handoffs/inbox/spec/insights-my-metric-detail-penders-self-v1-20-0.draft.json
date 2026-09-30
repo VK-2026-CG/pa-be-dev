@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-penders-self-v1-20-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "7180f402195624b563aad47a0a190eddffdaaffe",
+    "dirty": true,
+    "version": "1.20.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-31",
+    "AC-P4-02-32",
+    "AC-P4-02-58",
+    "AC-P4-02-59"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-58: populate MetricDetail.pendersCaseCount for TPC/PTPC at scope=SELF as well as TEAM. In src/data/values.ts teamPendersCaseCountFor drop the scope!=='TEAM' guard and key the lookup by (scope==='TEAM' ? teamView ?? 'DIRECT' : 'SELF'); apply the same change in src/data/performance-source.ts metricDetail (remove '&& lens.scope === TEAM').",
+        "Interim mock (OQ-77): add a SELF entry per metric to src/data/mocks/team-penders-case-count.json (TPC and PTPC) and widen mockTeamPendersCaseCount's key type to 'SELF' | TeamView. TEAM DIRECT/GROUP values must stay unchanged.",
+        "Do not change pendersFor (CASE_COUNT SELF stays undefined, AC-P4-02-37), FYP (AC-P4-02-39), GaugeSectionVM.penders, sectionOrder, nav omission (OQ-30) or 403 gating.",
+        "Tests: update 'TPC SELF … no Penders card' to expect GAUGE, COMPARISON, VARIANT_VALUE, PENDERS, BREAKDOWN, BREAKDOWN with PENDERS value.kind COUNT (AC-P4-02-59); add PTPC SELF, and SELF+TEAM for the P3 and P2 leader personas; keep the CASE_COUNT SELF and FYP negative tests unchanged."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Sync vendor/spec to this handoff's commit. No production code change expected: MetricDetailMY renders any PENDERS section and PendersCard's link face is keyed on metricCode, not scope.",
+        "Tests: replace e2e 'TPC SELF has no Penders card' with an AC-P4-02-58 assertion that the card shows '{count} Cases' plus the external-link icon at SELF for TPC and PTPC (AGENT_P4) and for a leader persona at SELF; add an AC-P4-02-59 desktop check that SELF renders the section-pair row (With repricing + Penders). Keep the CASE_COUNT SELF / FYP negative tests unchanged."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-77 (non-blocking for build): no pipeline fills values.pendersCaseCount at any scope; the SELF value is mock-sourced. Owner: Data/Pipeline.",
+    "OQ-78 (non-blocking): the Self card's eventual nav destination; folds into OQ-30. Owner: Product/UX.",
+    "OQ-30 unchanged: the BFF keeps omitting nav at both scopes.",
+    "Compatibility ADDITIVE: no C1/C3/C4 shape change; TEAM output is unchanged. SELF output gains one existing-typed section."
+  ],
+  "createdAt": "2026-09-25T00:00:00Z"
+}

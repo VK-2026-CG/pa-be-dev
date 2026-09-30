@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-header-simplification-v1-21-0",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": null,
+    "dirty": true,
+    "version": "1.21.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-10",
+    "AC-P4-02-22",
+    "AC-P4-02-35",
+    "AC-P4-02-60",
+    "AC-P4-02-61",
+    "AC-P4-02-62"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-60: in src/cdk/metric-detail/MetricDetailMY.tsx remove the context.teamView <Tag> from the context strip (and the unused Tag import). Keep passing teamView in the BFF query; do not change entitlement.",
+        "AC-P4-02-61: the Product ContextPill value is t(`insights.businessLine.${c.businessLine}`) for every value, so ALL renders 'Both'; drop the insights.businessLine.ALL.chip branch.",
+        "AC-P4-02-62: in src/components/metrics.tsx BreakdownTable keep the <thead> header row (Product + business-line <th>) but make it visually hidden with the existing .sr-only class; applies to every breakdown table (TPC, PTPC, FYP). Check the .table first-row spacing in dls.css still reads correctly without a visible header.",
+        "Tests: update e2e AC-P4-02-35 to assert one value cell per row and the header text ('Both' / 'Insurance') present but not visible; extend AC-P4-02-22 to assert pills are exactly Product then Time and the Product pill contains 'Both' by default; add AC-P4-02-60 (a Team-scope leader persona, e.g. LEADER_P2 scope=TEAM, shows no Direct/Group chip), AC-P4-02-61 and AC-P4-02-62 (TPC and FYP, mobile and desktop)."
+      ]
+    }
+  },
+  "openQuestions": [
+    "No new OQs. Evidence is a requester ASCII layout only; tracked under the existing 'Strict UX source approval is incomplete' blocker.",
+    "Compatibility ADDITIVE: display-only; no C1-C4 shape, copy or fixture change. context.teamView is still emitted by the BFF."
+  ],
+  "createdAt": "2026-09-26T00:00:00Z"
+}

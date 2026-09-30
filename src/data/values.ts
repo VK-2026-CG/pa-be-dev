@@ -131,8 +131,8 @@ function changeFor(code: string, current: MetricScalar, prior: MetricScalar): Ch
       const pct = pri === 0 ? 0 : pctRoundUp(diff, pri);
       return { basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff), pct };
     }
-    const pp = round1(current.value - prior.value);
-    const pct = prior.value === 0 ? 0 : round1(((current.value - prior.value) / prior.value) * 100);
+    const pp = roundToOneDecimal(current.value - prior.value);
+    const pct = prior.value === 0 ? 0 : roundToOneDecimal(((current.value - prior.value) / prior.value) * 100);
     return {
       basis: 'LAST_YEAR', direction: directionFor(pp), sentiment: sentimentFor(code, pp),
       ...(display === 'PCT' ? { pct } : { pp }),
@@ -144,10 +144,10 @@ function changeFor(code: string, current: MetricScalar, prior: MetricScalar): Ch
     const diff = cur - pri;
     const pct = pri === 0 ? 0
       : PCT_ROUNDUP.has(code) ? pctRoundUp(diff, pri)
-        : round1((diff / pri) * 100);
+        : roundToOneDecimal((diff / pri) * 100);
     return { basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff), pct };
   }
-  const diff = round1((current as { value: number }).value - (prior as { value: number }).value);
+  const diff = roundToOneDecimal((current as { value: number }).value - (prior as { value: number }).value);
   return {
     basis: 'LAST_YEAR', direction: directionFor(diff), sentiment: sentimentFor(code, diff),
     abs: { kind: 'DECIMAL', value: diff, precision: 1 },

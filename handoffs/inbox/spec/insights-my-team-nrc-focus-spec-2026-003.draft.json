@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-team-nrc-focus-spec-2026-003",
+  "specId": "SPEC-2026-003",
+  "status": "DRAFT",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "BREAKING",
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "0.1.0-draft" },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/config/countries/MY/performance.config.json",
+    "domains/insights/data/mongodb.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/README.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/screen.manifest.json",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/requirements/legacy-contract.md",
+    "domains/insights/screens/CustomizeMetrics_S-P4-04/fixtures/customize-team.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/README.md",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/screen.manifest.json",
+    "domains/insights/screens/PerformanceDashboard_S-P4-01/requirements/legacy-contract.md",
+    "work-items/README.md",
+    "work-items/SPEC-2026-003/README.md",
+    "work-items/SPEC-2026-003/change-impact.md",
+    "work-items/SPEC-2026-003/validation.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-04-38", "AC-P4-04-39", "AC-P4-04-40", "AC-P4-01-78",
+    "AC-P4-04-07", "AC-P4-04-09", "AC-P4-01-14"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Sync C4 3.0.0: MY TEAM customize priority constraints are min 8 / max 8 / editable false, and TEAM dashboard priorityCards.maxCount is 8. SELF is unchanged.",
+        "Remove the TEAM category override from the NEW_RECRUIT_CONTRACTED catalog entry (C1 2.0.0) so it is FOCUS, defaultSelected false, at both scopes.",
+        "Validate TEAM preference PUTs against the scope's full locked priority set (8 codes); reject other counts with 422 INS-4221 and removed locked codes with INS-4222.",
+        "Apply the C1 2.0.0 section 5 migration to persisted TEAM metric_preferences documents: drop NEW_RECRUIT_CONTRACTED from priorityMetricCodes, keep the remaining order, do not add it to focusMetricCodes. In-memory development stores reset on restart and need no migration.",
+        "Test AC-P4-04-38, AC-P4-04-39, AC-P4-04-40 and AC-P4-01-78, and keep the AC-P4-04-07 scope-independence and AC-P4-04-09 catalog-scope regressions green."
+      ]
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Sync the vendored C4 3.0.0 config. No component change is expected: the Customize sheet and dashboard render the priority and focus lists and constraints the BFF returns.",
+        "Test AC-P4-04-38/39 (TEAM Customize shows 8 locked priority rows; NEW_RECRUIT_CONTRACTED is a selectable Other Focus Metric and Save enables) and AC-P4-01-78 (TEAM dashboard shows 8 priority cards) in a real browser."
+      ]
+    }
+  },
+  "openQuestions": [
+    "Production persistence for metric_preferences is still unapproved (SPEC-2026-002), so the C1 2.0.0 migration has no production target yet; it applies when persistent storage exists.",
+    "Screen UX readiness blockers for S-P4-01 and S-P4-04 remain; both packages stay DRAFT."
+  ],
+  "createdAt": "2026-09-24T19:30:00Z"
+}

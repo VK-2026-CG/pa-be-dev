@@ -3,7 +3,9 @@ export const PERFORMANCE_DATABASES = { PAMB: 'pa_performance_PAMB-dev', PBTB: 'p
 export type PerformanceDatabaseKey = keyof typeof PERFORMANCE_DATABASES;
 /** Convenience alias: most fixtures/tests are INSURANCE(PAMB)-only. */
 export const PERFORMANCE_DB = PERFORMANCE_DATABASES.PAMB;
+/** Metric import/provisioning allowlist; hierarchy is read-only and never imported. */
 export const PERFORMANCE_COLLECTIONS = ['my_production', 'my_mapa', 'my_persistency'] as const;
+export const PERFORMANCE_HIERARCHY_COLLECTION = 'my_agent_hierarchy';
 export type PerformanceCollection = typeof PERFORMANCE_COLLECTIONS[number];
 export const PERFORMANCE_READ_TIMEOUT_MS = 8000;
 

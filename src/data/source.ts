@@ -25,6 +25,7 @@ import type {
   TeamMemberList,
   TeamMemberSortBy,
   TeamView,
+  AgentOrganization,
 } from '../types.js';
 
 /** `listTeamMembers` request (insights.v1.yaml 1.6.0). */
@@ -66,6 +67,7 @@ export interface DataSource {
     memberAgentId: string,
     lens: Lens,
   ): Promise<TeamMemberDashboard | undefined>;
+  getAgentOrganization?(agentId: string): Promise<AgentOrganization | undefined>;
 }
 
 /** Offline regression fixture engine only; never a Mongo read fallback. */
@@ -107,6 +109,7 @@ class MemorySource implements DataSource {
   async getTeamMemberDashboard(_agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
     return mockTeamMemberDashboard(memberAgentId, lens);
   }
+  async getAgentOrganization(): Promise<undefined> { return undefined; }
 }
 
 export async function createSource(log: (msg: string) => void = () => {}): Promise<DataSource> {
@@ -122,14 +125,16 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
   const agents = performanceProfile();
   const [pamb, pbtb] = await Promise.all([getPerformanceDb('PAMB'), getPerformanceDb('PBTB')]);
   const dbs = { PAMB: pamb, PBTB: pbtb };
-  log('data source: direct Performance Mongo DEVELOPMENT profile (three collections only)');
+  const hierarchyEnabled = process.env.INSIGHTS_HIERARCHY_SOURCE === 'true' &&
+    ['development', 'test'].includes(process.env.NODE_ENV ?? '') && (process.env.COUNTRY_CODE ?? 'MY') === 'MY';
+  log('data source: direct Performance Mongo DEVELOPMENT profile (three metric collections; hierarchy read-only opt-in)');
   // performanceProfile() above already refuses anything but development/test; the
   // fallback is narrower still: NODE_ENV=development only, never test/shared.
   const requested = process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true';
   const devMockFallback = requested && process.env.NODE_ENV === 'development';
   if (devMockFallback) log('data source: DEV MOCK fallback ON — anything Mongo cannot supply is filled with stub values');
   else if (requested) log('data source: INSIGHTS_DEV_MOCK_FALLBACK ignored — requires NODE_ENV=development');
-  const source = new PerformanceSource(dbs, agents, log, devMockFallback);
+  const source = new PerformanceSource(dbs, agents, log, devMockFallback, hierarchyEnabled);
   if (teamDrilldownMockEnabled()) {
     log('⚠ INSIGHTS_TEAM_DRILLDOWN_MOCK=true: Team Drilldown hierarchy/badges/goals are MOCK data (development only, SPEC-2026-004 D-P4-07-06)');
     return new TeamDrilldownMockOverlay(source, new MemorySource());

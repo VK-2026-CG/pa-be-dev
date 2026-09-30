@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-agent-organization-spec-2026-005",
+  "specId": "SPEC-2026-005",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "dd871893d3496b27fb61a2d9109d19af4990aa82",
+    "dirty": false,
+    "version": "C2 1.7.0 / C1 2.1.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/api/insights.v1.yaml",
+    "domains/insights/data/mongodb.md",
+    "work-items/README.md",
+    "work-items/SPEC-2026-005/README.md",
+    "README.md",
+    "handoffs/outbound/insights-agent-organization-spec-2026-005.draft.json"
+  ],
+  "acceptanceCriteria": [
+    "AC-ORG-01",
+    "AC-ORG-02",
+    "AC-ORG-03",
+    "AC-ORG-04",
+    "AC-ORG-05",
+    "AC-ORG-06",
+    "AC-ORG-07",
+    "AC-ORG-08",
+    "AC-ORG-09"
+  ],
+  "consumers": {
+    "backend": {
+      "required": true,
+      "requiredActions": [
+        "Implement C2 operation getAgentOrganization at GET /agents/{agentId}/organization with the exact AgentOrganization response schema.",
+        "Authorize the caller under existing identity rules, with the explicit exception that a P2/P3 leader may request its own complete organization from this operation only. Do not widen metric or other operation access.",
+        "Read only my_agent_hierarchy in the approved Performance databases. Match the root API agentId against hierarchy.leaderId in PAMB first; use PBTB only when the root is absent. Resolve all descendants only in the selected database.",
+        "Select duplicate records by asOnDate DESC, audit.updatedAt DESC, _id DESC. subtree.scopeProfileIds contains direct reportee IDs; resolve each reportee by hierarchy.leaderId, preserving array order and deduplicating at first encounter. Return missing descendants as ID-only leaves with tier omitted.",
+        "Set displayName equal to agentId. Read role from displayRows.tier and map AM to P2, UM/UM1/UM2 to P3, AGENT to P4. Do not project, parse, log, or return encrypted names, vault references, raw documents, or fields outside the contract.",
+        "Return 404 INS-4040 when root is absent in both databases; sanitized 500 INS-5000 for malformed hierarchy or ancestor cycles; sanitized 503 INS-5030 for Mongo failure/timeout. Return no partial organization for failures.",
+        "Use the existing 8-second Mongo execution budget; perform no source writes, provisioning, or import. Validate source schema evidence before deployment implementation.",
+        "Add AC-ORG-01 through AC-ORG-09 tests, including database precedence, duplicate snapshot ordering, missing leaves, duplicate references, cycles, privacy projection, authorization isolation, errors, and timeout behavior."
+      ]
+    },
+    "frontend": {
+      "required": false,
+      "requiredActions": []
+    }
+  },
+  "openQuestions": [],
+  "createdAt": "2026-09-30T00:00:00Z"
+}

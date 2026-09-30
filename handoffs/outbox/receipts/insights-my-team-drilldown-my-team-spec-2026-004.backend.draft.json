@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-my-team-drilldown-my-team-spec-2026-004.backend",
+  "handoffId": "insights-my-team-drilldown-my-team-spec-2026-004",
+  "specId": "SPEC-2026-004",
+  "consumer": "backend",
+  "status": "BLOCKED",
+  "specCommit": null,
+  "implementation": {
+    "repository": "PruactionBackend",
+    "commit": null,
+    "dirty": true
+  },
+  "validation": [
+    {
+      "command": "Inspect backend inbound handoffs and spec repository outbound handoffs",
+      "status": "PASS",
+      "summary": "Both applicable SPEC-2026-004 and S-P4-07 inbound handoffs are DRAFT/SUPERSEDED; no READY handoff pins an approved organization endpoint or hierarchy behavior. No sync or runtime implementation performed."
+    },
+    {
+      "command": "Inspect vendored OpenAPI and Mongo source boundary",
+      "status": "PASS",
+      "summary": "Vendored OpenAPI 1.6.0 does not define GET /agents/{agentId}/organization. Existing Performance source profile and collection ownership do not authorize my_agent_hierarchy."
+    },
+    {
+      "command": "npm run handoff:validate",
+      "status": "NOT_RUN",
+      "summary": "Run after this blocked receipt is added; no contract or runtime code changed."
+    }
+  ],
+  "operationCoverage": [
+    {
+      "operationId": "getAgentOrganization",
+      "status": "BLOCKED",
+      "evidence": "Requester-approved proposal is GET /insights/v1/agents/{agentId}/organization returning a recursive root/children tree, displayName=agentId, optional tier and ID-only leaves. This operation is absent from the vendored OpenAPI and is not an action in the applicable DRAFT backend handoff."
+    },
+    {
+      "operationId": "listTeamMembers",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "This receipt records the proposed organization API only; existing Team Drilldown implementation is unchanged."
+    },
+    {
+      "operationId": "getTeamMemberDashboard",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "This receipt records the proposed organization API only; existing Team Drilldown implementation is unchanged."
+    }
+  ],
+  "acceptanceCriteria": [],
+  "migrations": [
+    {
+      "name": "my_agent_hierarchy runtime authorization",
+      "status": "BLOCKED",
+      "evidence": "No collection access, provisioning, import, or writes performed. A pinned READY spec handoff must authorize read-only access and update the source boundary first."
+    }
+  ],
+  "gaps": [
+    "NEW_REQUIREMENT: publish a READY handoff with a full immutable spec commit and backend requiredActions for GET /agents/{agentId}/organization and its recursive response schema; keep existing team-member contracts unchanged.",
+    "READY contract must encode PAMB-first root lookup with PBTB fallback only when root is absent; descendants remain in the selected root database; direct children are scopeProfileIds; select documents by asOnDate DESC, audit.updatedAt DESC, _id DESC; missing descendants are ID-only leaves.",
+    "READY contract must encode displayName=agentId, privacy exclusions for encrypted names and vault references, AM→P2, UM1/UM2→P3, AGENT→P4, and the organization-only permission for leaders to retrieve their own complete organization without widening metric access.",
+    "READY contract must define Problem behavior for missing root, cycles, malformed hierarchy records, and Mongo timeout/query failures, plus query bounds and projection requirements.",
+    "The user supplied a production schema with snake_case fields, while the backend's current mapping documentation and implementation use camelCase. Confirm the authoritative resident collection schema and publish a data-source/spec correction before changing metric mappings; no mapping change was made.",
+    "No MongoDB query was run. Existing metric authorization, metric sources, other mock-backed features, and runtime behavior remain unchanged."
+  ],
+  "updatedAt": "2026-09-30T00:00:00Z"
+}

@@ -35,14 +35,12 @@ function normalize(value: unknown, schema: BsonSchema, path: string): unknown {
     const result: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(schema.properties ?? {})) {
       let v = input[key];
-      if (v === undefined && ['scheme_type', 'schemeType'].includes(key)) v = null;
+      if (v === undefined && (key === 'schemeType' || key === 'scheme_type' || key === 'agentRefererAgentId' || key === 'as_on_month_day')) v = null;
       if (v === undefined) {
         if (schema.required?.includes(key)) throw new Error(`Missing field at ${path}.${key}`);
         continue;
       }
       if (descriptive.has(key)) v = 'Redacted mock label';
-      if (key === 'agentRefererAgentId') v = 'null';
-      if (key === 'asOnMonthDay' && typeof v === 'number' && Number.isInteger(v)) v = String(v);
       result[key] = normalize(v, child, `${path}.${key}`);
     }
     return result;

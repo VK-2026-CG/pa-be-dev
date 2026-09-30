@@ -11,7 +11,7 @@ const WINDOW_YEARS_BACK: Record<HistoryWindow, number> = {
 };
 const VISIBLE_TABS = 4;
 
-function round1(n: number): number { return Math.round(n * 10) / 10; }
+function roundToOneDecimal(n: number): number { return Math.round(n * 10) / 10; }
 
 function scalarNumber(v: MetricScalar): number {
   return v.kind === 'MONEY' ? Number(v.amount) : v.value;
@@ -37,16 +37,16 @@ export function buildMomDeltas(points: Array<MetricScalar | null>, def: Pick<Dom
     const good = def.favourability === 'HIGHER_IS_BETTER' ? diff > 0 : diff < 0;
     const sentiment: DeltaVM['sentiment'] = diff === 0 ? 'NEUTRAL' : good ? 'POSITIVE' : 'NEGATIVE';
     const base: Omit<DeltaVM, 'display'> = { comparisonBasis: 'LAST_MONTH', direction, sentiment };
-    if (def.valueType === 'PERCENT' && def.changeDisplay === 'PP') return { ...base, display: 'PP', pp: round1(diff) };
+    if (def.valueType === 'PERCENT' && def.changeDisplay === 'PP') return { ...base, display: 'PP', pp: roundToOneDecimal(diff) };
     if (def.changeDisplay === 'ABS') {
       const abs: MetricScalar = value.kind === 'MONEY'
         ? { kind: 'MONEY', amount: `${diff < 0 ? '-' : ''}${Math.abs(diff).toFixed(2)}`, currency: value.currency }
         : value.kind === 'DECIMAL'
-          ? { kind: 'DECIMAL', value: round1(diff), precision: value.precision ?? 1 }
+          ? { kind: 'DECIMAL', value: roundToOneDecimal(diff), precision: value.precision ?? 1 }
           : { kind: 'COUNT', value: diff };
       return { ...base, display: 'ABS', abs };
     }
-    const pct = pri === 0 ? 0 : round1(((cur - pri) / pri) * 100);
+    const pct = pri === 0 ? 0 : roundToOneDecimal(((cur - pri) / pri) * 100);
     return { ...base, display: 'PCT', pct };
   });
 }

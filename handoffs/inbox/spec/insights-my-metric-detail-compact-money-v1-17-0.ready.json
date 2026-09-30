@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-compact-money-v1-17-0",
+  "status": "SUPERSEDED",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "0c5df3f9745323aee02ba750b3b2a08b8c56f379",
+    "dirty": false,
+    "version": "1.17.0"
+  },
+  "changedArtifacts": [
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-54"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "AC-P4-02-54: on Metric Detail, when context.metricCode is TPC, PTPC, FYC, FYP or AVERAGE_CASE_SIZE, render every MONEY value with the existing formatMoneyCompact (widget-contracts.md section 2 R-MONEY-COMPACT: below 1,000 plain integer; 1,000+ '{n}K'; 1,000,000+ '{n}M'; one decimal, round half-up, trailing '.0' dropped; NO currency prefix). Fields: (1) GaugeSectionVM.collected on the gauge (both the value-only face and the donut face); (2) GaugeSectionVM.penders money line when rendered (FYP/FYC; AVERAGE_CASE_SIZE if present); (3) ComparisonSectionVM.current; (4) ComparisonSectionVM.prior; (5) VariantValueSectionVM.value (variant.with-repricing); (6) BreakdownSectionVM.totals[].value, the Total row, in both the Without Repricing and With Repricing tables; (7) every BreakdownSectionVM.rows[].cells[].value in both tables, including FYP's UNIT_TRUST/GROUP_PREMIUM rows (24,690 -> '24.7K'; this deliberately differs from the requester screenshot's full '24,690').",
+        "AC-P4-02-54 exclusions: do NOT change the delta line (DeltaVM.display rendering, e.g. '+11.4% vs last year'), COUNT values (e.g. the TEAM penders card '6 Cases', CASE_COUNT), the weightPct '(10%)' suffix (AC-P4-02-06; see OQ-72), or MONEY values for any other metric, which keep formatMoney. Never re-sum or adjust compact strings; AC-P4-02-05's Total = column sum applies to the MoneyValue amounts.",
+        "No VM field carries this choice: key it on context.metricCode, the five codes listed above. No new i18n key; no vendored en.json change. Sync the vendored performance-vm.ts (doc comment only) and widget-contracts.md.",
+        "Add unit/e2e tests named after AC-P4-02-54 against metric-detail-tpc.json: collected '100K', comparison current '100K' / prior '78.7K', With Repricing '120K', Without Repricing rows '15.3K' / '18K' / '17.5K' / '25K' / '4.3K' and Total '80.1K', none with an 'RM' prefix; the delta still reads '+27%'. Add a negative test that a non-listed MONEY metric (e.g. APE if emitted) still renders via formatMoney with the currency prefix, and one for AVERAGE_CASE_SIZE via metric-detail-average-case-size.json (5,200.00 -> '5.2K', 4,800.00 -> '4.8K')."
+      ]
+    }
+  },
+  "openQuestions": [
+    "SUPERSEDED by insights-my-metric-detail-breakdown-plain-values-v1-18-0 (S-P4-02 v1.18.0): breakdown product rows are no longer compact (AC-P4-02-55). Implement the v1.18.0 handoff, not this one.",
+    "OQ-72 (non-blocking, not decided): the requester screenshot shows 'Credit Points' with no '(10%)', but metric-detail-tpc.json has CREDIT_POINTS weightPct: 10 and AC-P4-02-06 renders '(10%)'. Keep the current behavior (suffix shown). Owner: Product/BA with Data (OQ-PA-17).",
+    "Evidence: direct requester instruction (2026-09-25). The screenshot it cites was not received, so it is not stored and has no checksum.",
+    "Compatibility is declared ADDITIVE: no C1/C2/C3/C4 shape, copy or fixture change. The visible format of MONEY values for five metrics on S-P4-02 does change (currency prefix dropped, K/M abbreviation).",
+    "Spec/code drift, not resolved here: pa-fe-dev renders a value-only gauge face with a penders line for FYP/FYC/AVERAGE_CASE_SIZE, while AC-P4-02-23's v1.5.0 note keeps donut-270 for standalone gauges. AC-P4-02-54 applies to the gauge's MONEY values on whichever face renders.",
+    "OQ-66 unchanged: a future MONEY bar chart for AVERAGE_CASE_SIZE would need its own ruling on axis and bar-label abbreviation."
+  ],
+  "createdAt": "2026-09-25T00:00:00Z"
+}

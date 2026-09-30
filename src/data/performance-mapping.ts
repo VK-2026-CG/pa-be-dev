@@ -26,8 +26,8 @@ export const PERFORMANCE_METRIC_MAPPING: Readonly<Record<string, PerformanceMetr
   MANPOWER: mapa('manpowerTotal', 'COUNT'), ACTIVITY_RATIO: mapa('activityRatio', 'PERCENT'),
   PRODUCTIVITY: mapa('productivity', 'DECIMAL'), AVERAGE_CASE_SIZE: mapa('averageCaseSize', 'MONEY'),
   NEW_RECRUIT_CONTRACTED: mapa('newRecruits', 'COUNT'),
-  PERSISTENCY_CY: persistency('current_year_persistency'),
-  PERSISTENCY_Y1: persistency('first_year_persistency'), PERSISTENCY_Y2: persistency('second_year_persistency'),
+  PERSISTENCY_CY: persistency('currentYearPersistency'),
+  PERSISTENCY_Y1: persistency('firstYearPersistency'), PERSISTENCY_Y2: persistency('secondYearPersistency'),
 };
 
 export interface PerformanceSourceKeys {

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PRUAction — Insights Domain API
-  version: 1.6.0
+  version: 1.7.0
   description: |
     Domain API for the **Insights** bounded context (agent performance):
     metric snapshots, metric detail, historical series, milestone progress,
@@ -76,15 +76,25 @@ info:
       `AGENT` default is removed). New enums `MemberBadgeCode` (x-extensible),
       `TeamMemberGoalStatus`, `TeamMemberSortBy`. All new response fields
       are optional; `1.5.0` clients are unaffected. Card fields have no
-      approved upstream source yet (OQ-79) — stub/memory mode only.
+      approved upstream source yet (OQ-79); unavailable fields are omitted,
+      and runtime stub/memory business data is prohibited.
+    - **1.6.1** (requester ruling, 2026-09-30): MongoDB is the sole runtime
+      source for business data. Missing records/fields remain unavailable;
+      service runtime must not fall back to in-memory data, JSON fixtures,
+      deterministic sample values or synthetic Team Drilldown records.
+      Contract fixtures remain test-only. A frontend-only generic agent photo
+      placeholder is allowed and is not business data.
+      stub/memory business data is prohibited. Contract fixtures are test-only.
+    - **1.7.0** (SPEC-2026-005, additive): adds
+      `GET /agents/{agentId}/organization`, a nested read-only organization
+      view resolved from `my_agent_hierarchy`; see its operation contract and
+      C1 mapping. Existing metric and Team Drilldown permissions are unchanged.
   contact:
     name: Insights Domain Team
   x-domain: insights
   x-spec-repo: pruaction-spec
 
 servers:
-  - url: http://localhost:4600/insights/v1
-    description: Local dev server
   - url: https://api.{env}.pruaction.internal/insights/v1
     variables:
       env:
@@ -109,8 +119,85 @@ tags:
     description: Performance recommendation entries (engine-generated).
   - name: TeamDrilldown
     description: Hierarchy-scoped member listing and selected-member dashboard composition.
+  - name: Organization
+    description: Nested agent organization read from the approved hierarchy source.
 
 paths:
+  /agents/{agentId}/organization:
+    get:
+      operationId: getAgentOrganization
+      tags: [Organization]
+      summary: Get an agent's nested organization
+      description: |
+        Returns the complete organization rooted at `agentId`, including the
+        root, nested reports and ID-only leaves where referenced descendants do
+        not have a hierarchy document. This organization read has its own
+        authorization exception: an allowlisted P2/P3 leader may read their own
+        complete organization. It does not grant additional access to metrics,
+        Team Drilldown or other operations; their existing gates remain intact.
+
+        Match the requested root `agentId` against `hierarchy.leaderId` in
+        PAMB first; query PBTB only when no root record exists in PAMB.
+        Descendant reads stay in the selected database. Each ID in
+        `subtree.scopeProfileIds` is a direct reportee ID and resolves to a
+        document by matching `hierarchy.leaderId` to that ID.
+        Duplicate documents sort by `asOnDate`, `audit.updatedAt`, then `_id`,
+        descending. Deduplicate repeated profile IDs at first encounter and
+        preserve source-array order. Missing descendants are
+        ID-only leaves (displayName equal to agentId, empty reports, tier
+        omitted). Cycles or malformed records cannot return partial results.
+
+        `displayName` is the profile ID. Never expose or log encrypted names,
+        vault references, or raw source documents. Read role values from
+        `displayRows.tier`: AM→P2, UM/UM1/UM2→P3, AGENT→P4. All reads
+        use the existing 8-second Mongo execution budget; no writes or
+        provisioning occur.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Complete nested organization.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentOrganization'
+              examples:
+                nested-organization:
+                  value:
+                    agentId: AM100
+                    displayName: AM100
+                    tier: P2
+                    reports:
+                      - agentId: UM200
+                        displayName: UM200
+                        tier: P3
+                        reports:
+                          - agentId: AG300
+                            displayName: AG300
+                            tier: P4
+                            reports: []
+                      - agentId: AG400
+                        displayName: AG400
+                        tier: P4
+                        reports: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Root profile is absent from both approved databases (INS-4040).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '500':
+          description: Malformed hierarchy or ancestor cycle (INS-5000); sanitized Problem, no partial organization.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503':
+          description: Mongo query failure or execution timeout (INS-5030); sanitized Problem, no partial organization.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
   /agents/{agentId}/metrics:
     get:
       operationId: listAgentMetrics
@@ -1334,6 +1421,27 @@ components:
           type: array
           description: Ordered anchor-year first, then descending prior years.
           items: { $ref: '#/components/schemas/YearSeries' }
+
+    # ---------- Organization ----------
+    AgentOrganization:
+      type: object
+      description: Recursive organization node. A missing descendant is an ID-only leaf; tier is omitted because the source role is unavailable.
+      required: [agentId, displayName, reports]
+      properties:
+        agentId:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{3,32}$'
+        displayName:
+          type: string
+          description: Always identical to agentId; source names are not exposed.
+        tier:
+          type: string
+          enum: [P2, P3, P4]
+          description: AM→P2; UM1/UM2→P3; AGENT→P4. Omitted when the descendant source document is missing.
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentOrganization'
 
     # ---------- Milestones ----------
     TierRef:

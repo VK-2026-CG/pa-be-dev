@@ -83,6 +83,16 @@ function cardFromSnapshot(
 
 export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainApi, source?: DataSource): void {
   const getPersona = (request: FastifyRequest) => resolvePersona(request, source);
+  app.get<{ Params: { agentId: string } }>('/insights/v1/agents/:agentId/organization', async (req, reply) => {
+    const persona = getPersona(req);
+    if (source?.ownIdentityOnly && !req.headers['x-agent-id']) return problem(reply, 401, 'INS-4010', 'Development identity required');
+    if (req.headers['x-tenant'] && req.headers['x-tenant'] !== 'MY') return problem(reply, 401, 'INS-4010', 'Unknown caller identity');
+    if (req.params.agentId !== persona.agentId) return problem(reply, 403, 'INS-4030', 'Agent may only read own organization');
+    if (!isLeader(persona)) return problem(reply, 403, 'INS-4030', 'Organization access requires a leader persona');
+    try { return await domain.getAgentOrganization(persona.agentId, req.params.agentId); }
+    catch (error) { return mapDomainError(reply, error); }
+  });
+
   app.get('/api/bff/v1/performance/dashboard', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
     const persona = getPersona(req);
     const subjectAgentId = req.query.subjectAgentId?.trim();

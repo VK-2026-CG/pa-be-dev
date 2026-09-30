@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0",
+  "handoffId": "insights-my-metric-detail-penders-link-v1-19-0",
+  "status": "READY",
+  "domain": "insights",
+  "country": "MY",
+  "compatibility": "ADDITIVE",
+  "spec": {
+    "repository": "PruactionSpec",
+    "commit": "296d9cb3cd3b2d27c53ec5a62c8747103b7757c0",
+    "dirty": false,
+    "version": "1.19.0"
+  },
+  "changedArtifacts": [
+    "common/assets/MY/icons/external-link-line.svg",
+    "common/assets/MY/manifest.json",
+    "domains/insights/bff/performance-vm.ts",
+    "domains/insights/common/frontend/widget-contracts.md",
+    "domains/insights/content/en.json",
+    "domains/insights/screens/MetricDetail_S-P4-02/requirements/legacy-contract.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/README.md",
+    "domains/insights/screens/MetricDetail_S-P4-02/screen.manifest.json",
+    "README.md",
+    "scripts/validate-domain-structure.mjs"
+  ],
+  "acceptanceCriteria": [
+    "AC-P4-02-26",
+    "AC-P4-02-56",
+    "AC-P4-02-57"
+  ],
+  "consumers": {
+    "backend": {
+      "required": false,
+      "requiredActions": []
+    },
+    "frontend": {
+      "required": true,
+      "requiredActions": [
+        "Sync vendor/spec to this handoff's commit: C3 1.7.0 PendersSectionVM gains optional nav?: RouteRef; en.json gains insights.detail.pendersCases = '{count} Cases'; spec asset icon.external-link-line (common/assets/MY/icons/external-link-line.svg, Remix substitute) becomes available as public/icons/external-link-line.svg.",
+        "AC-P4-02-56: when context.metricCode is TPC or PTPC, PendersCard keeps the 'Penders' label (insights.detail.penders) on the left and renders on the right t('insights.detail.pendersCases', { count: formatCount(value) }) followed by <Icon token='external-link-line'> (aria-hidden), both in color.link, right-aligned on one baseline, icon ~16px with a ~4px gap. Every other metric (including CASE_COUNT's Team card) keeps the bare formatScalar count.",
+        "Add the color.link token (#1D4ED8, screenshot-derived, REVIEW_REQUIRED per widget-contracts section 2 / OQ-75) once in src/dls-stub/dls.css; no raw hex anywhere else.",
+        "AC-P4-02-57: when s.nav is present, wrap value text + icon in one <Link to={href(s.nav)}> (same href helper as MilestoneCard); accessible name is the '{count} Cases' text. When s.nav is absent, render a non-interactive element with no href, no link role and no tabindex, styled identically. Never synthesize a route in the UI.",
+        "Exclusions: SELF-scope money penders in the gauge (GaugeSectionVM.penders), AC-P4-02-54/55 money formatting and AC-P4-02-27 desktop pairing are unchanged. No i18n key other than insights.detail.pendersCases.",
+        "Tests named after the ACs: AC-P4-02-56 e2e on TEAM TPC metric detail (pa-be-dev stub emits COUNT 6) asserting text '6 Cases' and the external-link icon, plus a negative check that CASE_COUNT's Team card shows no 'Cases' unit; AC-P4-02-57 asserting the value is not a link (no role=link, no href) when nav is absent, and a unit/mocked-VM test asserting it links to href(nav) when nav is supplied."
+      ]
+    }
+  },
+  "openQuestions": [
+    "OQ-30 (blocking only the navigable case of AC-P4-02-57): Activity Management Proposal-screen route unconfirmed; the BFF omits nav until answered. Owner: Product/UX.",
+    "OQ-74 (non-blocking): a count of 1 renders '1 Cases'; no plural convention in the bundle. Owner: Product/Content.",
+    "OQ-75 (non-blocking for build): color.link #1D4ED8 is sampled from the requester screenshot, not a DLS-approved token. Owner: UX/DLS.",
+    "OQ-76 (non-blocking): icon.external-link-line is a Remix 4.9.1 substitute with no Figma node; the requester's ~16px/~4px differs from the screenshot's ~12px/~8px at an unknown scale. Owner: UX.",
+    "Evidence: requester screenshot received 2026-09-25 (353x66 PNG, SHA-256 d929887d091f83e0b70181512fd9df479c77124fce2d43458147b601a955ebef), not stored in the repo.",
+    "Compatibility ADDITIVE: optional C3 field only; no C1/C2/C4 or fixture change. The backend is not required to change and must keep omitting nav."
+  ],
+  "createdAt": "2026-09-25T00:00:00Z"
+}

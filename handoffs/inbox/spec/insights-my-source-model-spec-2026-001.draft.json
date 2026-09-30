@@ -40,8 +40,8 @@
     "AC-PA-SRC-01", "AC-PA-SRC-02", "AC-PA-SRC-03", "AC-PA-SRC-04",
     "AC-PA-SRC-05", "AC-PA-SRC-06", "AC-PA-SRC-07", "AC-PA-SRC-08",
     "AC-PA-SRC-09", "AC-PA-SRC-10", "AC-PA-SRC-11",
-    "AC-P4-01-31", "AC-P4-01-32", "AC-P4-01-33", "AC-P4-01-34",
-    "AC-P4-01-35", "AC-P4-01-36", "AC-P4-01-37", "AC-P4-01-38",
+    "AC-P4-01-89", "AC-P4-01-90", "AC-P4-01-91", "AC-P4-01-92",
+    "AC-P4-01-93", "AC-P4-01-94", "AC-P4-01-95", "AC-P4-01-96",
     "AC-P4-01-02", "AC-P4-01-05", "AC-P4-01-06", "AC-P4-01-08",
     "AC-P4-01-09", "AC-P4-01-11", "AC-P4-01-24",
     "AC-P4-02-14", "AC-P4-02-17", "AC-P4-02-18",
@@ -62,7 +62,7 @@
       "required": true,
       "requiredActions": [
         "Read S-P4-01 1.5.0 manifest and addendum A9-A11; package remains DRAFT with source and UX blockers. Preserve C3 1.5.0, C4 2.2.0, metric choices, thresholds, routes and design tokens.",
-        "Use the corrected SELF fixture and new mixed-availability fixture; implement or verify AC-P4-01-31 through AC-P4-01-38 plus the listed existing screen regression ACs, including detail EMPTY/PROCESSING, decimal formatting, historical nulls and catalogue selection.",
+        "Use the corrected SELF fixture and new mixed-availability fixture; implement or verify AC-P4-01-89 through AC-P4-01-96 plus the listed existing screen regression ACs, including detail EMPTY/PROCESSING, decimal formatting, historical nulls and catalogue selection.",
         "Do not derive values, units, periods, joins, card composition or freshness from source schemas in the UI/BFF. Display only canonical state/value/watermark fields and preserve navigation for unavailable cards.",
         "Source-processing ACs may be NOT_APPLICABLE for frontend with rationale. Report actual UI test evidence separately from Spec fixture checks; do not claim UX approval or COMPLETE from this draft. Publish only your own receipt."
       ]

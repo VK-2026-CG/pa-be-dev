@@ -4,7 +4,7 @@ const WINDOW_YEARS_BACK = {
     CURRENT_YEAR: 0, VS_LAST_YEAR: 1, VS_LAST_2_YEARS: 2,
 };
 const VISIBLE_TABS = 4;
-function round1(n) { return Math.round(n * 10) / 10; }
+function roundToOneDecimal(n) { return Math.round(n * 10) / 10; }
 function scalarNumber(v) {
     return v.kind === 'MONEY' ? Number(v.amount) : v.value;
 }
@@ -31,16 +31,16 @@ export function buildMomDeltas(points, def) {
         const sentiment = diff === 0 ? 'NEUTRAL' : good ? 'POSITIVE' : 'NEGATIVE';
         const base = { comparisonBasis: 'LAST_MONTH', direction, sentiment };
         if (def.valueType === 'PERCENT' && def.changeDisplay === 'PP')
-            return { ...base, display: 'PP', pp: round1(diff) };
+            return { ...base, display: 'PP', pp: roundToOneDecimal(diff) };
         if (def.changeDisplay === 'ABS') {
             const abs = value.kind === 'MONEY'
                 ? { kind: 'MONEY', amount: `${diff < 0 ? '-' : ''}${Math.abs(diff).toFixed(2)}`, currency: value.currency }
                 : value.kind === 'DECIMAL'
-                    ? { kind: 'DECIMAL', value: round1(diff), precision: value.precision ?? 1 }
+                    ? { kind: 'DECIMAL', value: roundToOneDecimal(diff), precision: value.precision ?? 1 }
                     : { kind: 'COUNT', value: diff };
             return { ...base, display: 'ABS', abs };
         }
-        const pct = pri === 0 ? 0 : round1(((cur - pri) / pri) * 100);
+        const pct = pri === 0 ? 0 : roundToOneDecimal(((cur - pri) / pri) * 100);
         return { ...base, display: 'PCT', pct };
     });
 }

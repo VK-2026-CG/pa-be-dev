@@ -27,26 +27,26 @@ const mapa: Document = { agentId: leader.agentId, agentAggregation: 'Group', ent
   period: { ...period, asOnMonthDay: '28' }, asOnDate: new Date('2026-09-18T00:00:00Z'),
   ptd: { manpowerTotal: { ytd: 12 }, activityRatio: { ytd: 12 }, productivity: { ytd: 1 }, averageCaseSize: { ytd: 3922 }, newRecruits: { ytd: 0 } } };
 const persistency: Document = { agentId: other.agentId, agentAggregation: 'Group', entity: 'PAMB', agentType: 'PAMB', agentStatus: 'Active', period,
-  asOnDate: new Date('2026-09-07T00:00:00Z'), metrics: { ytd: { current_year_persistency: 1, first_year_persistency: 0.88, second_year_persistency: 0.79 }, bonus: { first_year_persistency: 10 } } };
+  asOnDate: new Date('2026-09-07T00:00:00Z'), metrics: { ytd: { currentYearPersistency: 1, firstYearPersistency: 0.88, secondYearPersistency: 0.79 }, bonus: { firstYearPersistency: 10 } } };
 /** PBTB shares PAMB's camelCase field naming (confirmed against live data, and migrated where it had drifted). */
 const takafulProduction = (overrides: Partial<Document> = {}): Document => ({
   ...production, entity: 'PBTB', agentType: 'Takaful', ...overrides,
 });
 
-function fakeDb(data: Partial<Record<PerformanceCollection, Document[]>> = {}, name: string = PERFORMANCE_DB) {
+function fakeDb(data: Partial<Record<PerformanceCollection, Document[]>> & Record<string, Document[] | undefined> = {}, name: string = PERFORMANCE_DB) {
   const queried: string[] = [];
   const requests: Array<{ collection: string; query: Document; options: Document }> = [];
   const get = (row: Document, key: string) => key.split('.').reduce((v, part) => v?.[part], row);
   const matches = (row: Document, query: Document): boolean => Object.entries(query).every(([key, value]) => {
-    if (key === '$or') return (value as Document[]).some(q => matches(row, q));
+      if (key === '$or') return (value as Document[]).some(q => matches(row, q));
     if (value && typeof value === 'object' && '$in' in value) return (value.$in as unknown[]).map(String).includes(String(get(row, key)));
     return String(get(row, key)) === String(value);
   });
-  const db = { databaseName: name, collection: (collection: PerformanceCollection) => {
+  const db = { databaseName: name, collection: (collection: string) => {
     queried.push(collection);
     return { find: (query: Document, options: Document = {}) => {
       requests.push({ collection, query, options });
-      let rows = (data[collection] ?? []).filter(row => matches(row, query));
+      let rows = ((data as Record<string, Document[]>)[collection] ?? []).filter(row => matches(row, query));
       const cursor = {
         sort: (order: Document) => { rows.sort((a, b) => {
           for (const [key, direction] of Object.entries(order)) {
@@ -269,6 +269,40 @@ describe('three-collection Performance adapter', () => {
     const detail = await source.metricDetail(agent, 'TPC', lens);
     expect(detail?.comparison?.prior).toMatchObject({ amount: '2000.00' });
   });
+  it('BFF-5020 keeps dashboard change semantics and returns a neutral zero prior in metric detail when prior data is absent', async () => {
+    const source = new PerformanceSource(dualDb({ my_production: [production] }).dbs, agents);
+    const listComparison = (await source.metricList(agent, lens, 'PRIORITY')).items.find(item => item.metricCode === 'TPC')?.comparison;
+    expect(listComparison).toBeUndefined(); // dashboard card change remains outside this detail-only change
+    const detail = await source.metricDetail(agent, 'TPC', lens);
+    expect(detail?.comparison).toEqual({ current: { kind: 'MONEY', amount: '4538.76', currency: 'MYR' },
+      prior: { kind: 'MONEY', amount: '0.00', currency: 'MYR' }, priorYear: 2024,
+      change: { basis: 'LAST_YEAR', direction: 'FLAT', sentiment: 'NEUTRAL', pct: 0 } });
+    const app = buildApp(source); apps.push(app);
+    const response = await app.inject({ url: '/api/bff/v1/performance/metrics/TPC?businessLine=INSURANCE', headers: { 'x-agent-id': agent.agentId } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().sections.find((section: { type: string }) => section.type === 'COMPARISON')).toBeDefined();
+  });
+  it('BFF-5020 uses a null prior metric as missing without changing prior-zero behavior', async () => {
+    const nullPrior = { ...production, period: { ...period, year: 2024, yyyymm: '202405' }, ptd: { ...production.ptd,
+      tpc: { withoutRepricing: { ytd: null, mtd: 0 }, withRepricing: { ytd: 0, mtd: 0 } } } };
+    const source = new PerformanceSource(dualDb({ my_production: [production, nullPrior] }).dbs, agents);
+    expect((await source.metricDetail(agent, 'TPC', lens))?.comparison?.prior).toMatchObject({ amount: '0.00' });
+    const genuineZeroPrior = { ...nullPrior, ptd: { ...nullPrior.ptd,
+      tpc: { withoutRepricing: { ytd: 0, mtd: 0 }, withRepricing: { ytd: 0, mtd: 0 } } } };
+    const zeroSource = new PerformanceSource(dualDb({ my_production: [production, genuineZeroPrior] }).dbs, agents);
+    const comparison = (await zeroSource.metricDetail(agent, 'TPC', lens))?.comparison;
+    expect(comparison?.prior).toMatchObject({ amount: '0.00' });
+    expect(comparison?.change).toMatchObject({ direction: 'FLAT', sentiment: 'NEUTRAL' });
+  });
+  it('BFF-5020 does not turn a prior comparison read failure into missing prior data', async () => {
+    const failingDb = { ...dualDb({ my_production: [production] }).dbs.PAMB,
+      collection: (collection: string) => ({ find: (query: Document) => {
+        if (query['period.year'] === 2024) throw new Error('database unavailable');
+        return dualDb({ my_production: [production] }).dbs.PAMB.collection(collection).find(query);
+      } }) } as unknown as Db;
+    const source = new PerformanceSource({ PAMB: failingDb, PBTB: dualDb().dbs.PBTB }, agents);
+    await expect(source.metricDetail(agent, 'TPC', lens)).rejects.toThrow('Performance source read failed');
+  });
   it('AC-PA-DIRECT-09 domain/BFF require allowlisted identity and enforce tenant, own data and tier', async () => {
     const app = buildApp(setup().source); apps.push(app);
     const url = '/insights/v1/agents/MOCK_SELF/metrics?businessLine=INSURANCE';
@@ -420,7 +454,7 @@ describe('three-collection Performance adapter', () => {
 function schemaFixture(schema: ReturnType<typeof sourceSchema>): unknown {
   const types = [schema.bsonType].flat();
   if (types.includes('object')) return Object.fromEntries(Object.entries(schema.properties ?? {}).map(([key, child]) => [key, schemaFixture(child)]));
-  if (types.includes('null')) return 'null';
+  if (types.includes('null')) return null;
   if (types.includes('objectId')) return { $oid: '0123456789abcdef01234567' };
   if (types.includes('date')) return { $date: '2026-09-07T00:00:00.000Z' };
   if (types.includes('string')) return 'mock';
@@ -460,11 +494,18 @@ describe('three-collection import safety', () => {
       expect(row.schemeType).toBeNull();
       expect(row).not.toHaveProperty('undeclared');
       expect(BSON.EJSON.stringify(row)).not.toMatch(/cipher_text|key_secret|vault\.invalid/);
+      if (collection === 'my_production') expect(row.scheme_type).toBeNull();
       if (collection === 'my_mapa') {
-        expect(row.period.asOnMonthDay).toBe('28');
+        expect(row.schemeType).toBeNull();
+        expect(row.period.asOnMonthDay._bsontype).toBe('Int32');
         expect(row.ptd.productivity.ytd._bsontype).toBe('Int32');
       }
-      if (collection === 'my_persistency') expect(row.metrics.ytd.current_year_persistency._bsontype).toBe('Double');
+      if (collection === 'my_persistency') {
+        expect(row.schemeType).toBeNull();
+        expect(row.metrics.ytd.current_year_persistency._bsontype).toBe('Double');
+        expect(row.period.as_on_month_day).toBeNull();
+        expect(row.agentRefererAgentId).toBe('mock');
+      }
     }
   });
   it('AC-PA-DIRECT-02 rejects missing fields, invalid integers/dates and inconsistent periods', () => {
@@ -474,6 +515,44 @@ describe('three-collection import safety', () => {
     expect(() => normalizeMockRecord('my_production', invalid)).toThrow('Inconsistent reporting period');
     delete invalid.period;
     expect(() => normalizeMockRecord('my_production', invalid)).toThrow('Missing field');
+  });
+  it('AC-ORG-01..06 resolves a privacy-safe recursive tree in source order and deduplicates repeated references', async () => {
+    const hierarchy = [
+      { _id: new BSON.ObjectId(), asOnDate: new Date('2026-01-01'), audit: { updatedAt: new Date('2026-01-01') }, hierarchy: { leaderId: 'MOCK_GROUP' }, subtree: { scopeProfileIds: ['MOCK_UM', 'MOCK_LEAF', 'MOCK_UM'] }, displayRows: { tier: 'AM', encryptedName: 'SECRET' } },
+      { _id: new BSON.ObjectId(), asOnDate: new Date('2026-01-01'), audit: { updatedAt: new Date('2026-01-01') }, hierarchy: { leaderId: 'MOCK_UM' }, subtree: { scopeProfileIds: ['MOCK_LEAF'] }, displayRows: { tier: 'UM1' } },
+    ];
+    const { dbs, pamb, pbtb } = dualDb({ my_agent_hierarchy: hierarchy }, {});
+    const source = new PerformanceSource(dbs, agents, () => {}, false, true);
+    const result = await source.getAgentOrganization('MOCK_GROUP');
+    expect(result).toEqual({ agentId: 'MOCK_GROUP', displayName: 'MOCK_GROUP', tier: 'P2', reports: [
+      { agentId: 'MOCK_UM', displayName: 'MOCK_UM', tier: 'P3', reports: [
+        { agentId: 'MOCK_LEAF', displayName: 'MOCK_LEAF', reports: [] },
+      ] },
+      { agentId: 'MOCK_LEAF', displayName: 'MOCK_LEAF', reports: [] },
+    ] });
+    expect(pamb.requests.every(request => request.options.maxTimeMS === 8000)).toBe(true);
+    expect(pamb.requests[0]?.options.projection).not.toHaveProperty('displayRows.encryptedName');
+    expect(pbtb.queried).toEqual([]);
+  });
+  it('AC-ORG-02..03 prefers PAMB, falls back to PBTB only for a missing root, and sorts duplicate snapshots', async () => {
+    const old = { _id: new BSON.ObjectId('000000000000000000000001'), asOnDate: new Date('2026-01-01'), audit: { updatedAt: new Date('2026-01-01') }, hierarchy: { leaderId: 'MOCK_GROUP' }, subtree: { scopeProfileIds: [] }, displayRows: { tier: 'AM' } };
+    const newest = { ...old, _id: new BSON.ObjectId('000000000000000000000002'), asOnDate: new Date('2026-02-01') };
+    const p = dualDb({ my_agent_hierarchy: [old, newest] }, {});
+    expect((await new PerformanceSource(p.dbs, agents, () => {}, false, true).getAgentOrganization('MOCK_GROUP'))?.tier).toBe('P2');
+    expect(p.pamb.requests[0]?.query).toEqual({ 'hierarchy.leaderId': 'MOCK_GROUP' });
+    const q = dualDb({}, { my_agent_hierarchy: [old] });
+    expect(await new PerformanceSource(q.dbs, agents, () => {}, false, true).getAgentOrganization('MOCK_GROUP')).toMatchObject({ tier: 'P2' });
+    expect(q.pbtb.queried).toContain('my_agent_hierarchy');
+  });
+  it('AC-ORG-08 fails cycles/malformed hierarchy and sanitizes source errors', async () => {
+    const cycle = { hierarchy: { leaderId: 'MOCK_GROUP' }, subtree: { scopeProfileIds: ['MOCK_GROUP'] }, displayRows: { tier: 'AM' } };
+    const a = dualDb({ my_agent_hierarchy: [cycle] });
+    await expect(new PerformanceSource(a.dbs, agents, () => {}, false, true).getAgentOrganization('MOCK_GROUP')).rejects.toThrow('Hierarchy cycle');
+    const self = dualDb({ my_agent_hierarchy: [{ ...cycle, subtree: { scopeProfileIds: ['MOCK_GROUP', 'MOCK_LEAF'] } }] });
+    await expect(new PerformanceSource(self.dbs, agents, () => {}, false, true).getAgentOrganization('MOCK_GROUP')).rejects.toThrow('Hierarchy cycle');
+    const badDb = { databaseName: PERFORMANCE_DATABASES.PAMB, collection: () => ({ find: () => { throw new Error('secret mongodb:// credential'); } }) } as unknown as Db;
+    const b = new PerformanceSource({ PAMB: badDb, PBTB: dualDb().dbs.PBTB }, agents, () => {}, false, true);
+    await expect(b.getAgentOrganization('MOCK_GROUP')).rejects.toThrow('Hierarchy source read failed');
   });
   it('AC-PA-DIRECT-03 identical imports skip records; conflicts and duplicate input keys fail', async () => {
     const row = normalizeMockRecord('my_production', raw('my_production'));

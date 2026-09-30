@@ -148,6 +148,19 @@ export function createInsightsDomain(source: DataSource) {
       if (!detail) throw new DomainError(404, 'INS-4040', 'Unknown team member for leader');
       return detail;
     },
+    getAgentOrganization: async (_caller: string, agentId: string) => {
+      if (!source.getAgentOrganization) throw new DomainError(503, 'INS-5030', 'Organization source unavailable');
+      let organization;
+      try { organization = await source.getAgentOrganization(agentId); }
+      catch (error) {
+        if (error instanceof Error && ['Hierarchy cycle', 'Malformed hierarchy'].includes(error.message)) {
+          throw new DomainError(500, 'INS-5000', 'Organization data is invalid');
+        }
+        throw new DomainError(503, 'INS-5030', 'Organization source unavailable');
+      }
+      if (!organization) throw new DomainError(404, 'INS-4040', 'Unknown agent for tenant');
+      return organization;
+    },
   };
 }
 

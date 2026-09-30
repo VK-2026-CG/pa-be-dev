@@ -1,4 +1,4 @@
-/** Domain types mirroring vendor/spec/insights.v1.yaml (v1.4.0). Field names are the contract — do not rename. */
+/** Domain types mirroring vendor/spec/insights.v1.yaml. Field names are the contract — do not rename. */
 export type PeriodType = 'MTD' | 'QTD' | 'YTD';
 export type BusinessLine = 'ALL' | 'INSURANCE' | 'TAKAFUL';
 export type Basis = 'STANDARD' | 'SCHEME';
@@ -163,3 +163,11 @@ export interface MetricPreferences {
   source: 'DEFAULT' | 'AGENT'; updatedAt: string | null;
 }
 export interface Problem { type?: string; title: string; status: number; code: string; detail?: string }
+
+/** insights.v1.yaml 1.7.0 — recursive, privacy-safe organization projection. */
+export interface AgentOrganization {
+  agentId: string;
+  displayName: string;
+  tier?: AgentLevel;
+  reports: AgentOrganization[];
+}

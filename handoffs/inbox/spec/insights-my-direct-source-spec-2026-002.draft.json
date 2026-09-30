@@ -6,7 +6,7 @@
   "domain": "insights",
   "country": "MY",
   "compatibility": "BREAKING",
-  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "0.3.0-draft" },
+  "spec": { "repository": "PruactionSpec", "commit": null, "dirty": true, "version": "0.5.0-draft" },
   "changedArtifacts": [
     "domains/insights/data/direct-mock-profile.md",
     "domains/insights/content/en.json",
@@ -24,7 +24,10 @@
     "AC-PA-DIRECT-13", "AC-PA-DIRECT-14", "AC-PA-DIRECT-15",
     "AC-PA-DIRECT-16", "AC-PA-DIRECT-17", "AC-PA-DIRECT-18",
     "AC-PA-DIRECT-19", "AC-PA-DIRECT-20", "AC-PA-DIRECT-21",
-    "AC-PA-DIRECT-22", "AC-PA-DIRECT-23", "AC-PA-DIRECT-24"
+    "AC-PA-DIRECT-22", "AC-PA-DIRECT-23", "AC-PA-DIRECT-24",
+    "AC-PA-DIRECT-25", "AC-PA-DIRECT-26", "AC-PA-DIRECT-27",
+    "AC-PA-DIRECT-28", "AC-PA-DIRECT-29", "AC-PA-DIRECT-30",
+    "AC-PA-DIRECT-31", "AC-PA-DIRECT-32", "AC-PA-DIRECT-33"
   ],
   "consumers": {
     "backend": {
@@ -36,7 +39,9 @@
         "Translate approved production/MAPA/persistency mock mappings into unchanged C2 1.4.0/C3 shapes; preserve 2025 reporting windows and 2026 refresh dates. Keep disjoint agents separate.",
         "Retain static catalogue/config and volatile preferences. Missing history/milestones/recommendations are empty; feedback cannot invent a recommendation. Retire the obsolete cross-domain synthetic seeder without changing Contest runtime/storage.",
         "Test AC-PA-DIRECT-01 through AC-PA-DIRECT-11, build and verify live local APIs. Publish only a non-COMPLETE receipt while Spec/implementation are uncommitted and production approvals remain open.",
-        "For 0.3.0, harden existing resident-data reads per AC-PA-DIRECT-18 through AC-PA-DIRECT-24: schema-verified mapping table, exact BSON/numeric-text handling, controlled no-data 404, sanitized metadata errors, fixed default database and optional independent Performance URI. Do not import, seed, alter validators or remove authentication guards."
+        "For 0.3.0, harden existing resident-data reads per AC-PA-DIRECT-18 through AC-PA-DIRECT-24: schema-verified mapping table, exact BSON/numeric-text handling, controlled no-data 404, sanitized metadata errors, fixed default database and optional independent Performance URI. Do not import, seed, alter validators or remove authentication guards.",
+        "For 0.4.0, route by businessLine to the correct database (INSURANCE/ALL both in pa_performance_PAMB-dev; TAKAFUL in the new pa_performance_PBTB-dev), replacing the prior businessLine/basis EMPTY gate. Replace MONGODB_PERFORMANCE_DB with MONGODB_PAMB_DB and MONGODB_PBTB_DB; do not touch the unrelated MONGODB_DB variable. Add the agent-status filter (accepting both Active and A, temporary pending upstream data correction). Change asOfDate to derive from period fields, never asOnDate (AC-PA-DIRECT-29). Drop asOnDate/audit.updatedAt from the per-collection sort tie-break, keeping only id/_id descending (AC-PA-DIRECT-30).",
+        "For 0.5.0 (corrects 0.4.0, then reverted the filter-field part within the same round): field casing is camelCase (agentId/agentAggregation/agentStatus/agentType/caseStatus) in every collection in both databases; PBTB's 6 real my_production documents were renamed from snake_case to match, with requester sign-off — this part stands. The businessLine filter was first moved from entity to agentType (entity never varies within a database, so the entity-based rule always returned zero rows for ALL), then reverted: real Hybrid-licensed agents (e.g. 1136911, 1002809) have only an agentType 'HYBRID' row, not a separate 'PAMB' one, so a strict agentType filter 404s them under INSURANCE. INSURANCE/ALL now both filter on entity: 'PAMB' (same record per agent, interim) pending data-team confirmation of the intended two-record shape; TAKAFUL filters on entity: 'PBTB'. Test AC-PA-DIRECT-31 through AC-PA-DIRECT-33 (entity-based, interim) in place of superseded AC-PA-DIRECT-25 through AC-PA-DIRECT-27; AC-PA-DIRECT-28's casing clause is corrected, its Active/A rule unchanged."
       ]
     },
     "frontend": {
@@ -52,7 +57,11 @@
   "openQuestions": [
     "Production IAM and source business mappings remain blocked under C0 OQ-PA-01 through OQ-PA-17; this authorization is for the named development mock environment only.",
     "Production persistence/ownership for preferences and support features remains unapproved; temporary memory and unavailable outputs are explicitly approved for this development task.",
-    "Existing UX readiness and immutable handoff/implementation commits remain outstanding."
+    "Existing UX readiness and immutable handoff/implementation commits remain outstanding.",
+    "Agent-status accepted values (AC-PA-DIRECT-28) are a temporary widening to both Active and A pending an in-progress upstream data correction owned by the requester; the requester must confirm the permanent value(s) once that correction lands.",
+    "my_agent_hierarchy exists in both databases but remains parked with known conflicts; agent identity continues from the existing development allowlist file until the requester resolves it separately.",
+    "The 0.5.0-draft schema-casing correction is based on requester-confirmed live-data observation during a 2026-09-29 session, not a new checksummed evidence export; a fresh export from the source owner remains open work if SPEC-2026-001 (separate, still-unapproved production-mapping track) is revisited.",
+    "AC-PA-DIRECT-31/32 (INSURANCE/ALL) are an interim entity-based stub returning the same record per agent, not yet distinguished by agentType, because real data has one my_production row per agent/period rather than the two-record (PAMB-tagged plus HYBRID-tagged) shape a per-agentType filter needs. The requester will confirm the intended real shape with the data team; AC-PA-DIRECT-31/32 and this table are expected to be revised again once that lands."
   ],
   "createdAt": "2026-09-18T18:40:00Z"
 }

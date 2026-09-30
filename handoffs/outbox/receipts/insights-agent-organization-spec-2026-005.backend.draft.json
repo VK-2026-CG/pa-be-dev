@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0",
+  "receiptId": "insights-agent-organization-spec-2026-005.backend",
+  "handoffId": "insights-agent-organization-spec-2026-005",
+  "specId": "SPEC-2026-005",
+  "consumer": "backend",
+  "status": "BLOCKED",
+  "specCommit": null,
+  "implementation": {
+    "repository": "PruactionBackend",
+    "commit": null,
+    "dirty": true
+  },
+  "validation": [
+    {
+      "command": "Inspect SPEC-2026-005 handoff and source evidence",
+      "status": "PASS",
+      "summary": "SPEC-2026-005 handoff remains DRAFT with no pinned spec commit. Requester-confirmed tier mapping recorded: AM→P2, UM1/UM2→P3, AGENT→P4. Root predicate and subtree.scopeProfileIds item/linkage semantics remain unresolved."
+    },
+    {
+      "command": "Inspect backend authorization and Mongo source boundary",
+      "status": "PASS",
+      "summary": "AGENTS.md requires a READY handoff pinned to a full spec commit before source implementation; docs/team-drilldown-hierarchy-source.md confirms my_agent_hierarchy is not authorized in the current runtime profile. No runtime code or Mongo query changed."
+    },
+    {
+      "command": "npm test / npm run typecheck / npm run build",
+      "status": "NOT_RUN",
+      "summary": "No backend implementation was authorized or made; existing code remains unchanged."
+    },
+    {
+      "command": "npm run handoff:validate",
+      "status": "NOT_RUN",
+      "summary": "Run after a READY handoff is published and synced, before implementation."
+    }
+  ],
+  "operationCoverage": [
+    {
+      "operationId": "getAgentOrganization",
+      "status": "BLOCKED",
+      "evidence": "OpenAPI draft describes the operation, but no committed READY handoff is published or synced to vendor/spec. Root source predicate and child-array linkage semantics remain unresolved, so a correct Mongo resolver cannot be implemented without invention."
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-ORG-05",
+      "status": "PASS",
+      "evidence": "Requester confirms AM→P2, UM1/UM2→P3, AGENT→P4. Source field/value encoding still needs Data-owner confirmation."
+    },
+    {
+      "id": "AC-ORG-01",
+      "status": "BLOCKED",
+      "evidence": "No route or resolver implemented because the handoff is DRAFT and root/child source linkage is unresolved."
+    },
+    {
+      "id": "AC-ORG-02",
+      "status": "BLOCKED",
+      "evidence": "PAMB-first/PBTB-fallback intent is recorded, but root-candidate query predicate is not established."
+    },
+    {
+      "id": "AC-ORG-03",
+      "status": "BLOCKED",
+      "evidence": "Ordering rule is specified, but source adapter implementation awaits a pinned READY handoff."
+    },
+    {
+      "id": "AC-ORG-04",
+      "status": "BLOCKED",
+      "evidence": "Schema analysis reports subtree.scopeProfileIds is an array but does not establish element type or record linkage."
+    },
+    {
+      "id": "AC-ORG-06",
+      "status": "BLOCKED",
+      "evidence": "Privacy projection tests require the approved source projection and are not implemented before authorization."
+    },
+    {
+      "id": "AC-ORG-07",
+      "status": "BLOCKED",
+      "evidence": "Endpoint-only leader authorization change is not implemented before READY handoff."
+    },
+    {
+      "id": "AC-ORG-08",
+      "status": "BLOCKED",
+      "evidence": "Organization error handling and route tests are not implemented before READY handoff."
+    },
+    {
+      "id": "AC-ORG-09",
+      "status": "BLOCKED",
+      "evidence": "No hierarchy reads or timeout behavior added; current 8-second source budget remains unchanged."
+    }
+  ],
+  "migrations": [
+    {
+      "name": "my_agent_hierarchy runtime access",
+      "status": "BLOCKED",
+      "evidence": "No reads, writes, provisioning, imports, or index changes. Existing source boundary excludes this collection; READY pinned authorization is required."
+    }
+  ],
+  "gaps": [
+    "BLOCKED by lifecycle: publish and sync a committed READY SPEC-2026-005 handoff pinned to full immutable spec and handoff publication commits.",
+    "Data owner Baharat must confirm the exact root lookup predicate connecting API agentId to source fields.",
+    "Data owner Baharat must confirm subtree.scopeProfileIds element BSON type and how each referenced value links to a selected hierarchy document.",
+    "Confirm which source field/value encodes requester-approved AM→P2, UM1/UM2→P3, AGENT→P4 roles.",
+    "No backend code, tests, build, or runtime verification performed."
+  ],
+  "updatedAt": "2026-09-30T00:00:00Z"
+}
