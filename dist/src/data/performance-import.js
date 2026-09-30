@@ -38,7 +38,7 @@ function normalize(value, schema, path) {
         const result = {};
         for (const [key, child] of Object.entries(schema.properties ?? {})) {
             let v = input[key];
-            if (v === undefined && ['scheme_type', 'schemeType'].includes(key))
+            if (v === undefined && (key === 'schemeType' || key === 'scheme_type' || key === 'agentRefererAgentId' || key === 'as_on_month_day'))
                 v = null;
             if (v === undefined) {
                 if (schema.required?.includes(key))
@@ -47,10 +47,6 @@ function normalize(value, schema, path) {
             }
             if (descriptive.has(key))
                 v = 'Redacted mock label';
-            if (key === 'agentRefererAgentId')
-                v = 'null';
-            if (key === 'asOnMonthDay' && typeof v === 'number' && Number.isInteger(v))
-                v = String(v);
             result[key] = normalize(v, child, `${path}.${key}`);
         }
         return result;
@@ -138,9 +134,7 @@ export async function provisionPerformance(db) {
         else
             await db.createCollection(name, { validator, validationLevel: 'strict', validationAction: 'error' });
         await db.collection(name).createIndex({ id: 1 }, { unique: true, name: 'uq_mock_source_id' });
-        const production = name === 'my_production';
-        await db.collection(name).createIndex({ [production ? 'agent_id' : 'agentId']: 1,
-            [production ? 'agent_aggregation' : 'agentAggregation']: 1, entity: 1,
+        await db.collection(name).createIndex({ agentId: 1, agentAggregation: 1, entity: 1,
             'period.year': -1, 'period.month': -1 }, { name: 'ix_mock_performance_read' });
     }
 }

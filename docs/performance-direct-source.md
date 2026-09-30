@@ -30,7 +30,7 @@ NODE_ENV=development
 INSIGHTS_DATA_SOURCE=performance
 MONGODB_PAMB_DB=pa_performance_PAMB-dev
 MONGODB_PBTB_DB=pa_performance_PBTB-dev
-INSIGHTS_MOCK_AGENTS_FILE=data/performance-mocks/agents.json
+INSIGHTS_MOCK_AGENTS_FILE=data/performance-mocks/agents.json # temporary identity allowlist; not business data
 ```
 
 `MONGODB_PAMB_DB`/`MONGODB_PBTB_DB` may each be omitted: they default to the
@@ -118,9 +118,10 @@ Source BSON numeric types are retained; wire money is decimal-string half-up cen
   selection ordering is `period.year desc, period.month desc, id desc, _id desc`
   (latest inserted wins a same-period tie); `asOnDate`/`audit.updatedAt` no
   longer participate in ordering.
-- `my_agent_hierarchy` exists in both databases but remains parked (known
-  conflicts, to be resolved separately); agent identity/reportees still come
-  from the development allowlist file (`INSIGHTS_MOCK_AGENTS_FILE`).
+- `my_agent_hierarchy` exists in both databases but remains parked for caller
+  identity/reportee authorization because its row-level mapping has unresolved
+  conflicts. The development allowlist remains temporary identity configuration;
+  it is not a business-data source. No production authentication is implied.
 - Production: exact PTD period leaf for TPC/PTPC/FYP/CASE_COUNT; FYC null is EMPTY.
   WITH_REPRICING is detail alternate only. No weighted-product/credit-point guess.
 - MAPA: PTD manpower/count, activity ratio as 0–100 percent, productivity decimal,

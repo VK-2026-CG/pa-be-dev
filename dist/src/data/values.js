@@ -6,6 +6,7 @@
  */
 import { addDec, mulRatio, pctChange, pctRoundUpDec, toCents } from '../lib/money.js';
 import { effectiveCatalog, findDef } from './catalog.js';
+import { directionFor, roundToOneDecimal, sentimentFor } from './change.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 export const AS_OF_DATE = '2026-07-27';
 export const ANCHOR_YEAR = 2026;
@@ -27,9 +28,13 @@ function scaleInt(base, l) {
     const [n, d] = ratios(l).reduce(([an, ad], [bn, bd]) => [an * bn, ad * bd], [1, 1]);
     return Math.max(0, Math.round((base * n) / d));
 }
+/** Scales a base YTD/ALL/STANDARD money figure to the lens (SELF multipliers) — Team Drilldown member values. */
+export function scaleMoney(base, l) {
+    return scaleDec(base, { ...l, scope: 'SELF' });
+}
 /** Base YTD/ALL/SELF/STANDARD figures per metric (mock-sourced). */
 const MONEY_BASE = {
-    TPC: { collected: '980000.00', prior: '879712.75', penders: '30000.00' },
+    TPC: { collected: '100000.00', prior: '78740.00', penders: '30000.00' },
     PTPC: { collected: '70000.00', prior: '95890.00', penders: '21000.00' },
     FYP: { collected: '360000.00', prior: '283460.00', penders: '54000.00' },
     FYC: { collected: '180000.00', prior: '141730.00', penders: '30000.00' },
@@ -49,17 +54,6 @@ const PERCENT_BASE = {
 const DECIMAL_BASE = {
     PRODUCTIVITY: { current: 9.7, prior: 9.3 },
 };
-function roundToOneDecimal(n) { return Math.round(n * 10) / 10; }
-function sentimentFor(code, delta) {
-    if (delta === 0)
-        return 'NEUTRAL';
-    const fav = findDef(code)?.favourability ?? 'HIGHER_IS_BETTER';
-    const good = fav === 'HIGHER_IS_BETTER' ? delta > 0 : delta < 0;
-    return good ? 'POSITIVE' : 'NEGATIVE';
-}
-function directionFor(delta) {
-    return delta === 0 ? 'FLAT' : delta > 0 ? 'UP' : 'DOWN';
-}
 function scalar(kind, moneyAmount, num) {
     if (kind === 'MONEY')
         return { kind, amount: moneyAmount ?? '0.00', currency: 'MYR' };

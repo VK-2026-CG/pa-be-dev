@@ -7,6 +7,7 @@
  */
 import type { DataSource } from '../data/source.js';
 import { findAgent } from '../data/registry.js';
+import type { AgentRecord } from '../data/registry.js';
 import { CATALOG } from '../data/catalog.js';
 import { ANCHOR_YEAR, type Lens } from '../data/values.js';
 import type { MemberBadgeCode, TeamMember, TeamMemberDashboard, TeamMemberList, TeamMemberSortBy } from '../types.js';
@@ -17,10 +18,27 @@ export class DomainError extends Error {
   }
 }
 
-function agentForSource(source: DataSource, agentId: string) {
-  const agent = source.findAgent ? source.findAgent(agentId) : findAgent(agentId);
-  if (!agent) throw new DomainError(404, 'INS-4040', 'Unknown agent for tenant');
-  return agent;
+async function agentForSource(source: DataSource, agentId: string) {
+  try {
+    const agent = source.resolveIdentity ? await source.resolveIdentity(agentId) : source.findAgent ? source.findAgent(agentId) : findAgent(agentId);
+    if (!agent) throw new DomainError(404, 'INS-4040', 'Unknown agent for tenant');
+    return agent;
+  } catch (error) {
+    if (error instanceof DomainError) throw error;
+    if (error instanceof Error && error.message === 'Identity hierarchy source read failed') throw new DomainError(503, 'INS-5030', 'Identity source unavailable');
+    if (error instanceof Error && error.message === 'Malformed identity hierarchy') throw new DomainError(500, 'INS-5000', 'Identity data is invalid');
+    throw error;
+  }
+}
+
+async function identityForSource(source: DataSource, agentId: string): Promise<AgentRecord | undefined> {
+  try {
+    return source.resolveIdentity ? await source.resolveIdentity(agentId) : source.findAgent ? source.findAgent(agentId) : findAgent(agentId);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Identity hierarchy source read failed') throw new DomainError(503, 'INS-5030', 'Identity source unavailable');
+    if (error instanceof Error && error.message === 'Malformed identity hierarchy') throw new DomainError(500, 'INS-5000', 'Identity data is invalid');
+    throw error;
+  }
 }
 
 function lensOf(p: LensParams): Lens {
@@ -64,11 +82,13 @@ function teamDashboardLensOf(p: TeamDrilldownParams): Lens {
 export function createInsightsDomain(source: DataSource) {
   const agentOrThrow = (id: string) => agentForSource(source, id);
   return {
+    ownIdentityOnly: source.ownIdentityOnly ?? false,
+    resolveIdentity: async (id: string): Promise<AgentRecord | undefined> => identityForSource(source, id),
     // These payloads cross into the BFF composition layer (`src/bff/compose/*`), which — like the
     // former HTTP domain-client — treats them loosely (`any`) rather than binding to the domain's
     // strict internal types (e.g. `MetricDefinition`'s `capabilities` vs. the composers' `Record<string,boolean>`).
     metrics: async (_caller: string, agentId: string, p: LensParams & { listScope?: string; codes?: string }): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const listScope = (p.listScope ?? 'ALL') as 'PRIORITY' | 'FOCUS' | 'ALL';
       const codes = p.codes ? p.codes.split(',') : undefined;
       const list = await source.metricList(agent, lensOf(p), listScope, codes);
@@ -76,13 +96,13 @@ export function createInsightsDomain(source: DataSource) {
       return list;
     },
     metricDetail: async (_caller: string, agentId: string, code: string, p: LensParams): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const detail = await source.metricDetail(agent, code, lensOf(p));
       if (!detail) throw new DomainError(404, 'INS-4041', 'Metric not in catalog for this lens');
       return detail;
     },
     series: async (_caller: string, agentId: string, code: string, p: LensParams & { anchorYear?: number; yearsBack?: number }): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const anchorYear = p.anchorYear ?? ANCHOR_YEAR;
       const yearsBack = p.yearsBack ?? 2;
       const s = await source.metricSeries(agent, code, lensOf(p), anchorYear, yearsBack);
@@ -90,34 +110,34 @@ export function createInsightsDomain(source: DataSource) {
       return s;
     },
     milestones: async (_caller: string, agentId: string): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       return source.milestones(agent);
     },
     definitions: async (agentId: string): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       return { country: agent.tenant, items: CATALOG };
     },
     preferences: async (_caller: string, agentId: string, scope: string): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       return source.getPreferences(agent, scope as Lens['scope'], 'STANDARD');
     },
     putPreferences: async (_caller: string, agentId: string, scope: string, body: unknown) => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const res = await source.putPreferences(agent, scope as Lens['scope'], 'STANDARD', body as { priorityMetricCodes: string[]; focusMetricCodes: string[] });
       if (!res.ok) throw new DomainError(422, res.error.code, 'Preference validation failed');
       return res.prefs;
     },
     recommendations: async (_caller: string, agentId: string, scope: string): Promise<any> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       return source.recommendations(agent, scope as Lens['scope']);
     },
     feedback: async (_caller: string, agentId: string, recommendationId: string, rating: 'UP' | 'DOWN'): Promise<void> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const ok = await source.recordFeedback(agent, recommendationId, rating);
       if (!ok) throw new DomainError(404, 'INS-4042', 'Unknown recommendation');
     },
     listTeamMembers: async (_caller: string, agentId: string, p: TeamDrilldownParams): Promise<TeamMemberList> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const list = await source.listTeamMembers(agent, {
         teamView: (p.teamView ?? 'DIRECT') as 'DIRECT' | 'GROUP',
         ...(p.basis ? { basis: p.basis as 'AGENT' | 'AM' | 'UM' } : {}),
@@ -132,7 +152,7 @@ export function createInsightsDomain(source: DataSource) {
     },
     /** Downline membership check (D-14) + the record used to compose a viewed member's dashboard. */
     findTeamMember: async (_caller: string, agentId: string, memberAgentId: string): Promise<{ member: TeamMember; agentId: string; level: 'P2' | 'P3' | 'P4' }> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const found = await source.findTeamMember(agent, memberAgentId, { period: 'YTD', businessLine: 'ALL', basis: 'STANDARD', scope: 'SELF' });
       if (!found) throw new DomainError(403, 'INS-4030', 'Member is not in the caller\'s downline');
       return { member: found.member, agentId: found.record.agentId, level: found.record.level };
@@ -143,7 +163,7 @@ export function createInsightsDomain(source: DataSource) {
       memberAgentId: string,
       p: TeamDrilldownParams,
     ): Promise<TeamMemberDashboard> => {
-      const agent = agentOrThrow(agentId);
+      const agent = await agentOrThrow(agentId);
       const detail = await source.getTeamMemberDashboard(agent, memberAgentId, teamDashboardLensOf(p));
       if (!detail) throw new DomainError(404, 'INS-4040', 'Unknown team member for leader');
       return detail;

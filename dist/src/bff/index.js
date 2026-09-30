@@ -11,6 +11,6 @@ import { registerContestAdminRoutes } from './routes/contest-admin.js';
 export function registerBffRoutes(app, source) {
     const insightsDomain = createInsightsDomain(source);
     initContestDomainClient(app);
-    registerPerformanceRoutes(app, insightsDomain, source);
+    registerPerformanceRoutes(app, insightsDomain);
     registerContestAdminRoutes(app);
 }

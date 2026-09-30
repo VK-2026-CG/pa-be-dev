@@ -39,12 +39,15 @@ function problem(reply: FastifyReply, status: number, code: string, title: strin
 interface Caller { agent: AgentRecord }
 
 /** Stub auth: trusts x-agent-id / x-tenant headers (the BFF's stub JWT). */
-function callerFor(req: FastifyRequest, reply: FastifyReply, resolveAgent: typeof findAgent, ownIdentityOnly = false): Caller | null {
+type IdentityResolver = (id: string) => Promise<AgentRecord | undefined>;
+
+async function callerFor(req: FastifyRequest, reply: FastifyReply, resolveAgent: IdentityResolver, ownIdentityOnly = false): Promise<Caller | null> {
   if (ownIdentityOnly && (!req.headers['x-agent-id'] || (req.headers['x-tenant'] && req.headers['x-tenant'] !== 'MY'))) {
     void problem(reply, 401, 'INS-4010', 'Development identity required'); return null;
   }
   const agentId = (req.headers['x-agent-id'] as string | undefined) ?? 'A1001';
-  const agent = resolveAgent(agentId);
+  let agent: AgentRecord | undefined;
+  try { agent = await resolveAgent(agentId); } catch { problem(reply, 503, 'INS-5030', 'Identity source unavailable'); return null; }
   if (!agent) {
     void problem(reply, 401, 'INS-4010', 'Unknown caller identity');
     return null;
@@ -61,10 +64,11 @@ interface LensQuery {
 }
 
 /** Parse + authorize the standard lens params. Returns null after replying on error. */
-function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply, resolveAgent: typeof findAgent, ownIdentityOnly = false): (Lens & Caller) | null {
-  const c = callerFor(req, reply, resolveAgent, ownIdentityOnly);
+async function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply, resolveAgent: IdentityResolver, ownIdentityOnly = false): Promise<(Lens & Caller) | null> {
+  const c = await callerFor(req, reply, resolveAgent, ownIdentityOnly);
   if (!c) return null;
-  const pathAgent = resolveAgent(req.params.agentId);
+  let pathAgent: AgentRecord | undefined;
+  try { pathAgent = await resolveAgent(req.params.agentId); } catch { problem(reply, 503, 'INS-5030', 'Identity source unavailable'); return null; }
   if (!pathAgent) { void problem(reply, 404, 'INS-4040', 'Unknown agent for tenant'); return null; }
   if (pathAgent.agentId !== c.agent.agentId && c.agent.level === 'P4') {
     void problem(reply, 403, 'INS-4030', 'Agent may only read own data'); return null;
@@ -94,8 +98,7 @@ function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId
 }
 
 export function buildApp(source: DataSource, specContestRepository = new SpecContestRepository(),brochureStore:ContestBrochureStore=createContestBrochureStore(),inferenceProvider:ContestBrochureInferenceProvider=createBrochureInferenceProvider()) {
-  // Caller identity: login allowlist only (the Team Drilldown mock overlay adds non-login mock members to findAgent).
-  const resolveAgent = (source.findIdentityAgent ?? source.findAgent)?.bind(source) ?? findAgent;
+  const resolveAgent: IdentityResolver = (id) => source.resolveIdentity ? source.resolveIdentity(id) : Promise.resolve(source.findAgent?.(id) ?? findAgent(id));
   const caller = (req: FastifyRequest, reply: FastifyReply) => callerFor(req, reply, resolveAgent, source.ownIdentityOnly);
   const lens = (req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply) => lensFor(req, reply, resolveAgent, source.ownIdentityOnly);
   const app = Fastify({ logger: false });
@@ -122,7 +125,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.get<{ Params: { agentId: string }; Querystring: LensQuery & { scope2?: string; codes?: string; listScope?: string } }>(
     '/insights/v1/agents/:agentId/metrics',
     async (req, reply) => {
-      const l = lens(req, reply); if (!l) return;
+      const l = await lens(req, reply); if (!l) return;
       const raw = (req.query as Record<string, string | undefined>);
       const listScope = (raw.listScope ?? 'ALL') as 'PRIORITY' | 'FOCUS' | 'ALL';
       const codes = raw.codes ? raw.codes.split(',') : undefined;
@@ -135,7 +138,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.get<{ Params: { agentId: string; metricCode: string }; Querystring: LensQuery }>(
     '/insights/v1/agents/:agentId/metrics/:metricCode',
     async (req, reply) => {
-      const l = lens(req, reply); if (!l) return;
+      const l = await lens(req, reply); if (!l) return;
       const detail = await source.metricDetail(l.agent, req.params.metricCode, l);
       if (!detail) return problem(reply, 404, 'INS-4041', 'Metric not in catalog for this lens', req.params.metricCode);
       return detail;
@@ -145,7 +148,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.get<{ Params: { agentId: string; metricCode: string }; Querystring: LensQuery & { anchorYear?: string; yearsBack?: string } }>(
     '/insights/v1/agents/:agentId/metrics/:metricCode/series',
     async (req, reply) => {
-      const l = lens(req, reply); if (!l) return;
+      const l = await lens(req, reply); if (!l) return;
       const anchorYear = req.query.anchorYear ? Number(req.query.anchorYear) : ANCHOR_YEAR;
       const yearsBack = req.query.yearsBack !== undefined ? Number(req.query.yearsBack) : 2;
       if (!Number.isInteger(yearsBack) || yearsBack < 0 || yearsBack > 4) {
@@ -160,23 +163,26 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.get<{ Params: { agentId: string }; Querystring: { scope?: string; variant?: string } }>(
     '/insights/v1/agents/:agentId/milestones',
     async (req, reply) => {
-      const c = caller(req, reply); if (!c) return;
-      if (!resolveAgent(req.params.agentId)) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
+      const c = await caller(req, reply); if (!c) return;
+      let target: AgentRecord | undefined;
+      try { target = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
+      if (!target) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       // Milestones are personal, scope-invariant (AC-P4-01-12/-20, OQ-10).
       return source.milestones(c.agent);
     },
   );
 
   app.get('/insights/v1/metric-definitions', async (req, reply) => {
-    const c = caller(req, reply); if (!c) return;
+    const c = await caller(req, reply); if (!c) return;
     return { country: c.agent.tenant, items: CATALOG };
   });
 
   app.get<{ Params: { agentId: string }; Querystring: { scope?: string; basis?: string } }>(
     '/insights/v1/agents/:agentId/metric-preferences',
     async (req, reply) => {
-      const c = caller(req, reply); if (!c) return;
-      const agent = resolveAgent(req.params.agentId);
+      const c = await caller(req, reply); if (!c) return;
+      let agent: AgentRecord | undefined;
+      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       const basis = (req.query.basis ?? 'STANDARD') as Basis;
@@ -188,8 +194,9 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.put<{ Params: { agentId: string }; Querystring: { scope?: string; basis?: string }; Body: { priorityMetricCodes?: unknown; focusMetricCodes?: unknown } }>(
     '/insights/v1/agents/:agentId/metric-preferences',
     async (req, reply) => {
-      const c = caller(req, reply); if (!c) return;
-      const agent = resolveAgent(req.params.agentId);
+      const c = await caller(req, reply); if (!c) return;
+      let agent: AgentRecord | undefined;
+      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       const basis = (req.query.basis ?? 'STANDARD') as Basis;
@@ -208,8 +215,9 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.get<{ Params: { agentId: string }; Querystring: { scope?: string; context?: string } }>(
     '/insights/v1/agents/:agentId/recommendations',
     async (req, reply) => {
-      const c = caller(req, reply); if (!c) return;
-      const agent = resolveAgent(req.params.agentId);
+      const c = await caller(req, reply); if (!c) return;
+      let agent: AgentRecord | undefined;
+      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       return source.recommendations(agent, scope);
@@ -219,8 +227,9 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
   app.post<{ Params: { agentId: string; recommendationId: string }; Body: { rating?: unknown } }>(
     '/insights/v1/agents/:agentId/recommendations/:recommendationId/feedback',
     async (req, reply) => {
-      const c = caller(req, reply); if (!c) return;
-      const agent = resolveAgent(req.params.agentId);
+      const c = await caller(req, reply); if (!c) return;
+      let agent: AgentRecord | undefined;
+      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const rating = req.body?.rating;
       if (rating !== 'UP' && rating !== 'DOWN') {

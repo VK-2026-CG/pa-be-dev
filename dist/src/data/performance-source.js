@@ -1,71 +1,230 @@
 import { effectiveCatalog } from './catalog.js';
 import { getPreferences, putPreferences } from './preferences.js';
-import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DB, PERFORMANCE_READ_TIMEOUT_MS } from '../config/performance.js';
+import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_READ_TIMEOUT_MS } from '../config/performance.js';
 import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
 import { sourceMetricScalar } from './performance-values.js';
+import { changeFor } from './change.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
-import { contextFor, metricList as stubMetricList, metricSeries as stubMetricSeries, milestones as stubMilestones, mockFillDetail, } from './values.js';
-import { recommendations as stubRecommendations, recordFeedback as stubRecordFeedback } from './recommendations.js';
-import { mockTeamMemberDashboard, mockTeamMembers } from './mocks/team-members.js';
-import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 const at = (row, path) => path.split('.').reduce((v, key) => v && typeof v === 'object' ? v[key] : undefined, row);
 const periodRank = (row) => performanceRecordMetadata(row).rank;
+const zeroScalar = (kind) => kind === 'MONEY'
+    ? { kind, amount: '0.00', currency: 'MYR' }
+    : kind === 'COUNT' ? { kind, value: 0 }
+        : kind === 'PERCENT' ? { kind, value: 0 }
+            : { kind, value: 0, precision: 1 };
+const isMissingMetricValue = (row, path) => {
+    const value = at(row, path);
+    return value === null || value === undefined;
+};
+const zeroChange = (code, kind) => {
+    const base = { basis: 'LAST_YEAR', direction: 'FLAT', sentiment: 'NEUTRAL' };
+    const display = effectiveCatalog('SELF', 'STANDARD').find(def => def.metricCode === code)?.changeDisplay;
+    if (kind === 'MONEY')
+        return display === 'ABS'
+            ? { ...base, abs: { kind, amount: '0.00', currency: 'MYR' } }
+            : { ...base, pct: 0 };
+    if (kind === 'PERCENT')
+        return display === 'PCT' ? { ...base, pct: 0 } : { ...base, pp: 0 };
+    if (kind === 'COUNT')
+        return display === 'ABS' ? { ...base, abs: { kind, value: 0 } } : { ...base, pct: 0 };
+    return { ...base, pct: 0 };
+};
+/** SPEC-2026-002 0.5.0-draft: businessLine picks the database; `entity` is always the database's own
+ * literal name ('PAMB' in PAMB, 'PBTB' in PBTB) on every row regardless of `agentType`. */
+const databaseKeyFor = (businessLine) => businessLine === 'TAKAFUL' ? 'PBTB' : 'PAMB';
+/**
+ * INTERIM (requester, 2026-09-29): `agentType` genuinely varies per agent (PAMB-only 'PAMB' vs also-Takaful-
+ * licensed 'HYBRID' in the PAMB database), but real data has only one production row per agent/period, not
+ * the two (one PAMB-tagged, one HYBRID-tagged) the requester expects the eventual source to supply. Filtering
+ * `INSURANCE` to `agentType: 'PAMB'` therefore 404s every Hybrid-licensed agent under `INSURANCE`, since they
+ * have no such row. Until the data team confirms the real two-record shape, `INSURANCE` and `ALL` both return
+ * the same `entity`-matched row regardless of `agentType` — they are not yet distinguishable per-agent.
+ * `entity` always equals the database key itself (`databaseKeyFor`), so no separate value table is needed.
+ */
+const entityFor = (businessLine) => databaseKeyFor(businessLine);
 /** Guarded development adapter; no canonical/legacy collection fallback. */
 export class PerformanceSource {
-    db;
+    dbs;
     agents;
     log;
-    devMockFallback;
+    hierarchyEnabled;
     kind = 'performance';
     ownIdentityOnly = true;
-    constructor(db, agents, log = () => { }, 
-    /**
-     * DEV-ONLY opt-in (`INSIGHTS_DEV_MOCK_FALLBACK=true` + `NODE_ENV=development`):
-     * Mongo first; anything it cannot supply is filled from the stub engine. Real values are never replaced.
-     */
-    devMockFallback = false) {
-        this.db = db;
+    constructor(dbs, agents, log = () => { }, 
+    /** Kept for constructor compatibility; Mongo mode never reads from mock fallback data. */
+    _deprecatedDevMockFallback = false, hierarchyEnabled = false) {
+        this.dbs = dbs;
         this.agents = agents;
         this.log = log;
-        this.devMockFallback = devMockFallback;
-        if (db.databaseName !== PERFORMANCE_DB)
+        this.hierarchyEnabled = hierarchyEnabled;
+        if (dbs.PAMB.databaseName !== PERFORMANCE_DATABASES.PAMB || dbs.PBTB.databaseName !== PERFORMANCE_DATABASES.PBTB) {
             throw new Error('Invalid Performance source database');
+        }
+        void _deprecatedDevMockFallback;
     }
     findAgent = (id) => this.agents.get(id);
-    async latest(agent, aggregation) {
-        if (agent.tenant !== 'MY' || !this.agents.has(agent.agentId))
-            throw new Error('Identity not allowed in Performance profile');
+    async resolveIdentity(agentId) {
+        if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId))
+            return undefined;
+        for (const key of ['PAMB', 'PBTB']) {
+            try {
+                const rows = await this.dbs[key].collection('my_agent_hierarchy').find({ 'hierarchy.leaderId': agentId }, { projection: { _id: 1, 'hierarchy.leaderId': 1, 'displayRows.tier': 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS }).sort({ asOnDate: -1, 'audit.updatedAt': -1, _id: -1 }).limit(1).toArray();
+                const row = rows[0];
+                if (!row)
+                    continue;
+                if (row.hierarchy?.leaderId !== agentId)
+                    throw new Error('Malformed identity hierarchy');
+                const tier = row.displayRows?.tier;
+                const level = tier === 'AM' ? 'P2' : ['UM', 'UM1', 'UM2'].includes(tier) ? 'P3' : tier === 'AGENT' ? 'P4' : undefined;
+                if (!level)
+                    throw new Error('Malformed identity hierarchy');
+                return { agentId, tenant: 'MY', level, name: agentId };
+            }
+            catch (error) {
+                if (error instanceof Error && error.message === 'Malformed identity hierarchy')
+                    throw error;
+                throw new Error('Identity hierarchy source read failed');
+            }
+        }
+        return undefined;
+    }
+    async getAgentOrganization(agentId) {
+        if (!this.hierarchyEnabled)
+            return undefined;
+        const find = async (key, id) => {
+            const rows = await this.dbs[key].collection('my_agent_hierarchy').find({ 'hierarchy.leaderId': id }, { projection: { _id: 1, 'hierarchy.leaderId': 1, 'subtree.scopeProfileIds': 1, 'displayRows.tier': 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS }).sort({ asOnDate: -1, 'audit.updatedAt': -1, _id: -1 }).limit(1).toArray();
+            return rows[0];
+        };
+        let key = 'PAMB';
+        try {
+            let root = await find('PAMB', agentId);
+            if (!root) {
+                key = 'PBTB';
+                root = await find('PBTB', agentId);
+            }
+            if (!root)
+                return undefined;
+            const seen = new Set();
+            const build = async (id, row, ancestors) => {
+                if (ancestors.has(id))
+                    throw new Error('Hierarchy cycle');
+                seen.add(id);
+                if (!row)
+                    return { agentId: id, displayName: id, reports: [] };
+                const leaderId = row.hierarchy?.leaderId;
+                const refs = row.subtree?.scopeProfileIds;
+                if (leaderId !== id || !Array.isArray(refs) || refs.some((value) => typeof value !== 'string'))
+                    throw new Error('Malformed hierarchy');
+                const rawTier = row.displayRows?.tier;
+                const tier = rawTier === 'AM' ? 'P2' : ['UM', 'UM1', 'UM2'].includes(rawTier) ? 'P3' : rawTier === 'AGENT' ? 'P4' : undefined;
+                if (!tier)
+                    throw new Error('Malformed hierarchy');
+                const next = new Set(ancestors).add(id);
+                const reports = [];
+                for (const reportId of refs) {
+                    if (ancestors.has(reportId) || reportId === id)
+                        throw new Error('Hierarchy cycle');
+                    if (seen.has(reportId))
+                        continue;
+                    reports.push(await build(reportId, await find(key, reportId), next));
+                }
+                return { agentId: id, displayName: id, ...(tier ? { tier } : {}), reports };
+            };
+            if (!root.subtree || !Array.isArray(root.subtree.scopeProfileIds))
+                throw new Error('Malformed hierarchy');
+            return await build(agentId, root, new Set());
+        }
+        catch (error) {
+            if (error instanceof Error && ['Hierarchy cycle', 'Malformed hierarchy'].includes(error.message))
+                throw error;
+            throw new Error('Hierarchy source read failed');
+        }
+    }
+    async latest(agent, businessLine, aggregation) {
+        if (agent.tenant !== 'MY' || !/^[A-Za-z0-9_-]{1,40}$/.test(agent.agentId))
+            throw new Error('Invalid Performance identity');
+        const db = this.dbs[databaseKeyFor(businessLine)];
+        const entity = entityFor(businessLine);
         const entries = await Promise.all(PERFORMANCE_COLLECTIONS.map(async (name) => {
             const keys = PERFORMANCE_SOURCE_KEYS[name];
-            const query = { [keys.identity]: agent.agentId, entity: 'PAMB' };
+            const query = { [keys.identity]: agent.agentId, entity };
             if (aggregation)
                 query[keys.aggregation] = aggregation;
             if (name === 'my_production')
-                query.case_status = 'Collected';
+                query[keys.caseStatus] = 'Collected';
             // Only fields necessary for mapping; names, identifiers and vault data never leave Mongo.
             let docs;
             try {
-                docs = await this.db.collection(name).find(query, {
+                docs = await db.collection(name).find(query, {
                     projection: { _id: 0, period: 1, asOnDate: 1, ptd: 1, metrics: 1 },
                     maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS,
-                }).sort({ 'period.year': -1, 'period.month': -1, asOnDate: -1, 'audit.updatedAt': -1, id: 1, _id: 1 }).limit(1).toArray();
+                }).sort({ 'period.year': -1, 'period.month': -1, id: -1, _id: -1 }).limit(1).toArray();
             }
             catch {
                 // Driver messages can expose hosts, query arguments or credentials.
                 throw new Error('Performance source read failed');
             }
-            this.log(`performance read: agent=${agent.agentId} collection=${name} aggregation=${aggregation ?? 'none'} found=${Boolean(docs[0])}`);
+            this.log(`performance read: agent=${agent.agentId} collection=${name} businessLine=${businessLine} aggregation=${aggregation ?? 'none'} found=${Boolean(docs[0])}`);
             if (docs[0])
                 performanceRecordMetadata(docs[0]);
             return [name, docs[0]];
         }));
         return Object.fromEntries(entries.filter(([, row]) => row));
     }
+    /**
+     * Same identity/aggregation/type as `latest()`, restricted to one collection and one prior
+     * reporting month. Picks the closest-not-exceeding `asOnMonthDay` (undeclared ⇒ month-end, same
+     * convention `selection()` uses) so a still-partial current month is never compared against an
+     * already-closed prior-year month — no row at or before that day ⇒ undefined, comparison unavailable.
+     */
+    async priorYearRow(agent, businessLine, aggregation, collection, year, month, notAfterDay) {
+        if (agent.tenant !== 'MY' || !this.agents.has(agent.agentId))
+            throw new Error('Identity not allowed in Performance profile');
+        const db = this.dbs[databaseKeyFor(businessLine)];
+        const entity = entityFor(businessLine);
+        const keys = PERFORMANCE_SOURCE_KEYS[collection];
+        const query = { [keys.identity]: agent.agentId, entity, 'period.year': year, 'period.month': month };
+        if (aggregation)
+            query[keys.aggregation] = aggregation;
+        if (collection === 'my_production')
+            query[keys.caseStatus] = 'Collected';
+        let docs;
+        try {
+            docs = await db.collection(collection).find(query, {
+                projection: { _id: 0, period: 1, asOnDate: 1, ptd: 1, metrics: 1 },
+                maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS,
+            }).sort({ id: -1, _id: -1 }).toArray();
+        }
+        catch {
+            throw new Error('Performance source read failed');
+        }
+        const monthEnd = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        const eligible = docs
+            .map(row => ({ row, day: performanceRecordMetadata(row).day ?? monthEnd }))
+            .filter(({ day }) => day <= notAfterDay)
+            .sort((a, b) => b.day - a.day);
+        return eligible[0]?.row;
+    }
+    /** Several catalog metrics share one collection (e.g. TPC/PTPC/FYP/FYC/CASE_COUNT all read my_production) — cache per request so metricList doesn't re-query the same collection once per metric. */
+    priorYearRowCached(cache, agent, businessLine, aggregation, collection, year, month, notAfterDay) {
+        const key = `${collection}|${year}|${month}|${notAfterDay}|${aggregation ?? ''}`;
+        let promise = cache.get(key);
+        if (!promise) {
+            promise = this.priorYearRow(agent, businessLine, aggregation, collection, year, month, notAfterDay);
+            cache.set(key, promise);
+        }
+        return promise;
+    }
     async selection(agent, lens) {
-        const supported = lens.businessLine === 'INSURANCE' && lens.basis === 'STANDARD'
-            && (lens.scope === 'SELF' || lens.teamView === 'GROUP');
-        const available = await this.latest(agent, lens.scope === 'SELF' ? 'Personal' : 'Group');
-        const contexts = Object.values(available).length ? available : await this.latest(agent);
+        // v0.4.0-draft: businessLine is always routed to a real database now (see databaseKeyFor/agentTypeFor).
+        // TEAM aggregates by teamView: DIRECT -> 'DirectUnit', GROUP -> 'Group' (both confirmed present in
+        // Mongo agentAggregation values, camelCase across all three collections). SCHEME basis remains an unsupported placeholder
+        // (OQ-20, see catalog.ts) and still gates to EMPTY.
+        const basisSupported = lens.basis === 'STANDARD';
+        const aggregation = lens.scope === 'SELF' ? 'Personal' : lens.teamView === 'GROUP' ? 'Group' : 'DirectUnit';
+        const withAggregation = await this.latest(agent, lens.businessLine, aggregation);
+        const found = Object.values(withAggregation).length > 0;
+        const contexts = found ? withAggregation : await this.latest(agent, lens.businessLine);
         const all = Object.values(contexts);
         if (!all.length)
             throw new PerformanceSourceNotFound();
@@ -78,26 +237,15 @@ export class PerformanceSource {
         const day = declaredDay ?? lastDay;
         const startMonth = lens.period === 'YTD' ? 1 : lens.period === 'QTD' ? Math.floor((month - 1) / 3) * 3 + 1 : month;
         const date = (m, d) => `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const rows = supported ? Object.fromEntries(Object.entries(available).filter(([, row]) => periodRank(row) === rank)) : {};
+        const rows = basisSupported ? Object.fromEntries(Object.entries(withAggregation).filter(([, row]) => periodRank(row) === rank)) : {};
         return {
-            rows,
+            rows, year, month, day, aggregation: found ? aggregation : undefined,
             context: { period: { type: lens.period, startDate: date(startMonth, 1), endDate: date(month, day) },
                 businessLine: lens.businessLine, basis: lens.basis, scope: lens.scope,
                 ...(lens.scope === 'TEAM' ? { teamView: lens.teamView ?? 'DIRECT' } : {}),
-                asOfDate: current.map(row => performanceRecordMetadata(row).asOfDate).sort()[0] },
+                // v0.4.0-draft (AC-PA-DIRECT-29): asOfDate is the period end date, never the asOnDate watermark.
+                asOfDate: date(month, day) },
         };
-    }
-    /** `selection`, but with the DEV fallback an agent with no Mongo rows gets the stub context instead of a 404. */
-    async selectionOrMock(agent, lens) {
-        try {
-            return await this.selection(agent, lens);
-        }
-        catch (error) {
-            if (!this.devMockFallback || !(error instanceof PerformanceSourceNotFound))
-                throw error;
-            this.log(`performance DEV MOCK fallback: agent=${agent.agentId} no source rows, using stub context`);
-            return { rows: {}, context: contextFor(lens) };
-        }
     }
     value(def, rows, lens, repriced = false) {
         const mapping = PERFORMANCE_METRIC_MAPPING[def.metricCode];
@@ -106,8 +254,26 @@ export class PerformanceSource {
         const path = performanceMetricPath(mapping, lens.period, repriced);
         return path ? sourceMetricScalar(def.valueType, at(rows[mapping.collection], path), mapping.fraction) : undefined;
     }
+    /** Same identity/aggregation as the current-period read, one year back, day-aligned per `priorYearRow()`. `cache` de-dupes reads across metrics sharing a collection within one request (see `priorYearRowCached`). */
+    async comparisonFor(def, agent, lens, current, year, month, day, aggregation, cache) {
+        const mapping = PERFORMANCE_METRIC_MAPPING[def.metricCode];
+        if (!mapping)
+            return undefined;
+        const priorRow = await this.priorYearRowCached(cache, agent, lens.businessLine, aggregation, mapping.collection, year - 1, month, day);
+        if (!priorRow)
+            return undefined;
+        const path = performanceMetricPath(mapping, lens.period);
+        if (path && isMissingMetricValue(priorRow, path)) {
+            const prior = zeroScalar(def.valueType);
+            return { current, prior, priorYear: year - 1, change: zeroChange(def.metricCode, def.valueType) };
+        }
+        const prior = this.value(def, { [mapping.collection]: priorRow }, lens);
+        if (prior)
+            return { current, prior, priorYear: year - 1, change: changeFor(def.metricCode, current, prior) };
+        return undefined;
+    }
     async metricList(agent, lens, listScope, codes) {
-        const { rows, context } = await this.selectionOrMock(agent, lens);
+        const { rows, context } = await this.selection(agent, lens);
         const items = effectiveCatalog(lens.scope, lens.basis)
             .filter(def => codes?.length ? codes.includes(def.metricCode) : listScope === 'ALL' || def.effCategory === listScope)
             .map((def) => {
@@ -116,104 +282,79 @@ export class PerformanceSource {
                 ...(def.capabilities.repricing ? { variant: 'WITHOUT_REPRICING' } : {}),
                 dataState: collected ? 'OK' : 'EMPTY', ...(collected ? { collected, goal: { state: 'NOT_SET' } } : {}) };
         });
-        if (!this.devMockFallback)
-            return { context, items };
-        const stub = new Map(stubMetricList(lens, listScope, codes).items.map(item => [item.metricCode, item]));
-        const filled = [];
-        const merged = items.map((item) => {
-            const mock = item.dataState === 'EMPTY' ? stub.get(item.metricCode) : undefined;
-            if (!mock)
-                return item;
-            filled.push(item.metricCode);
-            return { ...mock, dataState: 'OK', asOfDate: context.asOfDate };
-        });
-        if (filled.length)
-            this.log(`performance DEV MOCK fallback: agent=${agent.agentId} list filled=${filled.join(',')}`);
-        return { context, items: merged };
+        return { context, items };
     }
     async metricDetail(agent, code, lens) {
         const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);
         if (!def)
             return undefined;
-        const { rows, context } = await this.selectionOrMock(agent, lens);
+        const { rows, context, year, month, day, aggregation } = await this.selection(agent, lens);
+        const priorYear = year - 1;
         const collected = this.value(def, rows, lens);
+        const detailComparison = collected && !['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2'].includes(code);
+        const comparison = detailComparison ? (await this.comparisonFor(def, agent, lens, collected, year, month, day, aggregation, new Map()) ?? {
+            current: collected,
+            prior: zeroScalar(def.valueType),
+            priorYear,
+            change: zeroChange(code, def.valueType),
+        }) : undefined;
         const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
-        // v1.7.0 (AC-P4-02-32) / v1.20.0 (AC-P4-02-58): Penders case count for TPC/PTPC at SELF
-        // and TEAM. No collection here materializes this yet (mongodb.md v1.7.0 D-19, OQ-77) —
-        // mock-sourced until it does, same interim source as the stub engine in values.ts; never
-        // derived from a money field.
-        const pendersCaseCount = collected && def.capabilities.repricing
-            ? mockTeamPendersCaseCount(code, lens.scope === 'TEAM' ? (lens.teamView ?? 'DIRECT') : 'SELF')
-            : undefined;
         const detail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
             ...(collected ? { primary: { variant: 'WITHOUT_REPRICING', collected } } : {}),
             ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING', collected: alt }] } : {}),
-            ...(collected && def.threshold ? { threshold: def.threshold } : {}),
-            ...(pendersCaseCount !== undefined ? { pendersCaseCount } : {}) };
-        if (!this.devMockFallback)
-            return detail;
-        const { detail: filledDetail, filled } = mockFillDetail(code, lens, detail);
-        if (filled.length)
-            this.log(`performance DEV MOCK fallback: agent=${agent.agentId} metric=${code} filled=${filled.join(',')}`);
-        return filledDetail;
+            ...(comparison ? { comparison } : {}),
+            ...(collected && def.threshold ? { threshold: def.threshold } : {}) };
+        return detail;
     }
     async metricSeries(agent, code, lens, anchorYear, yearsBack) {
         const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);
         if (!def?.capabilities.history)
             return undefined;
-        const { context } = await this.selectionOrMock(agent, lens);
+        const { context } = await this.selection(agent, lens);
         const seriesContext = { businessLine: context.businessLine, basis: context.basis, scope: context.scope,
             ...(context.teamView ? { teamView: context.teamView } : {}), asOfDate: context.asOfDate };
-        // No source collection materializes monthly history; the DEV fallback supplies the stub series.
-        const stub = this.devMockFallback ? stubMetricSeries(code, lens, anchorYear, yearsBack) : undefined;
-        if (stub) {
-            this.log(`performance DEV MOCK fallback: agent=${agent.agentId} metric=${code} filled=history`);
-            return { ...stub, context: seriesContext };
-        }
+        // The source collections have no monthly history; return null points rather than synthetic values.
         return { metricCode: code, valueType: def.valueType, context: seriesContext, anchorYear,
             series: Array.from({ length: yearsBack + 1 }, (_, offset) => ({ year: anchorYear - offset,
                 points: Array.from({ length: 12 }, (_, month) => ({ month: month + 1, value: null })) })) };
     }
     async milestones(agent) {
-        const { context } = await this.selectionOrMock(agent, { period: 'YTD', scope: 'SELF', basis: 'STANDARD', businessLine: 'INSURANCE' });
-        if (!this.devMockFallback)
-            return { asOfDate: context.asOfDate, items: [] };
-        this.log(`performance DEV MOCK fallback: agent=${agent.agentId} filled=milestones`);
-        return { ...stubMilestones(), asOfDate: context.asOfDate };
+        const { context } = await this.selection(agent, { period: 'YTD', scope: 'SELF', basis: 'STANDARD', businessLine: 'INSURANCE' });
+        return { asOfDate: context.asOfDate, items: [] };
     }
     async getPreferences(agent, scope, basis) { return getPreferences(agent.tenant, agent.agentId, scope, basis); }
     async putPreferences(agent, scope, basis, body) {
         return putPreferences(agent.tenant, agent.agentId, scope, basis, body);
     }
-    async recommendations(agent, scope = 'SELF') {
-        if (this.devMockFallback) {
-            this.log(`performance DEV MOCK fallback: agent=${agent.agentId} filled=recommendations`);
-            return stubRecommendations(agent.agentId, scope);
-        }
+    async recommendations(agent, _scope = 'SELF') {
+        void agent;
         const { asOfDate } = await this.milestones(agent);
         return { items: [], generatedAt: `${asOfDate}T00:00:00Z` };
     }
-    async recordFeedback(agent, recommendationId, rating) {
-        if (!this.devMockFallback || !agent || !recommendationId || !rating)
-            return false;
-        return stubRecordFeedback(agent.agentId, recommendationId, rating);
+    async recordFeedback(_agent, _recommendationId, _rating) {
+        return false;
     }
-    async listTeamMembers(agent, _teamView, basis, query) {
-        const base = [
-            { agentId: agent.agentId, displayName: agent.name, roleCode: basis },
-        ];
-        const normalized = query?.trim().toLowerCase() ?? '';
-        const items = base
-            .filter((m) => !normalized || m.agentId.toLowerCase().includes(normalized) || m.displayName.toLowerCase().includes(normalized))
-            .map((m) => ({ ...m, hierarchyBasis: basis }));
-        // No source collection holds the hierarchy; the DEV fallback appends the stub roster after the real self entry.
-        if (this.devMockFallback)
-            items.push(...mockTeamMembers(basis, query).items.filter((m) => m.agentId !== agent.agentId));
-        return { asOfDate: '2026-07-27', items };
+    /**
+     * The three approved collections carry no hierarchy, badges, goal status or
+     * direct-report counts (spec OQ-79): the list stays the caller's own row, card
+     * fields are omitted, KPI tiles carry no values, and no subteam is visible.
+     */
+    async listTeamMembers(_agent, req) {
+        if (req.parentMemberAgentId)
+            return undefined;
+        const { context } = await this.selection(_agent, req.lens);
+        const items = [];
+        return {
+            asOfDate: context.asOfDate,
+            ...(req.basis ? { basis: req.basis } : {}),
+            items,
+            summary: ['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE'].map((metricCode) => ({ metricCode })),
+        };
     }
+    async findTeamMember() { return undefined; }
     async getTeamMemberDashboard(agent, memberAgentId, lens) {
         if (memberAgentId !== agent.agentId)
-            return this.devMockFallback ? mockTeamMemberDashboard(memberAgentId, lens) : undefined;
+            return undefined;
         const list = await this.metricList(agent, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
         return {
             member: {

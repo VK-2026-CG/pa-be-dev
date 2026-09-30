@@ -8,13 +8,15 @@ import { DEFAULT_PERSONA, PERSONA_HEADER, PERSONAS, personaById, isLeader } from
  * (e.g. a typo like `LEADER_P4`) is rejected rather than silently defaulted,
  * so a misconfigured client fails loudly instead of quietly running as P2.
  */
-export function getPersona(request, source) {
-    if (source?.ownIdentityOnly) {
+export async function getPersona(request, domain) {
+    if (domain?.ownIdentityOnly) {
         const id = request.headers['x-agent-id'];
-        const agent = typeof id === 'string' ? source.findAgent?.(id) : undefined;
-        if (!agent || (request.headers['x-tenant'] && request.headers['x-tenant'] !== 'MY')) {
+        if (typeof id !== 'string' || (request.headers['x-tenant'] && request.headers['x-tenant'] !== 'MY')) {
             throw Object.assign(new Error('Unknown development identity'), { statusCode: 401, code: 'INS-4010' });
         }
+        const agent = await domain.resolveIdentity(id);
+        if (!agent)
+            throw Object.assign(new Error('Unknown development identity'), { statusCode: 401, code: 'INS-4010' });
         return { id: agent.level === 'P2' ? 'LEADER_P2' : agent.level === 'P3' ? 'LEADER_P3' : 'AGENT_P4',
             agentId: agent.agentId, level: agent.level, label: 'Development mock identity' };
     }

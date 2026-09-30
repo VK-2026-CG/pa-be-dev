@@ -1,9 +1,10 @@
-import { composeDashboard } from '../compose/dashboard.js';
+import { composeDashboard, composeViewingDashboard } from '../compose/dashboard.js';
 import { composeCustomize } from '../compose/customize.js';
 import { composeMetricDetail } from '../compose/metric-detail.js';
 import { composeHistory } from '../compose/history.js';
 import { buildMeta } from '../compose/shared.js';
-import { CONFIG } from '../config.js';
+import { CONFIG, FILTERABLE_BADGES, TEAM_DRILLDOWN_CONFIG } from '../config.js';
+import { composeTeamDrilldown } from '../compose/team-drilldown.js';
 import { isLeader } from '../persona.js';
 import { getPersona as resolvePersona, mapDomainError, parseLens, problem } from '../bff.js';
 function scopeOf(req) {
@@ -47,10 +48,48 @@ function cardFromSnapshot(snap, filters) {
         },
     };
 }
-export function registerPerformanceRoutes(app, domain, source) {
-    const getPersona = (request) => resolvePersona(request, source);
+export function registerPerformanceRoutes(app, domain) {
+    const getPersona = (request) => resolvePersona(request, domain);
+    app.get('/insights/v1/agents/:agentId/organization', async (req, reply) => {
+        const persona = await getPersona(req);
+        if (req.headers['x-tenant'] && req.headers['x-tenant'] !== 'MY')
+            return problem(reply, 401, 'INS-4010', 'Unknown caller identity');
+        if (req.params.agentId !== persona.agentId)
+            return problem(reply, 403, 'INS-4030', 'Agent may only read own organization');
+        if (!isLeader(persona))
+            return problem(reply, 403, 'INS-4030', 'Organization access requires a leader persona');
+        try {
+            return await domain.getAgentOrganization(persona.agentId, req.params.agentId);
+        }
+        catch (error) {
+            return mapDomainError(reply, error);
+        }
+    });
     app.get('/api/bff/v1/performance/dashboard', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
+        const subjectAgentId = req.query.subjectAgentId?.trim();
+        if (subjectAgentId !== undefined) {
+            // S-P4-01 2.1.0 viewing mode (AC-P4-01-82..84): leaders only, downline members only, read-only.
+            if (!isLeader(persona))
+                return problem(reply, 403, 'BFF-4032', 'Viewing a member requires a leader persona');
+            if (!/^[A-Za-z0-9_-]{3,32}$/.test(subjectAgentId))
+                return problem(reply, 400, 'BFF-4000', 'Invalid subjectAgentId', subjectAgentId);
+            // scope/teamView are decided by the member's role, never by the query (AC-P4-01-83).
+            const { scope: _s, teamView: _t, ...query } = req.query;
+            const lens = parseLens(query, persona, reply);
+            if (!lens)
+                return;
+            try {
+                const member = await domain.findTeamMember(persona.agentId, persona.agentId, subjectAgentId);
+                return await composeViewingDashboard(domain, member, { period: lens.period, businessLine: lens.businessLine, basis: lens.basis });
+            }
+            catch (e) {
+                const err = e;
+                if (err.status === 403 && err.code === 'INS-4030')
+                    return problem(reply, 403, 'BFF-4033', 'Member is not in the caller\'s team');
+                return mapDomainError(reply, e);
+            }
+        }
         const lens = parseLens(req.query, persona, reply);
         if (!lens)
             return;
@@ -62,7 +101,7 @@ export function registerPerformanceRoutes(app, domain, source) {
         }
     });
     app.get('/api/bff/v1/performance/customize', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
         const scope = scopeOf(req);
         if (scope === 'TEAM' && !isLeader(persona))
             return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
@@ -74,7 +113,7 @@ export function registerPerformanceRoutes(app, domain, source) {
         }
     });
     app.put('/api/bff/v1/performance/customize', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
         const scope = scopeOf(req);
         if (scope === 'TEAM' && !isLeader(persona))
             return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
@@ -90,7 +129,7 @@ export function registerPerformanceRoutes(app, domain, source) {
         }
     });
     app.get('/api/bff/v1/performance/metrics/:metricCode', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
         const lens = parseLens(req.query, persona, reply);
         if (!lens)
             return;
@@ -102,7 +141,7 @@ export function registerPerformanceRoutes(app, domain, source) {
         }
     });
     app.get('/api/bff/v1/performance/metrics/:metricCode/history', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
         const lens = parseLens(req.query, persona, reply);
         if (!lens)
             return;
@@ -118,7 +157,7 @@ export function registerPerformanceRoutes(app, domain, source) {
         }
     });
     app.post('/api/bff/v1/performance/recommendations/:recommendationId/feedback', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
         const rating = req.body?.rating;
         if (rating !== 'UP' && rating !== 'DOWN')
             return problem(reply, 400, 'BFF-4002', 'rating must be UP or DOWN');
@@ -131,7 +170,7 @@ export function registerPerformanceRoutes(app, domain, source) {
         }
     });
     app.get('/api/bff/v1/performance/team-drilldown', async (req, reply) => {
-        const persona = getPersona(req);
+        const persona = await getPersona(req);
         if (!isLeader(persona))
             return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
         const teamView = (req.query.teamView ?? 'DIRECT');
@@ -140,9 +179,22 @@ export function registerPerformanceRoutes(app, domain, source) {
         if (teamView === 'GROUP' && persona.level !== 'P2') {
             return problem(reply, 403, 'BFF-4031', 'teamView=GROUP requires a P2-level leader');
         }
-        const hierarchyBasis = (req.query.basis ?? 'AGENT');
-        if (hierarchyBasis !== 'AGENT' && hierarchyBasis !== 'AM' && hierarchyBasis !== 'UM') {
+        // 1.6.0: an omitted basis lists every hierarchy level (S-P4-07 "My Team").
+        const hierarchyBasis = req.query.basis;
+        if (hierarchyBasis !== undefined && hierarchyBasis !== 'AGENT' && hierarchyBasis !== 'AM' && hierarchyBasis !== 'UM') {
             return problem(reply, 400, 'BFF-4000', 'Invalid basis', String(req.query.basis));
+        }
+        const sortBy = (req.query.sortBy ?? TEAM_DRILLDOWN_CONFIG.memberList.defaultSortBy);
+        if (!TEAM_DRILLDOWN_CONFIG.memberList.sortByOptions.includes(sortBy)) {
+            return problem(reply, 400, 'BFF-4000', 'Invalid sortBy', String(req.query.sortBy));
+        }
+        const badges = (req.query.badges ?? '').split(',').map((b) => b.trim()).filter(Boolean);
+        const badBadge = badges.find((b) => !FILTERABLE_BADGES.has(b));
+        if (badBadge)
+            return problem(reply, 400, 'BFF-4000', 'Invalid badges', badBadge);
+        const parentAgentId = req.query.parentAgentId?.trim() || undefined;
+        if (parentAgentId && !/^[A-Za-z0-9_-]{3,32}$/.test(parentAgentId)) {
+            return problem(reply, 400, 'BFF-4000', 'Invalid parentAgentId', parentAgentId);
         }
         const period = (req.query.period ?? 'YTD');
         if (period !== 'MTD' && period !== 'QTD' && period !== 'YTD') {
@@ -159,52 +211,50 @@ export function registerPerformanceRoutes(app, domain, source) {
         const search = req.query.query?.trim() || undefined;
         const selectedAgentId = req.query.selectedAgentId?.trim() || undefined;
         try {
-            const members = await domain.listTeamMembers(persona.agentId, persona.agentId, {
+            const vm = await composeTeamDrilldown(domain, persona, {
                 teamView,
-                basis: hierarchyBasis,
-                query: search,
+                ...(hierarchyBasis ? { basis: hierarchyBasis } : {}),
+                ...(search ? { search } : {}),
+                sortBy,
+                badges: badges,
+                ...(parentAgentId ? { parentAgentId } : {}),
+                period,
+                businessLine,
+                performanceBasis,
             });
-            let selectedMember;
+            // 0.1.0 selected-member preview — superseded in the UI by S-P4-01 viewing mode (AC-P4-07-04), kept for compatibility.
             if (selectedAgentId) {
                 const dashboard = await domain.getTeamMemberDashboard(persona.agentId, persona.agentId, selectedAgentId, {
                     teamView,
-                    basis: hierarchyBasis,
+                    ...(hierarchyBasis ? { basis: hierarchyBasis } : {}),
                     period,
                     businessLine,
                     performanceBasis,
                 });
-                selectedMember = {
-                    member: dashboard.member,
-                    context: {
-                        period: dashboard.context.period.type,
-                        businessLine: dashboard.context.businessLine,
-                        basis: dashboard.context.basis,
-                        scope: 'TEAM',
-                        teamView,
-                        asOfDate: dashboard.context.asOfDate,
+                return {
+                    ...vm,
+                    meta: buildMeta('S-P4-07', dashboard.context.asOfDate),
+                    selectedMember: {
+                        member: dashboard.member,
+                        context: {
+                            period: dashboard.context.period.type,
+                            businessLine: dashboard.context.businessLine,
+                            basis: dashboard.context.basis,
+                            scope: 'TEAM',
+                            teamView,
+                            asOfDate: dashboard.context.asOfDate,
+                        },
+                        metrics: dashboard.metrics.map((m) => cardFromSnapshot(m, { period, businessLine, basis: performanceBasis, teamView })),
                     },
-                    metrics: dashboard.metrics.map((m) => cardFromSnapshot(m, {
-                        period,
-                        businessLine,
-                        basis: performanceBasis,
-                        teamView,
-                    })),
                 };
             }
-            const asOfDate = selectedMember?.context.asOfDate ?? members.asOfDate;
-            return {
-                meta: buildMeta('S-P4-07', asOfDate),
-                filters: {
-                    scope: 'TEAM',
-                    teamView,
-                    basis: hierarchyBasis,
-                    ...(search ? { search } : {}),
-                },
-                members: members.items,
-                ...(selectedMember ? { selectedMember } : {}),
-            };
+            return vm;
         }
         catch (e) {
+            const err = e;
+            if (err.status === 403 && err.code === 'INS-4030') {
+                return problem(reply, 403, 'BFF-4033', 'Member is not in the caller\'s team');
+            }
             return mapDomainError(reply, e);
         }
     });

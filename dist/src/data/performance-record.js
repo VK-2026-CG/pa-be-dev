@@ -49,7 +49,17 @@ export function performanceRecordMetadata(row) {
         throw invalidPerformanceMetadata();
     let day;
     if (fields.asOnMonthDay !== undefined && fields.asOnMonthDay !== null) {
-        day = sourceInteger(fields.asOnMonthDay);
+        // Production stores a full UTC date here (not a bare day-of-month like MAPA/persistency);
+        // its own year/month must agree with the declared period, not just its day-of-month.
+        if (fields.asOnMonthDay instanceof Date) {
+            if (!Number.isFinite(fields.asOnMonthDay.getTime())
+                || fields.asOnMonthDay.getUTCFullYear() !== year || fields.asOnMonthDay.getUTCMonth() + 1 !== month)
+                throw invalidPerformanceMetadata();
+            day = fields.asOnMonthDay.getUTCDate();
+        }
+        else {
+            day = sourceInteger(fields.asOnMonthDay);
+        }
         if (day === undefined || !calendarDate(year, month, day))
             throw invalidPerformanceMetadata();
     }

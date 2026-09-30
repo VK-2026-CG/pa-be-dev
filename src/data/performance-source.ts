@@ -8,16 +8,11 @@ import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricP
 import { sourceMetricScalar } from './performance-values.js';
 import { changeFor } from './change.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
-import {
-  contextFor, metricList as stubMetricList, metricSeries as stubMetricSeries, milestones as stubMilestones, mockFillDetail, type Lens,
-} from './values.js';
-import { recommendations as stubRecommendations, recordFeedback as stubRecordFeedback } from './recommendations.js';
-import { mockTeamMemberDashboard, mockTeamMembers } from './mocks/team-members.js';
+import type { Lens } from './values.js';
 import type {
   Basis,
   BusinessLine,
   Change,
-  DrilldownBasis,
   MetricDetail,
   MetricScalar,
   MetricSeries,
@@ -28,7 +23,6 @@ import type {
   TeamMemberList,
   AgentOrganization,
 } from '../types.js';
-import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 
 type Rows = Partial<Record<PerformanceCollection, Document>>;
 type PerformanceDbs = Record<PerformanceDatabaseKey, Db>;
@@ -75,18 +69,39 @@ export class PerformanceSource implements DataSource {
     private readonly dbs: PerformanceDbs,
     private readonly agents: Map<string, AgentRecord>,
     private readonly log: (msg: string) => void = () => {},
-    /**
-     * DEV-ONLY opt-in (`INSIGHTS_DEV_MOCK_FALLBACK=true` + `NODE_ENV=development`):
-     * Mongo first; anything it cannot supply is filled from the stub engine. Real values are never replaced.
-     */
-    private readonly devMockFallback = false,
+    /** Kept for constructor compatibility; Mongo mode never reads from mock fallback data. */
+    _deprecatedDevMockFallback = false,
     private readonly hierarchyEnabled = false,
   ) {
     if (dbs.PAMB.databaseName !== PERFORMANCE_DATABASES.PAMB || dbs.PBTB.databaseName !== PERFORMANCE_DATABASES.PBTB) {
       throw new Error('Invalid Performance source database');
     }
+    void _deprecatedDevMockFallback;
   }
   findAgent = (id: string): AgentRecord | undefined => this.agents.get(id);
+
+  async resolveIdentity(agentId: string): Promise<AgentRecord | undefined> {
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return undefined;
+    for (const key of ['PAMB', 'PBTB'] as const) {
+      try {
+        const rows = await this.dbs[key].collection('my_agent_hierarchy').find(
+          { 'hierarchy.leaderId': agentId },
+          { projection: { _id: 1, 'hierarchy.leaderId': 1, 'displayRows.tier': 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
+        ).sort({ asOnDate: -1, 'audit.updatedAt': -1, _id: -1 }).limit(1).toArray();
+        const row = rows[0];
+        if (!row) continue;
+        if (row.hierarchy?.leaderId !== agentId) throw new Error('Malformed identity hierarchy');
+        const tier = row.displayRows?.tier;
+        const level = tier === 'AM' ? 'P2' : ['UM', 'UM1', 'UM2'].includes(tier) ? 'P3' : tier === 'AGENT' ? 'P4' : undefined;
+        if (!level) throw new Error('Malformed identity hierarchy');
+        return { agentId, tenant: 'MY', level, name: agentId };
+      } catch (error) {
+        if (error instanceof Error && error.message === 'Malformed identity hierarchy') throw error;
+        throw new Error('Identity hierarchy source read failed');
+      }
+    }
+    return undefined;
+  }
 
   async getAgentOrganization(agentId: string): Promise<AgentOrganization | undefined> {
     if (!this.hierarchyEnabled) return undefined;
@@ -131,7 +146,7 @@ export class PerformanceSource implements DataSource {
   }
 
   private async latest(agent: AgentRecord, businessLine: BusinessLine, aggregation?: string): Promise<Rows> {
-    if (agent.tenant !== 'MY' || !this.agents.has(agent.agentId)) throw new Error('Identity not allowed in Performance profile');
+    if (agent.tenant !== 'MY' || !/^[A-Za-z0-9_-]{1,40}$/.test(agent.agentId)) throw new Error('Invalid Performance identity');
     const db = this.dbs[databaseKeyFor(businessLine)];
     const entity = entityFor(businessLine);
     const entries = await Promise.all(PERFORMANCE_COLLECTIONS.map(async name => {
@@ -167,7 +182,7 @@ export class PerformanceSource implements DataSource {
     agent: AgentRecord, businessLine: BusinessLine, aggregation: string | undefined,
     collection: PerformanceCollection, year: number, month: number, notAfterDay: number,
   ): Promise<Document | undefined> {
-    if (agent.tenant !== 'MY' || !this.agents.has(agent.agentId)) throw new Error('Identity not allowed in Performance profile');
+    if (agent.tenant !== 'MY' || !/^[A-Za-z0-9_-]{1,40}$/.test(agent.agentId)) throw new Error('Invalid Performance identity');
     const db = this.dbs[databaseKeyFor(businessLine)];
     const entity = entityFor(businessLine);
     const keys = PERFORMANCE_SOURCE_KEYS[collection];
@@ -238,19 +253,6 @@ export class PerformanceSource implements DataSource {
     };
   }
 
-  /** `selection`, but with the DEV fallback an agent with no Mongo rows gets the stub context instead of a 404. */
-  private async selectionOrMock(agent: AgentRecord, lens: Lens): Promise<{ rows: Rows; context: SnapshotContext; year: number; month: number; day: number; aggregation?: string }> {
-    try {
-      return await this.selection(agent, lens);
-    } catch (error) {
-      if (!this.devMockFallback || !(error instanceof PerformanceSourceNotFound)) throw error;
-      this.log(`performance DEV MOCK fallback: agent=${agent.agentId} no source rows, using stub context`);
-      const context = contextFor(lens);
-      const [year = 2026, month = 7, day = 27] = context.period.endDate.split('-').map(Number);
-      return { rows: {}, context, year, month, day };
-    }
-  }
-
 
   private value(def: EffectiveDef, rows: Rows, lens: Lens, repriced = false): MetricScalar | undefined {
     const mapping = PERFORMANCE_METRIC_MAPPING[def.metricCode];
@@ -280,7 +282,7 @@ export class PerformanceSource implements DataSource {
   }
 
   async metricList(agent: AgentRecord, lens: Lens, listScope: 'PRIORITY' | 'FOCUS' | 'ALL', codes?: string[]) {
-    const { rows, context } = await this.selectionOrMock(agent, lens);
+    const { rows, context } = await this.selection(agent, lens);
     const items = effectiveCatalog(lens.scope, lens.basis)
       .filter(def => codes?.length ? codes.includes(def.metricCode) : listScope === 'ALL' || def.effCategory === listScope)
       .map((def): MetricSnapshot => {
@@ -289,22 +291,12 @@ export class PerformanceSource implements DataSource {
           ...(def.capabilities.repricing ? { variant: 'WITHOUT_REPRICING' as const } : {}),
           dataState: collected ? 'OK' : 'EMPTY', ...(collected ? { collected, goal: { state: 'NOT_SET' as const } } : {}) };
       });
-    if (!this.devMockFallback) return { context, items };
-    const stub = new Map(stubMetricList(lens, listScope, codes).items.map(item => [item.metricCode, item]));
-    const filled: string[] = [];
-    const merged = items.map((item) => {
-      const mock = item.dataState === 'EMPTY' ? stub.get(item.metricCode) : undefined;
-      if (!mock) return item;
-      filled.push(item.metricCode);
-      return { ...mock, dataState: 'OK' as const, asOfDate: context.asOfDate };
-    });
-    if (filled.length) this.log(`performance DEV MOCK fallback: agent=${agent.agentId} list filled=${filled.join(',')}`);
-    return { context, items: merged };
+    return { context, items };
   }
   async metricDetail(agent: AgentRecord, code: string, lens: Lens): Promise<MetricDetail | undefined> {
     const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);
     if (!def) return undefined;
-    const { rows, context, year, month, day, aggregation } = await this.selectionOrMock(agent, lens);
+    const { rows, context, year, month, day, aggregation } = await this.selection(agent, lens);
     const priorYear = year - 1;
     const collected = this.value(def, rows, lens);
     const detailComparison = collected && !['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2'].includes(code);
@@ -317,61 +309,39 @@ export class PerformanceSource implements DataSource {
       change: zeroChange(code, def.valueType),
     }) : undefined;
     const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
-    // v1.7.0 (AC-P4-02-32) / v1.20.0 (AC-P4-02-58): Penders case count for TPC/PTPC at SELF
-    // and TEAM. No collection here materializes this yet (mongodb.md v1.7.0 D-19, OQ-77) —
-    // mock-sourced until it does, same interim source as the stub engine in values.ts; never
-    // derived from a money field.
-    const pendersCaseCount = collected && def.capabilities.repricing
-      ? mockTeamPendersCaseCount(code, lens.scope === 'TEAM' ? (lens.teamView ?? 'DIRECT') : 'SELF')
-      : undefined;
     const detail: MetricDetail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),
       ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING' as const, collected: alt }] } : {}),
       ...(comparison ? { comparison } : {}),
-      ...(collected && def.threshold ? { threshold: def.threshold } : {}),
-      ...(pendersCaseCount !== undefined ? { pendersCaseCount } : {}) };
-    if (!this.devMockFallback) return detail;
-    const { detail: filledDetail, filled } = mockFillDetail(code, lens, detail);
-    if (filled.length) this.log(`performance DEV MOCK fallback: agent=${agent.agentId} metric=${code} filled=${filled.join(',')}`);
-    return filledDetail;
+      ...(collected && def.threshold ? { threshold: def.threshold } : {}) };
+    return detail;
   }
   async metricSeries(agent: AgentRecord, code: string, lens: Lens, anchorYear: number, yearsBack: number): Promise<MetricSeries | undefined> {
     const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);
     if (!def?.capabilities.history) return undefined;
-    const { context } = await this.selectionOrMock(agent, lens);
+    const { context } = await this.selection(agent, lens);
     const seriesContext = { businessLine: context.businessLine, basis: context.basis, scope: context.scope,
       ...(context.teamView ? { teamView: context.teamView } : {}), asOfDate: context.asOfDate };
-    // No source collection materializes monthly history; the DEV fallback supplies the stub series.
-    const stub = this.devMockFallback ? stubMetricSeries(code, lens, anchorYear, yearsBack) : undefined;
-    if (stub) {
-      this.log(`performance DEV MOCK fallback: agent=${agent.agentId} metric=${code} filled=history`);
-      return { ...stub, context: seriesContext };
-    }
+    // The source collections have no monthly history; return null points rather than synthetic values.
     return { metricCode: code, valueType: def.valueType, context: seriesContext, anchorYear,
       series: Array.from({ length: yearsBack + 1 }, (_, offset) => ({ year: anchorYear - offset,
         points: Array.from({ length: 12 }, (_, month) => ({ month: month + 1, value: null })) })) };
   }
   async milestones(agent: AgentRecord) {
-    const { context } = await this.selectionOrMock(agent, { period: 'YTD', scope: 'SELF', basis: 'STANDARD', businessLine: 'INSURANCE' });
-    if (!this.devMockFallback) return { asOfDate: context.asOfDate, items: [] };
-    this.log(`performance DEV MOCK fallback: agent=${agent.agentId} filled=milestones`);
-    return { ...stubMilestones(), asOfDate: context.asOfDate };
+    const { context } = await this.selection(agent, { period: 'YTD', scope: 'SELF', basis: 'STANDARD', businessLine: 'INSURANCE' });
+    return { asOfDate: context.asOfDate, items: [] };
   }
   async getPreferences(agent: AgentRecord, scope: Scope, basis: Basis) { return getPreferences(agent.tenant, agent.agentId, scope, basis); }
   async putPreferences(agent: AgentRecord, scope: Scope, basis: Basis, body: { priorityMetricCodes: string[]; focusMetricCodes: string[] }) {
     return putPreferences(agent.tenant, agent.agentId, scope, basis, body);
   }
-  async recommendations(agent: AgentRecord, scope: Scope = 'SELF') {
-    if (this.devMockFallback) {
-      this.log(`performance DEV MOCK fallback: agent=${agent.agentId} filled=recommendations`);
-      return stubRecommendations(agent.agentId, scope);
-    }
+  async recommendations(agent: AgentRecord, _scope: Scope = 'SELF') {
+    void agent;
     const { asOfDate } = await this.milestones(agent);
     return { items: [], generatedAt: `${asOfDate}T00:00:00Z` };
   }
-  async recordFeedback(agent?: AgentRecord, recommendationId?: string, rating?: 'UP' | 'DOWN') {
-    if (!this.devMockFallback || !agent || !recommendationId || !rating) return false;
-    return stubRecordFeedback(agent.agentId, recommendationId, rating);
+  async recordFeedback(_agent?: AgentRecord, _recommendationId?: string, _rating?: 'UP' | 'DOWN') {
+    return false;
   }
 
   /**
@@ -379,22 +349,12 @@ export class PerformanceSource implements DataSource {
    * direct-report counts (spec OQ-79): the list stays the caller's own row, card
    * fields are omitted, KPI tiles carry no values, and no subteam is visible.
    */
-  async listTeamMembers(agent: AgentRecord, req: TeamListRequest): Promise<TeamMemberList | undefined> {
+  async listTeamMembers(_agent: AgentRecord, req: TeamListRequest): Promise<TeamMemberList | undefined> {
     if (req.parentMemberAgentId) return undefined;
-    const basis = req.basis ?? 'AGENT';
-    const normalized = req.query?.trim().toLowerCase() ?? '';
-    const items: TeamMemberList['items'] = [{ agentId: agent.agentId, displayName: agent.name, roleCode: basis }]
-      .filter((m) => !normalized || m.agentId.toLowerCase().includes(normalized) || m.displayName.toLowerCase().includes(normalized))
-      .filter(() => !req.badges?.length)
-      .map((m) => ({ ...m, hierarchyBasis: basis }));
-    // No source collection holds the hierarchy; the DEV fallback appends the stub roster after the real self entry.
-    // Stub members carry no badges, so a badge filter still returns nothing extra.
-    if (this.devMockFallback && !req.badges?.length) {
-      const bases: DrilldownBasis[] = req.basis ? [req.basis] : ['AGENT', 'AM', 'UM'];
-      for (const b of bases) items.push(...mockTeamMembers(b, req.query).items.filter((m) => m.agentId !== agent.agentId));
-    }
+    const { context } = await this.selection(_agent, req.lens);
+    const items: TeamMemberList['items'] = [];
     return {
-      asOfDate: '2026-07-27',
+      asOfDate: context.asOfDate,
       ...(req.basis ? { basis: req.basis } : {}),
       items,
       summary: ['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE'].map((metricCode) => ({ metricCode })),
@@ -404,7 +364,7 @@ export class PerformanceSource implements DataSource {
   async findTeamMember(): Promise<undefined> { return undefined; }
 
   async getTeamMemberDashboard(agent: AgentRecord, memberAgentId: string, lens: Lens): Promise<TeamMemberDashboard | undefined> {
-    if (memberAgentId !== agent.agentId) return this.devMockFallback ? mockTeamMemberDashboard(memberAgentId, lens) : undefined;
+    if (memberAgentId !== agent.agentId) return undefined;
     const list = await this.metricList(agent, { ...lens, scope: 'SELF' }, 'PRIORITY', ['TPC', 'PTPC']);
     return {
       member: {

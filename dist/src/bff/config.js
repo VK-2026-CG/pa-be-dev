@@ -9,3 +9,7 @@ export function dashboardScopeConfig(scope) {
         throw new Error('performance.config.json missing SELF dashboard scope');
     return c;
 }
+const TEAM_DRILLDOWN_CONFIG_PATH = fileURLToPath(new URL('../../vendor/spec/team-drilldown.config.json', import.meta.url));
+export const TEAM_DRILLDOWN_CONFIG = JSON.parse(readFileSync(TEAM_DRILLDOWN_CONFIG_PATH, 'utf8'));
+/** Badge codes accepted by the `badges` filter: the C4 groups only (VIOLET is display-only, D-P4-07-01). */
+export const FILTERABLE_BADGES = new Set(TEAM_DRILLDOWN_CONFIG.memberList.badgeGroups.flatMap((g) => g.badges));

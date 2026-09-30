@@ -1,10 +1,8 @@
 /** Performance data boundary: three source collections in Mongo, or isolated offline tests. */
 import { getPerformanceDb } from '../db/mongo.js';
 import { PerformanceSource } from './performance-source.js';
-import { performanceProfile } from './performance-profile.js';
 import { AGENTS, findAgent as findRegisteredAgent, type AgentRecord } from './registry.js';
 import { listTeam, teamAgentRecord, visibleMember } from './team-tree.js';
-import { TeamDrilldownMockOverlay, teamDrilldownMockEnabled } from './team-mock-overlay.js';
 import { CATALOG } from './catalog.js';
 import { ANCHOR_YEAR, AS_OF_DATE, contextFor, metricDetail, metricList, metricSeries, milestones, type Lens } from './values.js';
 import { getPreferences, putPreferences, type PrefError } from './preferences.js';
@@ -47,8 +45,8 @@ export interface DataSource {
   readonly kind: 'memory' | 'performance';
   readonly ownIdentityOnly?: boolean;
   findAgent?(id: string): AgentRecord | undefined;
-  /** Login identities only; defaults to `findAgent` (differs under the Team Drilldown mock overlay). */
-  findIdentityAgent?(id: string): AgentRecord | undefined;
+  /** Domain-owned identity lookup; Mongo-backed implementations resolve roles from hierarchy. */
+  resolveIdentity?(id: string): Promise<AgentRecord | undefined>;
   metricList(agent: AgentRecord, l: Lens, listScope: 'PRIORITY' | 'FOCUS' | 'ALL', codes?: string[]): Promise<MetricSnapshotList | undefined>;
   metricDetail(agent: AgentRecord, code: string, l: Lens): Promise<MetricDetail | undefined>;
   metricSeries(agent: AgentRecord, code: string, l: Lens, anchorYear: number, yearsBack: number): Promise<MetricSeries | undefined>;
@@ -87,6 +85,7 @@ class MemorySource implements DataSource {
   findAgent(id: string): AgentRecord | undefined {
     return findRegisteredAgent(id) ?? teamAgentRecord(id);
   }
+  async resolveIdentity(id: string): Promise<AgentRecord | undefined> { return this.findAgent(id); }
 
   async listTeamMembers(agent: AgentRecord, req: TeamListRequest): Promise<TeamMemberList | undefined> {
     const parent = req.parentMemberAgentId ? visibleMember(agent, req.parentMemberAgentId, req.lens) : undefined;
@@ -117,29 +116,22 @@ export async function createSource(log: (msg: string) => void = () => {}): Promi
     throw new Error('Unsupported Performance data source; legacy Mongo adapter has been removed');
   }
   const configuredMongo = process.env.MONGODB_PERFORMANCE_URI !== undefined || Boolean(process.env.MONGODB_URI);
-  if (process.env.INSIGHTS_DATA_SOURCE === 'memory' || !configuredMongo) {
-    if (process.env.NODE_ENV === 'production' || process.env.INSIGHTS_DATA_SOURCE === 'performance') throw new Error('Performance database connection required');
+  if (process.env.INSIGHTS_DATA_SOURCE === 'memory') {
+    if (process.env.NODE_ENV !== 'test') throw new Error('In-memory data source is test-only');
     log('data source: offline in-memory regression fixtures (no database reads)');
     return new MemorySource();
   }
-  const agents = performanceProfile();
+  if (!configuredMongo) throw new Error('Performance database connection required');
+  if (!['development', 'test'].includes(process.env.NODE_ENV ?? '')) throw new Error('Performance source mode requires development/test');
   const [pamb, pbtb] = await Promise.all([getPerformanceDb('PAMB'), getPerformanceDb('PBTB')]);
   const dbs = { PAMB: pamb, PBTB: pbtb };
   const hierarchyEnabled = process.env.INSIGHTS_HIERARCHY_SOURCE === 'true' &&
     ['development', 'test'].includes(process.env.NODE_ENV ?? '') && (process.env.COUNTRY_CODE ?? 'MY') === 'MY';
   log('data source: direct Performance Mongo DEVELOPMENT profile (three metric collections; hierarchy read-only opt-in)');
-  // performanceProfile() above already refuses anything but development/test; the
-  // fallback is narrower still: NODE_ENV=development only, never test/shared.
-  const requested = process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true';
-  const devMockFallback = requested && process.env.NODE_ENV === 'development';
-  if (devMockFallback) log('data source: DEV MOCK fallback ON — anything Mongo cannot supply is filled with stub values');
-  else if (requested) log('data source: INSIGHTS_DEV_MOCK_FALLBACK ignored — requires NODE_ENV=development');
-  const source = new PerformanceSource(dbs, agents, log, devMockFallback, hierarchyEnabled);
-  if (teamDrilldownMockEnabled()) {
-    log('⚠ INSIGHTS_TEAM_DRILLDOWN_MOCK=true: Team Drilldown hierarchy/badges/goals are MOCK data (development only, SPEC-2026-004 D-P4-07-06)');
-    return new TeamDrilldownMockOverlay(source, new MemorySource());
+  if (process.env.INSIGHTS_DEV_MOCK_FALLBACK === 'true' || process.env.INSIGHTS_TEAM_DRILLDOWN_MOCK === 'true') {
+    log('data source: ignoring deprecated mock flags; runtime mock fallbacks are disabled');
   }
-  return source;
+  return new PerformanceSource(dbs, new Map(), log, false, hierarchyEnabled);
 }
 
 export { AGENTS, ANCHOR_YEAR, CATALOG, contextFor };

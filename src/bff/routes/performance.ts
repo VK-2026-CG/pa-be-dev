@@ -11,7 +11,6 @@ import { composeTeamDrilldown } from '../compose/team-drilldown.js';
 import type { MemberBadgeCode } from '../../../vendor/spec/performance-vm.js';
 import { isLeader } from '../persona.js';
 import { getPersona as resolvePersona, mapDomainError, parseLens, problem } from '../bff.js';
-import type { DataSource } from '../../data/source.js';
 
 function scopeOf(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>): Scope {
   return (req.query.scope ?? 'SELF') as Scope;
@@ -81,11 +80,10 @@ function cardFromSnapshot(
   };
 }
 
-export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainApi, source?: DataSource): void {
-  const getPersona = (request: FastifyRequest) => resolvePersona(request, source);
+export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainApi & { ownIdentityOnly?: boolean }): void {
+  const getPersona = (request: FastifyRequest) => resolvePersona(request, domain);
   app.get<{ Params: { agentId: string } }>('/insights/v1/agents/:agentId/organization', async (req, reply) => {
-    const persona = getPersona(req);
-    if (source?.ownIdentityOnly && !req.headers['x-agent-id']) return problem(reply, 401, 'INS-4010', 'Development identity required');
+    const persona = await getPersona(req);
     if (req.headers['x-tenant'] && req.headers['x-tenant'] !== 'MY') return problem(reply, 401, 'INS-4010', 'Unknown caller identity');
     if (req.params.agentId !== persona.agentId) return problem(reply, 403, 'INS-4030', 'Agent may only read own organization');
     if (!isLeader(persona)) return problem(reply, 403, 'INS-4030', 'Organization access requires a leader persona');
@@ -94,7 +92,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.get('/api/bff/v1/performance/dashboard', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     const subjectAgentId = req.query.subjectAgentId?.trim();
     if (subjectAgentId !== undefined) {
       // S-P4-01 2.1.0 viewing mode (AC-P4-01-82..84): leaders only, downline members only, read-only.
@@ -123,7 +121,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.get('/api/bff/v1/performance/customize', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     const scope = scopeOf(req);
     if (scope === 'TEAM' && !isLeader(persona)) return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
     try {
@@ -134,7 +132,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.put('/api/bff/v1/performance/customize', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined>; Body: unknown }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     const scope = scopeOf(req);
     if (scope === 'TEAM' && !isLeader(persona)) return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
     const body = req.body;
@@ -148,7 +146,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.get('/api/bff/v1/performance/metrics/:metricCode', async (req: FastifyRequest<{ Params: { metricCode: string }; Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     const lens = parseLens(req.query, persona, reply);
     if (!lens) return;
     try {
@@ -159,7 +157,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.get('/api/bff/v1/performance/metrics/:metricCode/history', async (req: FastifyRequest<{ Params: { metricCode: string }; Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     const lens = parseLens(req.query, persona, reply);
     if (!lens) return;
     const window = (req.query.window ?? CONFIG.screens.history.defaultWindow) as typeof CONFIG.screens.history.defaultWindow;
@@ -174,7 +172,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.post('/api/bff/v1/performance/recommendations/:recommendationId/feedback', async (req: FastifyRequest<{ Params: { recommendationId: string }; Body: { rating?: unknown } }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     const rating = req.body?.rating;
     if (rating !== 'UP' && rating !== 'DOWN') return problem(reply, 400, 'BFF-4002', 'rating must be UP or DOWN');
     try {
@@ -186,7 +184,7 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
   });
 
   app.get('/api/bff/v1/performance/team-drilldown', async (req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) => {
-    const persona = getPersona(req);
+    const persona = await getPersona(req);
     if (!isLeader(persona)) return problem(reply, 403, 'BFF-4032', 'scope=TEAM requires a leader persona');
 
     const teamView = (req.query.teamView ?? 'DIRECT') as 'DIRECT' | 'GROUP';

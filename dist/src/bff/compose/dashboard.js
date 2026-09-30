@@ -1,5 +1,5 @@
 import { isLeader } from '../persona.js';
-import { CONFIG, dashboardScopeConfig } from '../config.js';
+import { CONFIG, TEAM_DRILLDOWN_CONFIG, dashboardScopeConfig } from '../config.js';
 import { buildMeta, mapChange, periodOptionsMeta } from './shared.js';
 function card(snap, lens, showGoal, valueDisplay) {
     // Domain item without `dataState` ⇒ OK (back-compat default, C1 §7.13).
@@ -151,5 +151,45 @@ export async function composeDashboard(api, persona, lens) {
         moreActions: [...(cfg.moreActions ?? [])].sort((a, b) => a.order - b.order)
             .map((a) => ({ id: a.id, iconToken: a.iconToken, nav: { route: a.nav.route }, order: a.order })),
         footerLinks: [...(cfg.footerLinks ?? [])].filter((l) => l.visible).sort((a, b) => a.order - b.order).map(toQuickLink),
+    };
+}
+/**
+ * S-P4-01 2.1.0 viewing mode (SPEC-2026-004, D-P4-07-03): a leader views a
+ * downline member's dashboard read-only. Scope follows the member's role —
+ * SELF for an agent, TEAM/DIRECT for a member with direct reports. The caller
+ * has already proven downline membership (`findTeamMember`, D-14).
+ */
+export async function composeViewingDashboard(api, member, lens) {
+    const leads = (member.member.directReportCount ?? 0) > 0;
+    const scope = leads ? 'TEAM' : 'SELF';
+    const subject = {
+        id: member.level === 'P2' ? 'LEADER_P2' : member.level === 'P3' ? 'LEADER_P3' : 'AGENT_P4',
+        agentId: member.agentId,
+        level: member.level,
+        label: member.member.displayName,
+    };
+    const vm = await composeDashboard(api, subject, {
+        ...lens, scope, ...(leads ? { teamView: TEAM_DRILLDOWN_CONFIG.viewing.teamView } : {}),
+    });
+    const viewingCfg = TEAM_DRILLDOWN_CONFIG.viewing;
+    const allLinks = [...(CONFIG.screens.dashboard.scopes.SELF?.quickLinks ?? []), ...(CONFIG.screens.dashboard.scopes.TEAM?.quickLinks ?? [])];
+    const quickLinks = viewingCfg.quickLinks
+        .map((id) => allLinks.find((l) => l.id === id))
+        .filter((l) => Boolean(l))
+        .map((l, i) => ({ ...toQuickLink(l), order: i + 1 }));
+    const { scopeSwitcher: _dropped, ...rest } = vm;
+    return {
+        ...rest,
+        filters: { ...vm.filters, teamViewToggleVisible: false },
+        quickLinks,
+        moreActions: vm.moreActions.filter((a) => viewingCfg.moreActions.includes(a.id)),
+        focusMetrics: { ...vm.focusMetrics, addEnabled: false },
+        milestones: { ...vm.milestones, addEnabled: false, setGoalEnabled: false },
+        viewing: {
+            member: { ...member.member, nav: { route: 'insights/performance', params: { subjectAgentId: member.agentId } } },
+            scope,
+            readOnly: true,
+            exitNav: { route: 'insights/team-drilldown' },
+        },
     };
 }

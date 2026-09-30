@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-09-30
+- Disabled runtime mock filling in Mongo mode: missing data stays empty/not found, synthetic team overlays and mock Penders values are no longer returned, missing Mongo configuration cannot silently select the in-memory fixture source, and the explicit memory source is test-only. Updated local mock flags and source documentation. Agent identity remains on the temporary allowlist because the canonical direct-source profile parks Mongo identity pending verified hierarchy mapping; no unauthenticated ID trust was introduced.
 - Fixed metric-detail comparison construction (BFF-5020): absent prior rows or null/missing prior metric values now produce a typed zero prior and neutral flat change; genuine zero baselines and prior-read errors retain existing behavior. Added detail/BFF regression coverage.
 - Aligned Insights persisted-source metric mapping with the 2026-09-30 observed export: camelCase persistency YTD leaves; corrected hierarchy self-reference detection to fail as a cycle.
 - Validation: pending focused source/spec tests and typecheck; unavailable checks will be recorded below.

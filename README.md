@@ -35,20 +35,20 @@ npm run build && npm start
 
 ## Mock mode (no DB)
 
-`npm run dev:mock` is the shared development profile: it starts the watch server
+`npm run dev:mock` is a test/fixture-only profile: it starts the watch server
 with `INSIGHTS_DATA_SOURCE=memory` (overriding any local `.env`), so every
 persona × scope × teamView × period × businessLine × basis returns the
 deterministic stub data from `src/data/values.ts`. Pair it with the frontend's
 `npm run dev:mock`, which drives persona from the header dropdown (`x-persona`).
-Entitlement guards are unchanged (TEAM ⇒ leader, GROUP ⇒ P2). Memory is chosen at
-start time only; it is never a fallback after a Mongo error.
+Entitlement guards are unchanged (TEAM ⇒ leader, GROUP ⇒ P2). The in-memory
+source is test-only, fails outside `NODE_ENV=test`, and is never a runtime fallback.
 
-**Mongo first, mock second** (for developers with Mongo access): run `npm run dev`
-with `INSIGHTS_DATA_SOURCE=performance`, `INSIGHTS_DEV_MOCK_FALLBACK=true` and
-`NODE_ENV=development`. Real Mongo values are shown wherever they exist; every
-EMPTY metric, missing detail part, history, milestones, recommendations, team
-roster, or an agent with no rows at all is filled from the stub engine. Each fill
-is logged as `DEV MOCK fallback`. See AGENTS.md for the ruling.
+**MongoDB source mode:** run `npm run dev` with
+`INSIGHTS_DATA_SOURCE=performance` and `NODE_ENV=development`. Runtime responses
+are not filled from fixtures or synthetic fallback helpers. Missing metrics stay
+EMPTY, absent history is represented by null points, support collections remain
+Fixtures are available only by explicitly selecting `INSIGHTS_DATA_SOURCE=memory`
+under `NODE_ENV=test`.
 
 ## Identity (development only, not production JWT)
 
@@ -130,9 +130,9 @@ SCHEME×0.5 with a re-composed catalog and goals SET (OQ-20 placeholder).
 
 Mongo mode reads only `my_production`, `my_mapa`, `my_persistency` in
 `pa_performance_PAMB-dev`. It requires NODE_ENV development/test, MY deployment,
-the exact configured database and an explicit identity allowlist. No legacy Mongo
-adapter remains. Static catalogue/config and temporary in-memory preferences are
-retained; unavailable milestones/recommendations/history are not fabricated.
+the exact configured database and an explicit development identity allowlist.
+No legacy Mongo adapter remains. Static catalogue/config and temporary in-memory
+preferences are retained; unavailable milestones/recommendations/history are not fabricated.
 
 Resident records need **no import or reseed**. The database defaults to
 `pa_performance_PAMB-dev`; `MONGODB_PERFORMANCE_URI` may supply an independent

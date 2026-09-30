@@ -4,7 +4,7 @@ import { buildApp } from '../src/app.js';
 import { PerformanceSource } from '../src/data/performance-source.js';
 import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_DB, performanceProfile, type PerformanceCollection } from '../src/data/performance-profile.js';
 import { documentFingerprint, equivalentValidator, inspectImport, normalizeMockRecord, parseMockRecords, sourceSchema, type MockImport } from '../src/data/performance-import.js';
-import { sourceMoney, toCents } from '../src/lib/money.js';
+import { sourceMoney } from '../src/lib/money.js';
 import { createSource } from '../src/data/source.js';
 import type { AgentRecord } from '../src/data/registry.js';
 import type { Lens } from '../src/data/values.js';
@@ -148,76 +148,62 @@ describe('three-collection Performance adapter', () => {
     expect((await source.metricList(agent, { ...lens, basis: 'SCHEME' }, 'ALL')).items.every(x => x.dataState === 'EMPTY')).toBe(true);
     expect((await source.metricList(leader, { ...team, teamView: 'DIRECT' }, 'ALL')).items.every(x => x.dataState === 'EMPTY')).toBe(true);
   });
-  it('DEV mock fallback is off by default: no comparison/breakdown is fabricated', async () => {
+  it('Mongo-source comparison uses prior data or an explicitly neutral zero when absent', async () => {
     const detail = await setup().source.metricDetail(agent, 'TPC', lens);
-    expect(detail).not.toHaveProperty('comparison');
+    expect(detail?.comparison?.prior).toEqual({ kind: 'MONEY', amount: '0.00', currency: 'MYR' });
     expect(detail).not.toHaveProperty('breakdowns');
   });
-  it('DEV mock fallback fills only missing parts, scaled to the real Mongo values', async () => {
-    const { db } = fakeDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] });
+  it('Mongo mode never fills missing detail parts with mock data', async () => {
     const logs: string[] = [];
-    const source = new PerformanceSource(db, agents, (m) => logs.push(m), true);
+    const source = new PerformanceSource(dualDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] }).dbs, agents, (m) => logs.push(m), true);
     const detail = await source.metricDetail(agent, 'TPC', lens);
-    // Real values are untouched.
+    // Real Mongo values are retained and mock-only values remain absent.
     expect(detail?.primary?.collected).toEqual({ kind: 'MONEY', amount: '4538.76', currency: 'MYR' });
     expect(detail?.altVariants?.[0]?.collected).toMatchObject({ amount: '12668.72' });
-    // Comparison: current is the real value, prior year follows the real period.
     expect(detail?.comparison?.current).toEqual(detail?.primary?.collected);
     expect(detail?.comparison?.priorYear).toBe(2024);
-    expect(detail?.comparison?.change.basis).toBe('LAST_YEAR');
-    // Both breakdowns present; totals match the real without/with repricing values.
-    expect(detail?.breakdowns?.map((b) => b.variant)).toEqual(['WITHOUT_REPRICING', 'WITH_REPRICING']);
-    const totalOf = (v: string) => detail?.breakdowns?.find((b) => b.variant === v)?.totals[0]?.value;
-    const cents = (s: string) => Number(toCents(s));
-    const without = totalOf('WITHOUT_REPRICING'); const withR = totalOf('WITH_REPRICING');
-    expect(without?.kind === 'MONEY' && Math.abs(cents(without.amount) - 453876)).toBeLessThanOrEqual(5);
-    expect(withR?.kind === 'MONEY' && Math.abs(cents(withR.amount) - 1266872)).toBeLessThanOrEqual(5);
-    expect(logs.some((m) => m.includes('DEV MOCK') && m.includes('comparison,breakdowns'))).toBe(true);
+    expect(detail?.breakdowns).toBeUndefined();
+    expect(logs.some((m) => m.includes('DEV MOCK'))).toBe(false);
   });
-  it('DEV mock fallback fills the whole body when Mongo has no value for the lens', async () => {
-    const { db } = fakeDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] });
-    const source = new PerformanceSource(db, agents, () => {}, true);
-    const detail = await source.metricDetail(agent, 'TPC', { ...lens, businessLine: 'ALL' });
-    expect(detail?.dataState).toBe('OK');
-    expect(detail?.primary).toBeDefined();
-    expect(detail?.comparison?.priorYear).toBe(2024);
+  it('Mongo mode leaves unsupported lenses empty rather than substituting mock data', async () => {
+    const source = new PerformanceSource(dualDb({ my_production: [production] }).dbs, agents, () => {}, true);
+    const detail = await source.metricDetail(agent, 'TPC', { ...lens, basis: 'SCHEME' });
+    expect(detail?.dataState).toBe('EMPTY');
+    expect(detail?.primary).toBeUndefined();
     expect(detail?.context.period.endDate).toBe('2025-05-31'); // real context kept
   });
-  it('DEV mock fallback keeps real list values and fills only EMPTY metrics', async () => {
+  it('Mongo mode keeps missing list metrics empty even if the legacy fallback option is passed', async () => {
     const logs: string[] = [];
-    const source = new PerformanceSource(setup().source['db'], agents, (m) => logs.push(m), true);
+    const source = new PerformanceSource(dualDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] }).dbs, agents, (m) => logs.push(m), true);
     const list = await source.metricList(agent, lens, 'ALL');
     expect(list.items.find(x => x.metricCode === 'TPC')?.collected).toEqual({ kind: 'MONEY', amount: '4538.76', currency: 'MYR' });
-    expect(list.items.find(x => x.metricCode === 'FYC')?.dataState).toBe('OK'); // null in Mongo → stub
-    expect(list.items.every(x => x.dataState === 'OK' && x.asOfDate === list.context.asOfDate)).toBe(true);
+    expect(list.items.find(x => x.metricCode === 'FYC')?.dataState).toBe('EMPTY');
+    expect(list.items.some(x => x.dataState === 'EMPTY')).toBe(true);
     expect(list.context.period.endDate).toBe('2025-05-31');
-    for (const unsupported of [{ ...lens, businessLine: 'TAKAFUL' as const }, { ...lens, basis: 'SCHEME' as const }, { ...team, teamView: 'DIRECT' as const }]) {
-      expect((await source.metricList(leader, unsupported, 'ALL')).items.every(x => x.dataState === 'OK')).toBe(true);
-    }
-    expect(logs.some(m => m.includes('DEV MOCK') && m.includes('list filled=FYC'))).toBe(true);
+    const unsupported = { ...team, teamView: 'DIRECT' as const };
+    const noHierarchy = new PerformanceSource(dualDb({ my_production: [production] }).dbs, agents, () => {}, true);
+    expect((await noHierarchy.metricList(leader, unsupported, 'ALL')).items.every(x => x.dataState === 'EMPTY')).toBe(true);
+    expect(logs.some(m => m.includes('DEV MOCK'))).toBe(false);
   });
-  it('DEV mock fallback serves stub data instead of 404 when the agent has no Mongo rows', async () => {
-    const source = new PerformanceSource(fakeDb().db, agents, () => {}, true);
-    const list = await source.metricList(agent, lens, 'PRIORITY');
-    expect(list.items.every(x => x.dataState === 'OK')).toBe(true);
-    expect((await source.metricDetail(agent, 'TPC', lens))?.dataState).toBe('OK');
+  it('Mongo mode returns not-found when the agent has no Mongo rows', async () => {
+    const source = new PerformanceSource(dualDb().dbs, agents, () => {}, true);
+    await expect(source.metricList(agent, lens, 'PRIORITY')).rejects.toThrow();
     const app = buildApp(source); apps.push(app);
     const res = await app.inject({ url: '/api/bff/v1/performance/dashboard?businessLine=INSURANCE', headers: { 'x-agent-id': agent.agentId } });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(404);
   });
-  it('DEV mock fallback fills history, milestones, recommendations and the team roster', async () => {
-    const source = new PerformanceSource(setup().source['db'], agents, () => {}, true);
+  it('Mongo mode returns only persisted source data, with absent support data empty', async () => {
+    const source = new PerformanceSource(dualDb({ my_production: [production], my_mapa: [mapa], my_persistency: [persistency] }).dbs, agents, () => {}, true);
     const series = await source.metricSeries(agent, 'TPC', lens, 2026, 1);
-    expect(series?.series[0]?.points.some(p => p.value !== null)).toBe(true);
-    expect(series?.context.asOfDate).toBe('2026-09-07'); // real context kept
-    expect((await source.milestones(agent)).items.length).toBeGreaterThan(0);
+    expect(series?.series[0]?.points.every(p => p.value === null)).toBe(true);
+    expect(series?.context.asOfDate).toBe('2025-05-31'); // real context kept
+    expect((await source.milestones(agent)).items).toHaveLength(0);
     const recos = await source.recommendations(agent, 'SELF');
-    expect(recos.items.length).toBeGreaterThan(0);
-    expect(await source.recordFeedback(agent, recos.panel!.recommendationId!, 'UP')).toBe(true);
+    expect(recos.items).toHaveLength(0);
+    expect(await source.recordFeedback(agent, 'missing', 'UP')).toBe(false);
     const members = await source.listTeamMembers(leader, { teamView: 'GROUP', basis: 'AGENT', sortBy: 'TPC', lens: team });
-    expect(members?.items[0]?.agentId).toBe(leader.agentId); // real self first
-    expect(members?.items.map(m => m.agentId)).toContain('A1001');
-    expect((await source.getTeamMemberDashboard(leader, 'A1001', team))?.metrics.length).toBe(2);
+    expect(members?.items).toEqual([]); // no hierarchy/member source is wired into this profile.
+    expect(await source.getTeamMemberDashboard(leader, 'A1001', team)).toBeUndefined();
   });
   it('AC-PA-DIRECT-08 list/detail select the same newest reporting period, not the refresh year', async () => {
     const older = { ...production, period: { ...period, year: 2024, yyyymm: '202405' } };
@@ -235,6 +221,13 @@ describe('three-collection Performance adapter', () => {
     const detail = await source.metricDetail(agent, 'TPC', lens);
     expect(detail?.comparison).toMatchObject({ current: { amount: '4538.76' }, prior: { amount: '3000.00' }, priorYear: 2024 });
     expect(detail?.comparison?.change.direction).toBe('UP');
+  });
+  it('prior-year comparison accepts a validated identity absent from the Mongo source local map', async () => {
+    const prior = { ...production, period: { ...period, year: 2024, yyyymm: '202405' },
+      ptd: { ...production.ptd, tpc: { withoutRepricing: { ytd: 3000, mtd: 0 }, withRepricing: { ytd: 0, mtd: 0 } } } };
+    const source = new PerformanceSource(dualDb({ my_production: [production, prior] }).dbs, new Map());
+    const detail = await source.metricDetail(agent, 'TPC', lens);
+    expect(detail?.comparison).toMatchObject({ prior: { amount: '3000.00' }, priorYear: 2024 });
   });
   it('prior-year comparison: omitted (not fabricated) when the only prior-year record is later in the month than the current one', async () => {
     const currentPartial = { ...production, period: { ...period, asOnMonthDay: '15' } };

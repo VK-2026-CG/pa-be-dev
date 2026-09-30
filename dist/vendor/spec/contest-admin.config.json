@@ -1,8 +1,0 @@
-{
-  "$schema":"../../contest-admin-config.schema.json","configVersion":"0.2.0","country":"MY","module":"contest-admin",
-  "routes":[
-    {"code":"PORTFOLIO","route":"/contest-admin/contests","enabled":true},{"code":"CONTEST_IMPORT","route":"/contest-admin/contest-imports/:importId","enabled":true},{"code":"BUILDER","route":"/contest-admin/contests/:contestId/versions/:versionId/edit/:step","enabled":true},{"code":"RULE_EDITOR","route":"/contest-admin/contests/:contestId/versions/:versionId/rules/:ruleId","enabled":true},{"code":"REVIEW","route":"/contest-admin/contests/:contestId/versions/:versionId/review","enabled":true},{"code":"HISTORIC_CONTESTS","route":"/contest-admin/historic-contests","enabled":true},{"code":"RULE_LIBRARY","route":"/contest-admin/rules","enabled":true},{"code":"APPROVALS","route":"/contest-admin/approvals","enabled":true},{"code":"AUDIT","route":"/contest-admin/audit","enabled":true},{"code":"SIMULATION","route":"/contest-admin/contests/:contestId/versions/:versionId/simulations","enabled":true}
-  ],
-  "builder":{"stepOrder":["BASICS","AUDIENCE","QUALIFICATION","CALCULATION","REWARDS","GOVERNANCE","REVIEW"],"periodModes":["FULL_CAMPAIGN","MONTHLY_INDEPENDENT","CUMULATIVE","CUSTOM_WINDOWS"],"maxRuleDepth":8,"maxRuleNodes":200},
-  "capabilities":{"historicContests":true,"contestBrochures":true,"aiBrochureDraftImport":true,"ruleLibrary":true,"portfolioSimulation":true,"dailyAgentResults":true,"auditExport":true,"lovWorkbookReconciled":false}
-}

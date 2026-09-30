@@ -38,12 +38,17 @@ export class TeamDrilldownMockOverlay implements DataSource {
 
   /** Logins resolve against the real allowlist only. */
   findIdentityAgent(id: string): AgentRecord | undefined {
-    return this.real.findIdentityAgent?.(id) ?? this.real.findAgent?.(id);
+    return this.real.resolveIdentity ? undefined : this.real.findAgent?.(id);
   }
 
   /** Domain reads may also target mock team members (viewing mode). */
   findAgent(id: string): AgentRecord | undefined {
     return this.real.findAgent?.(id) ?? teamAgentRecord(id);
+  }
+
+  async resolveIdentity(id: string): Promise<AgentRecord | undefined> {
+    if (this.real.resolveIdentity) return this.real.resolveIdentity(id);
+    return this.real.findAgent?.(id);
   }
 
   private isMock(agent: AgentRecord): boolean {
