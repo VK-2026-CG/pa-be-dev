@@ -1,3 +1,6 @@
 node_modules
 *.zip
 *.tgz
+
+# build output: generate with `npm run build`
+dist

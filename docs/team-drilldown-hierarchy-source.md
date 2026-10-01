@@ -10,6 +10,48 @@ newest snapshot (PAMB first, PBTB when absent) supplies direct reports via
 AGENT leaves. TPC/PTPC come from `my_production`. Names stay encrypted and are never
 projected; the agent ID is the display name.
 
+## Nested mock hierarchy for testing (development seed)
+
+Every real AM snapshot in `pa_performance_PAMB-dev` is flat: its `scopeProfileIds` are ID-only
+reportees with no snapshot of their own, so Team Drilldown never shows a manager, a team icon or
+a second level. `npm run db:seed:team-mock` seeds a synthetic nested tree so those can be tested
+against real Mongo reads:
+
+```
+MCKAM001 (AM)                          19 members
+├─ MCKUM01 (UM)
+│  ├─ MCKUM101 (UM1)
+│  │  ├─ MCKUM201 (UM2) ── 3 agents
+│  │  └─ 2 agents
+│  └─ 2 agents
+├─ MCKUM02 (UM)
+│  └─ MCKUM102 (UM1)
+│     └─ MCKUM202 (UM2) ── 2 agents
+└─ 3 direct agents
+```
+
+- **Writes** 19 `my_agent_hierarchy` snapshots plus 62 metric rows (`my_production`, `my_mapa`,
+  `my_persistency`) so cards show TPC/PTPC, the root KPI tiles show a manpower of 18, and the
+  agent self view and a manager's viewing page have data. Metric rows are cloned from the first
+  real AM whose newest-period rows are complete, non-zero for the card figures, and valid against the
+  source schema; production figures are scaled per member, MAPA manpower is set to the mock
+  headcount, nothing else is invented. The dry run names the template and any AM it skipped, and why.
+- **Dry run by default; insert-only on `--apply`**, one transaction, same posture as
+  `db:import:performance`. An existing document with a different body aborts the run; nothing is
+  overwritten and no schema is provisioned or altered. Re-running is a no-op (deterministic `_id`s).
+- **Isolated:** everything is on the reserved `MCK` ID prefix (hierarchy snapshots also carry
+  `mock.set = team-drilldown-nested`). No real AM, agent or metric row is modified, so nobody else's
+  view changes. `--remove --apply` deletes exactly those documents (its dry run prints the match counts first).
+- **Use it:** set `VITE_PERFORMANCE_AGENT_ID=MCKAM001` in the FE `.env.local`. In source mode identity
+  comes from `x-agent-id` alone (the `x-persona` header is ignored), and `MCKAM001` resolves as an AM.
+- **Commands:** `npm run db:seed:team-mock` (plan) · `-- --apply` · `-- --remove [--apply]` · `-- --no-metrics`.
+- **Caveats:** names are the IDs (the source never projects names). A UM-level caller (`MCKUM01`) sees its
+  direct team only, as D-14 requires. The dev cluster is shared, so run `--remove --apply` when finished.
+
+This is the one deliberate exception to "hierarchy is read-only and never imported" (see
+`src/config/performance.ts`): the runtime never writes it, and this script is development-only
+(`NODE_ENV` must be `development` or `test`, and the target must be the named `-dev` PAMB database).
+
 The notes below are the original pre-implementation record. They are history,
 not gates: the `READY` handoff/approval items they mention are no longer required
 (specs are reference material only).

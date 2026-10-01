@@ -77,22 +77,20 @@ describe('BFF metric detail (S-P4-02)', () => {
     expect(d.sections.find((s: any) => s.type === 'GAUGE').penders.kind).toBe('MONEY');
   });
 
-  it('CASE_COUNT SELF: no Penders anywhere — not the gauge legend, not its own card (AC-P4-02-37)', async () => {
+  it('CASE_COUNT SELF: bars + comparison (Figma Metric Drill downs), no Penders anywhere (AC-P4-02-37)', async () => {
     const d = await getJson(app, 'AGENT_P4', `${BFF}/performance/metrics/CASE_COUNT`);
-    expect(d.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON']);
-    const gauge = d.sections.find((s: any) => s.type === 'GAUGE');
-    expect(gauge.penders).toBeUndefined();
+    expect(d.sections.map((s: any) => s.type)).toEqual(['BAR_COMPARISON', 'COMPARISON']);
+    expect(d.sections.find((s: any) => s.type === 'GAUGE')).toBeUndefined();
     expect(d.sections.find((s: any) => s.type === 'PENDERS')).toBeUndefined();
   });
 
-  it('CASE_COUNT TEAM: gauge keeps the COUNT penders legend AND gets its own Penders KPI card (AC-P4-02-37)', async () => {
+  it('CASE_COUNT TEAM: bars + comparison and its own Penders KPI card, with no gauge legend (AC-P4-02-37)', async () => {
     const d = await getJson(app, 'LEADER_P2', `${BFF}/performance/metrics/CASE_COUNT?scope=TEAM`);
-    expect(d.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON', 'PENDERS']);
-    const gauge = d.sections.find((s: any) => s.type === 'GAUGE');
-    expect(gauge.penders.kind).toBe('COUNT');
+    expect(d.sections.map((s: any) => s.type)).toEqual(['BAR_COMPARISON', 'COMPARISON', 'PENDERS']);
+    const bars = d.sections.find((s: any) => s.type === 'BAR_COMPARISON');
+    expect(bars.years).toHaveLength(2);
     const penders = d.sections.find((s: any) => s.type === 'PENDERS');
     expect(penders.value.kind).toBe('COUNT');
-    expect(penders.value.value).toBe(gauge.penders.value);
   });
 
   it('FYP SELF: gauge + comparison + one breakdown (7 products, plain CREDIT_POINTS), no VARIANT_VALUE/PENDERS (AC-P4-02-39/40)', async () => {
@@ -175,9 +173,9 @@ describe('BFF metric detail (S-P4-02)', () => {
     expect(cmp.change.direction).toBe(cur > pri ? 'UP' : cur < pri ? 'DOWN' : 'FLAT');
   });
 
-  it('PRODUCTIVITY keeps GAUGE + COMPARISON; change is a relative, rounded-up PCT with DECIMAL values (AC-P4-02-50/51, OQ-66)', async () => {
+  it('PRODUCTIVITY renders BAR_COMPARISON + COMPARISON (Figma Metric Drill downs); change is a relative, rounded-up PCT with DECIMAL values (AC-P4-02-50/51)', async () => {
     const p = await getJson(app, 'LEADER_P2', `${BFF}/performance/metrics/PRODUCTIVITY?scope=TEAM`);
-    expect(p.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON']); // no bar chart until OQ-66 is ruled
+    expect(p.sections.map((s: any) => s.type)).toEqual(['BAR_COMPARISON', 'COMPARISON']);
     const cmp = p.sections.find((s: any) => s.type === 'COMPARISON');
     expect(cmp.current).toMatchObject({ kind: 'DECIMAL', value: 9.7 });
     expect(cmp.prior).toMatchObject({ kind: 'DECIMAL', value: 9.3 });

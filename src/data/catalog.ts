@@ -37,7 +37,8 @@ export const CATALOG: MetricDefinition[] = [
     segmentOverrides: { SCHEME: { included: false } } },
   { metricCode: 'CASE_COUNT', availability: 'BACKED', valueType: 'COUNT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 3, customizable: false,
     scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
-    capabilities: cap({ goal: true, penders: true, history: true }),
+    // Figma Metric Drill downs (Case Count and Productivity follow the bar layout): bars with a prior-year bar.
+    capabilities: cap({ goal: true, penders: true, barComparison: true, history: true }),
     dimensions: { periods: P, businessLines: BL, basis: B },
     segmentOverrides: { SCHEME: { defaultOrder: 3 } } },
   // v1.11.0 (pruaction-spec S-P4-02, ARVIJ-107/165 AC-P4-02-40): breakdown
@@ -62,7 +63,7 @@ export const CATALOG: MetricDefinition[] = [
   { metricCode: 'PRODUCTIVITY', availability: 'UNBACKED', valueType: 'DECIMAL', category: 'PRIORITY', defaultSelected: true, defaultOrder: 7, customizable: false,
     // ABS -> PCT: S-P4-02 v1.15.0 (ARVIJ-161, AC-P4-02-50). Stays a gauge — the bar-chart ask is OQ-66.
     scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
-    capabilities: cap({ history: true }),
+    capabilities: cap({ barComparison: true, history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'AVERAGE_CASE_SIZE', availability: 'UNBACKED', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 8, customizable: false,
     // ABS -> PCT: S-P4-02 v1.16.0 (ARVIJ-162, AC-P4-02-52). Stays a gauge — the bar-chart ask is OQ-66.

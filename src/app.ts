@@ -12,7 +12,7 @@ import { CATALOG, effectiveCatalog } from './data/catalog.js';
 import { ANCHOR_YEAR, contextFor, type Lens } from './data/values.js';
 import type { DataSource } from './data/source.js';
 import { PerformanceSourceNotFound } from './data/performance-record.js';
-import type { Basis, BusinessLine, PeriodType, Problem, Scope, TeamView } from './types.js';
+import { withCause } from './bff/domain-client.js';import type { Basis, BusinessLine, PeriodType, Problem, Scope, TeamView } from './types.js';
 import { SpecContestRepository } from './contest/spec-repository.js';
 import { registerSpecContestRoutes } from './contest/spec-routes.js';
 import { createContestBrochureStore, type ContestBrochureStore } from './contest/brochure-store.js';
@@ -47,7 +47,7 @@ async function callerFor(req: FastifyRequest, reply: FastifyReply, resolveAgent:
   }
   const agentId = (req.headers['x-agent-id'] as string | undefined) ?? 'A1001';
   let agent: AgentRecord | undefined;
-  try { agent = await resolveAgent(agentId); } catch { problem(reply, 503, 'INS-5030', 'Identity source unavailable'); return null; }
+  try { agent = await resolveAgent(agentId); } catch (e) { problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); return null; }
   if (!agent) {
     void problem(reply, 401, 'INS-4010', 'Unknown caller identity');
     return null;
@@ -68,7 +68,7 @@ async function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { a
   const c = await callerFor(req, reply, resolveAgent, ownIdentityOnly);
   if (!c) return null;
   let pathAgent: AgentRecord | undefined;
-  try { pathAgent = await resolveAgent(req.params.agentId); } catch { problem(reply, 503, 'INS-5030', 'Identity source unavailable'); return null; }
+  try { pathAgent = await resolveAgent(req.params.agentId); } catch (e) { problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); return null; }
   if (!pathAgent) { void problem(reply, 404, 'INS-4040', 'Unknown agent for tenant'); return null; }
   if (pathAgent.agentId !== c.agent.agentId && c.agent.level === 'P4') {
     void problem(reply, 403, 'INS-4030', 'Agent may only read own data'); return null;
@@ -165,7 +165,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     async (req, reply) => {
       const c = await caller(req, reply); if (!c) return;
       let target: AgentRecord | undefined;
-      try { target = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
+      try { target = await resolveAgent(req.params.agentId); } catch (e) { return problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); }
       if (!target) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       // Milestones are personal, scope-invariant (AC-P4-01-12/-20, OQ-10).
       return source.milestones(c.agent);
@@ -182,7 +182,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     async (req, reply) => {
       const c = await caller(req, reply); if (!c) return;
       let agent: AgentRecord | undefined;
-      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
+      try { agent = await resolveAgent(req.params.agentId); } catch (e) { return problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       const basis = (req.query.basis ?? 'STANDARD') as Basis;
@@ -196,7 +196,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     async (req, reply) => {
       const c = await caller(req, reply); if (!c) return;
       let agent: AgentRecord | undefined;
-      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
+      try { agent = await resolveAgent(req.params.agentId); } catch (e) { return problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       const basis = (req.query.basis ?? 'STANDARD') as Basis;
@@ -217,7 +217,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     async (req, reply) => {
       const c = await caller(req, reply); if (!c) return;
       let agent: AgentRecord | undefined;
-      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
+      try { agent = await resolveAgent(req.params.agentId); } catch (e) { return problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const scope = (req.query.scope ?? 'SELF') as Scope;
       return source.recommendations(agent, scope);
@@ -229,7 +229,7 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
     async (req, reply) => {
       const c = await caller(req, reply); if (!c) return;
       let agent: AgentRecord | undefined;
-      try { agent = await resolveAgent(req.params.agentId); } catch { return problem(reply, 503, 'INS-5030', 'Identity source unavailable'); }
+      try { agent = await resolveAgent(req.params.agentId); } catch (e) { return problem(reply, 503, 'INS-5030', withCause('Identity source unavailable', e)); }
       if (!agent) return problem(reply, 404, 'INS-4040', 'Unknown agent for tenant');
       const rating = req.body?.rating;
       if (rating !== 'UP' && rating !== 'DOWN') {

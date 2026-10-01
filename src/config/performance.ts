@@ -7,7 +7,8 @@ export const PERFORMANCE_DB = PERFORMANCE_DATABASES.PAMB;
 export const PERFORMANCE_COLLECTIONS = ['my_production', 'my_mapa', 'my_persistency'] as const;
 export const PERFORMANCE_HIERARCHY_COLLECTION = 'my_agent_hierarchy';
 export type PerformanceCollection = typeof PERFORMANCE_COLLECTIONS[number];
-export const PERFORMANCE_READ_TIMEOUT_MS = 8000;
+/** Mongo budget for one read (query `maxTimeMS` and connection/server selection). */
+export const PERFORMANCE_READ_TIMEOUT_MS = 30_000;
 
 const DATABASE_ENV_VAR: Record<PerformanceDatabaseKey, string> = { PAMB: 'MONGODB_PAMB_DB', PBTB: 'MONGODB_PBTB_DB' };
 

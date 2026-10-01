@@ -18,6 +18,12 @@ export class DomainError extends Error {
   }
 }
 
+/** Appends the sanitized failure category ("timeout", "network", "authentication") when the source reports one. */
+export function withCause(title: string, error: unknown): string {
+  const cause = (error as { sourceCause?: string })?.sourceCause;
+  return cause ? `${title} (${cause})` : title;
+}
+
 async function agentForSource(source: DataSource, agentId: string) {
   try {
     const agent = source.resolveIdentity ? await source.resolveIdentity(agentId) : source.findAgent ? source.findAgent(agentId) : findAgent(agentId);
@@ -25,7 +31,7 @@ async function agentForSource(source: DataSource, agentId: string) {
     return agent;
   } catch (error) {
     if (error instanceof DomainError) throw error;
-    if (error instanceof Error && error.message === 'Identity hierarchy source read failed') throw new DomainError(503, 'INS-5030', 'Identity source unavailable');
+    if (error instanceof Error && error.message === 'Identity hierarchy source read failed') throw new DomainError(503, 'INS-5030', withCause('Identity source unavailable', error));
     if (error instanceof Error && error.message === 'Malformed identity hierarchy') throw new DomainError(500, 'INS-5000', 'Identity data is invalid');
     throw error;
   }
@@ -35,7 +41,7 @@ async function identityForSource(source: DataSource, agentId: string): Promise<A
   try {
     return source.resolveIdentity ? await source.resolveIdentity(agentId) : source.findAgent ? source.findAgent(agentId) : findAgent(agentId);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Identity hierarchy source read failed') throw new DomainError(503, 'INS-5030', 'Identity source unavailable');
+    if (error instanceof Error && error.message === 'Identity hierarchy source read failed') throw new DomainError(503, 'INS-5030', withCause('Identity source unavailable', error));
     if (error instanceof Error && error.message === 'Malformed identity hierarchy') throw new DomainError(500, 'INS-5000', 'Identity data is invalid');
     throw error;
   }

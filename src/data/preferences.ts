@@ -1,4 +1,5 @@
 import type { Collection } from 'mongodb';
+import { PERFORMANCE_READ_TIMEOUT_MS } from '../config/performance.js';
 import { effectiveCatalog } from './catalog.js';
 import type { Basis, MetricPreferences, Scope } from '../types.js';
 
@@ -31,7 +32,7 @@ interface PreferenceDoc {
 }
 
 export class MongoPreferenceStore implements PreferenceStore {
-  constructor(private readonly collection: Collection<PreferenceDoc>, private readonly timeoutMs = 8000) {}
+  constructor(private readonly collection: Collection<PreferenceDoc>, private readonly timeoutMs = PERFORMANCE_READ_TIMEOUT_MS) {}
 
   async get(tenant: string, agentId: string, scope: Scope): Promise<SavedPreferences | undefined> {
     let doc: PreferenceDoc | null;

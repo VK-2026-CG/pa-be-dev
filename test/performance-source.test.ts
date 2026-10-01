@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BSON, Decimal128, type Db, type Document } from 'mongodb';
 import { buildApp } from '../src/app.js';
 import { PerformanceSource } from '../src/data/performance-source.js';
+import { PERFORMANCE_READ_TIMEOUT_MS } from '../src/config/performance.js';
 import { PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_DB, performanceProfile, type PerformanceCollection } from '../src/data/performance-profile.js';
 import { documentFingerprint, equivalentValidator, inspectImport, normalizeMockRecord, parseMockRecords, sourceSchema, type MockImport } from '../src/data/performance-import.js';
 import { sourceMoney } from '../src/lib/money.js';
@@ -131,7 +132,11 @@ describe('three-collection Performance adapter', () => {
     expect(list.items.find(x => x.metricCode === 'ACTIVITY_RATIO')?.collected).toEqual({ kind: 'PERCENT', value: 12 });
     expect(list.items.find(x => x.metricCode === 'AVERAGE_CASE_SIZE')?.collected).toMatchObject({ amount: '3922.00' });
     expect(list.items.find(x => x.metricCode === 'NEW_RECRUIT_CONTRACTED')?.collected).toEqual({ kind: 'COUNT', value: 0 });
-    expect(await source.metricDetail(leader, 'MANPOWER', team)).not.toHaveProperty('barComparison');
+    // Bars come only from this agent's own rows: no prior-year row ⇒ the neutral zero prior, never invented history.
+    const bars = (await source.metricDetail(leader, 'MANPOWER', team))?.barComparison;
+    expect(bars?.layout).toBe('STACKED');
+    expect(bars?.totals?.map(t => (t.value.kind === 'COUNT' ? t.value.value : -1))).toEqual([0, 12]);
+    expect(bars?.measures.map(m => m.measureCode)).toEqual(['EXISTING_AGENTS', 'NEW_RECRUITS']);
     expect(list.context.period.endDate).toBe('2025-05-28');
   });
   it('AC-PA-DIRECT-06 uses persistency YTD fractions and never bonus/MTD substitutions', async () => {
@@ -350,7 +355,7 @@ describe('three-collection Performance adapter', () => {
       'period.year': 2024, 'period.month': 5,
     });
     for (const request of requests) {
-      expect(request.options.maxTimeMS).toBe(8000);
+      expect(request.options.maxTimeMS).toBe(PERFORMANCE_READ_TIMEOUT_MS);
       expect(request.options.projection).toEqual({ _id: 0, period: 1, asOnDate: 1, ptd: 1, metrics: 1 });
     }
   });
@@ -526,7 +531,7 @@ describe('three-collection import safety', () => {
       ] },
       { agentId: 'MOCK_LEAF', displayName: 'MOCK_LEAF', reports: [] },
     ] });
-    expect(pamb.requests.every(request => request.options.maxTimeMS === 8000)).toBe(true);
+    expect(pamb.requests.every(request => request.options.maxTimeMS === PERFORMANCE_READ_TIMEOUT_MS)).toBe(true);
     expect(pamb.requests[0]?.options.projection).not.toHaveProperty('displayRows.encryptedName');
     expect(pbtb.queried).toEqual([]);
   });
@@ -589,7 +594,7 @@ describe('three-collection import safety', () => {
       expect(memberReads.map(r => r.collection).sort()).toEqual(['my_mapa', 'my_persistency', 'my_production']);
       expect(memberReads[0]?.query.agentId.$in).toEqual(['AG1', 'AG2', 'SUB']);
       const hierarchyReads = pamb.requests.filter(r => r.collection === 'my_agent_hierarchy');
-      expect(hierarchyReads.every(r => r.options.maxTimeMS === 8000 && !('displayRows.fullName' in r.options.projection))).toBe(true);
+      expect(hierarchyReads.every(r => r.options.maxTimeMS === PERFORMANCE_READ_TIMEOUT_MS && !('displayRows.fullName' in r.options.projection))).toBe(true);
     });
 
     it('filters by basis/search, and a badge filter matches nobody (no badge source)', async () => {

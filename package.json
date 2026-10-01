@@ -15,6 +15,7 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "db:setup:contests": "tsx scripts/db-setup-contests.ts",
     "db:seed": "tsx scripts/db-seed.ts",
+    "db:seed:team-mock": "tsx scripts/seed-team-hierarchy-mock.ts",
     "db:seed:contests": "tsx scripts/db-seed-contests.ts",
     "export:contests": "tsx scripts/export-imported-contests.ts",
     "db:import:contests": "tsx scripts/import-contests.ts",
@@ -25,6 +26,7 @@
     "db:reconcile:contest-data": "tsx scripts/db-reconcile-contest-data.ts",
     "contest:create-from-json": "tsx scripts/create-contest-from-json.ts",
     "db:ping": "tsx scripts/db-ping.ts",
+    "db:diagnose": "tsx scripts/db-diagnose.ts",
     "db:import:performance": "tsx scripts/import-performance-mocks.ts"
   },
   "dependencies": {

@@ -45,7 +45,7 @@ async function connect(): Promise<MongoClient> {
   if (!connection) {
     client = new MongoClient(process.env.MONGODB_URI, {
       appName: 'pruaction-insights-service',
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: PERFORMANCE_READ_TIMEOUT_MS,
     });
     connection = client.connect().catch(async error => {
       await client?.close(); client = null; connection = null;

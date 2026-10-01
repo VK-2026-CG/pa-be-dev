@@ -70,7 +70,7 @@ malformed values and nulls remain unavailable. Schema-compatible BSON numeric
 year/month dimensions and real UTC watermark dates are validated; malformed
 metadata returns a sanitized error rather than misleading values. An allowlisted
 identity with no source records returns `404 INS-4040` on domain/BFF routes.
-Every source read has an 8-second database execution budget. Database errors
+Every source read has a 30-second database execution budget (`PERFORMANCE_READ_TIMEOUT_MS`). Database errors
 are not converted to EMPTY and raw driver messages are not exposed.
 
 The allowlist file is a JSON object of explicitly authorized mock agent ID to

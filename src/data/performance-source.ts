@@ -29,6 +29,7 @@ import type {
   TeamMemberList,
   TeamSummaryTile,
   AgentOrganization,
+  BarComparison,
 } from '../types.js';
 
 type Rows = Partial<Record<PerformanceCollection, Document>>;
@@ -47,6 +48,17 @@ const levelForTier = (tier: unknown): AgentLevel | undefined => {
   const t = typeof tier === 'string' ? tier.trim().toUpperCase() : '';
   return t === 'AM' ? 'P2' : /^UM\d*$/.test(t) ? 'P3' : t === 'AGENT' ? 'P4' : undefined;
 };
+/** Short, secret-free category for a failed Mongo call (safe to log and to show in a 503). */
+export function classifyMongoError(error: unknown): { category: 'timeout' | 'network' | 'authentication' | 'other'; hint?: string } {
+  const e = error as { name?: string; code?: unknown; message?: string };
+  const text = String(e?.message ?? '');
+  if (e?.code === 50 || /timed? ?out|ETIMEDOUT|MaxTimeMSExpired|exceeded time limit/i.test(text)) return { category: 'timeout', hint: 'slow network or unindexed scan over the time limit' };
+  if (e?.name === 'MongoServerSelectionError' || /ENOTFOUND|ECONNREFUSED|ECONNRESET|server selection|getaddrinfo|topology/i.test(text) || e?.name === 'MongoNetworkError') {
+    return { category: 'network', hint: 'check the Atlas IP access list, VPN/firewall and MONGODB_URI' };
+  }
+  if (e?.code === 13 || e?.code === 18 || /auth|credentials|not authorized|Unauthorized/i.test(text)) return { category: 'authentication', hint: 'wrong user/password, or no rights on this database' };
+  return { category: 'other' };
+}
 const BASIS_FOR_LEVEL: Record<AgentLevel, DrilldownBasis> = { P2: 'AM', P3: 'UM', P4: 'AGENT' };
 /** Team Drilldown KPI tiles, in display order (C4 `summary.metrics`). */
 const TEAM_KPI_CODES = ['MANPOWER', 'ACTIVITY_RATIO', 'PRODUCTIVITY', 'AVERAGE_CASE_SIZE'] as const;
@@ -119,18 +131,48 @@ export class PerformanceSource implements DataSource {
   }
   findAgent = (id: string): AgentRecord | undefined => this.agents.get(id);
 
+  /**
+   * One retry for transient connection problems (dropped socket, slow first connect), so a single
+   * blip does not become a 503 on every dashboard call. Timeouts and auth errors are not retried:
+   * they will not heal within a request.
+   */
+  private async withRetry<T>(what: string, run: () => Promise<T>): Promise<T> {
+    try { return await run(); }
+    catch (error) {
+      const e = error as { name?: string; message?: string };
+      const transient = e?.name === 'MongoNetworkError' || e?.name === 'MongoServerSelectionError' || e?.name === 'MongoNetworkTimeoutError'
+        || /ECONNRESET|ECONNREFUSED|EPIPE|socket/i.test(String(e?.message ?? ''));
+      if (!transient) throw error;
+      this.log(`performance read retry: ${what} error=${e?.name ?? 'unknown'}`);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return run();
+    }
+  }
+
+  /**
+   * Server-side diagnostics for a failed Mongo read. Logs only the error class, driver code and a
+   * category — never the driver message, which can carry hosts or credentials. Returns the short
+   * category, which is also safe to show in the 503 so the cause is visible without server logs.
+   */
+  private logReadFailure(what: string, error: unknown): string {
+    const { category, hint } = classifyMongoError(error);
+    const e = error as { name?: string; code?: unknown; codeName?: string };
+    this.log(`performance read FAILED: ${what} error=${e?.name ?? 'unknown'} code=${String(e?.code ?? e?.codeName ?? '-')} cause=${category}${hint ? ` (${hint})` : ''}`);
+    return category;
+  }
+
   /** Newest `my_agent_hierarchy` snapshot per leader ID (asOnDate DESC, audit.updatedAt DESC, _id DESC); names and vault data are never projected. */
   private async hierarchyRows(key: PerformanceDatabaseKey, ids: string[]): Promise<Map<string, Document>> {
     const out = new Map<string, Document>();
     if (!ids.length) return out;
     let docs: Document[];
     try {
-      docs = await this.dbs[key].collection(PERFORMANCE_HIERARCHY_COLLECTION).find(
+      docs = await this.withRetry(`hierarchy read db=${key}`, () => this.dbs[key].collection(PERFORMANCE_HIERARCHY_COLLECTION).find(
         ids.length === 1 ? { 'hierarchy.leaderId': ids[0] } : { 'hierarchy.leaderId': { $in: ids } },
         { projection: HIERARCHY_PROJECTION, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
-      ).sort(HIERARCHY_ORDER).toArray();
-    } catch {
-      throw new Error('Hierarchy source read failed');
+      ).sort(HIERARCHY_ORDER).toArray());
+    } catch (error) {
+      throw Object.assign(new Error('Hierarchy source read failed'), { sourceCause: this.logReadFailure(`hierarchy read db=${key} ids=${ids.length}`, error) });
     }
     for (const row of docs) {
       const id = row.hierarchy?.leaderId;
@@ -164,10 +206,15 @@ export class PerformanceSource implements DataSource {
 
   private async listedAsReportee(agentId: string): Promise<boolean> {
     for (const key of ['PAMB', 'PBTB'] as const) {
-      const rows = await this.dbs[key].collection(PERFORMANCE_HIERARCHY_COLLECTION).find(
-        { 'subtree.scopeProfileIds': agentId },
-        { projection: { _id: 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
-      ).limit(1).toArray();
+      let rows: Document[];
+      try {
+        rows = await this.dbs[key].collection(PERFORMANCE_HIERARCHY_COLLECTION).find(
+          { 'subtree.scopeProfileIds': agentId },
+          { projection: { _id: 1 }, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS },
+        ).limit(1).toArray();
+      } catch (error) {
+        throw Object.assign(new Error('Hierarchy source read failed'), { sourceCause: this.logReadFailure(`reportee lookup db=${key}`, error) });
+      }
       if (rows.length) return true;
     }
     return false;
@@ -208,7 +255,11 @@ export class PerformanceSource implements DataSource {
       root = await this.hierarchyRoot(agentId);
       // A reportee without its own snapshot is still a known agent (an ID-only leaf in its leader's tree).
       if (!root) return await this.listedAsReportee(agentId) ? { agentId, tenant: 'MY', level: 'P4', name: agentId } : undefined;
-    } catch { throw new Error('Identity hierarchy source read failed'); }
+    } catch (error) {
+      const sourceCause = (error as { sourceCause?: string })?.sourceCause ?? classifyMongoError(error).category;
+      this.log(`identity lookup failed for a ${agentId.length}-char agent id (cause=${sourceCause})`);
+      throw Object.assign(new Error('Identity hierarchy source read failed'), { sourceCause });
+    }
     const level = levelForTier(root.row.displayRows?.tier);
     if (root.row.hierarchy?.leaderId !== agentId || !level) throw new Error('Malformed identity hierarchy');
     return { agentId, tenant: 'MY', level, name: agentId };
@@ -435,22 +486,76 @@ export class PerformanceSource implements DataSource {
     const { rows, context, year, month, day, aggregation } = await this.selection(agent, lens);
     const priorYear = year - 1;
     const collected = this.value(def, rows, lens);
-    const detailComparison = collected && !['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2'].includes(code);
-    const comparison = detailComparison ? (await this.comparisonFor(
-      def, agent, lens, collected, year, month, day, aggregation, new Map(),
-    ) ?? {
-      current: collected,
-      prior: zeroScalar(def.valueType),
-      priorYear,
-      change: zeroChange(code, def.valueType),
-    }) : undefined;
+    const isPersistency = ['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2'].includes(code);
+    const cache = new Map<string, Promise<Document | undefined>>();
+    const found = collected ? await this.comparisonFor(def, agent, lens, collected, year, month, day, aggregation, cache) : undefined;
+    // Persistency shows its prior-year value only when a real prior row exists (never a zero stand-in);
+    // other metrics keep the neutral zero prior when the prior row is absent.
+    const comparison = collected
+      ? (isPersistency ? found : found ?? { current: collected, prior: zeroScalar(def.valueType), priorYear, change: zeroChange(code, def.valueType) })
+      : undefined;
+    const barComparison = collected && comparison && def.capabilities.barComparison
+      ? await this.barComparisonFor(def, agent, lens, rows, collected, comparison, { year, month, day, aggregation, cache })
+      : undefined;
     const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
     const detail: MetricDetail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),
       ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING' as const, collected: alt }] } : {}),
       ...(comparison ? { comparison } : {}),
+      ...(barComparison ? { barComparison } : {}),
       ...(collected && def.threshold ? { threshold: def.threshold } : {}) };
     return detail;
+  }
+
+  /**
+   * Prior-year vs current bars from the same rows as the comparison (Figma Metric Drill downs).
+   * GROUPED: one measure, chip on the current bar = the absolute change. STACKED (MANPOWER):
+   * existing agents + new recruits (`my_mapa` newRecruits, same period rules), totals carry the chip.
+   * Returns undefined when a needed value is unavailable, so the detail falls back to the gauge.
+   */
+  private async barComparisonFor(
+    def: EffectiveDef, agent: AgentRecord, lens: Lens, rows: Rows, current: MetricScalar,
+    comparison: { current: MetricScalar; prior: MetricScalar; priorYear: number; change: Change },
+    at: { year: number; month: number; day: number; aggregation: string | undefined; cache: Map<string, Promise<Document | undefined>> },
+  ): Promise<BarComparison | undefined> {
+    const years = [comparison.priorYear, at.year];
+    const diff = (cur: MetricScalar, pri: MetricScalar): MetricScalar | undefined => {
+      if (cur.kind === 'COUNT' && pri.kind === 'COUNT') return { kind: 'COUNT', value: cur.value - pri.value };
+      if (cur.kind === 'DECIMAL' && pri.kind === 'DECIMAL') return { kind: 'DECIMAL', value: Number((cur.value - pri.value).toFixed(1)), precision: 1 };
+      return undefined;
+    };
+    if (def.metricCode === 'MANPOWER') {
+      if (current.kind !== 'COUNT' || comparison.prior.kind !== 'COUNT') return undefined;
+      const recruitsDef = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === 'NEW_RECRUIT_CONTRACTED');
+      const recruitsNow = recruitsDef ? this.value(recruitsDef, rows, lens) : undefined;
+      if (!recruitsDef || recruitsNow?.kind !== 'COUNT') return undefined;
+      const recruitsThen = await this.comparisonFor(recruitsDef, agent, lens, recruitsNow, at.year, at.month, at.day, at.aggregation, at.cache);
+      // No prior-year row at all ⇒ the same neutral zero prior the comparison card uses.
+      const recruitsBefore = recruitsThen?.prior.kind === 'COUNT' ? recruitsThen.prior.value : 0;
+      const split = (total: number, recruits: number): [MetricScalar, MetricScalar] => {
+        const r = Math.max(0, Math.min(total, recruits));
+        return [{ kind: 'COUNT', value: total - r }, { kind: 'COUNT', value: r }];
+      };
+      const [curExisting, curRecruits] = split(current.value, recruitsNow.value);
+      const [priExisting, priRecruits] = split(comparison.prior.value, recruitsBefore);
+      return {
+        years, axis: { unitCode: 'AGENTS' }, layout: 'STACKED',
+        measures: [
+          { measureCode: 'EXISTING_AGENTS', points: [{ year: years[0]!, value: priExisting }, { year: years[1]!, value: curExisting }] },
+          { measureCode: 'NEW_RECRUITS', points: [{ year: years[0]!, value: priRecruits }, { year: years[1]!, value: curRecruits }] },
+        ],
+        totals: [{ year: years[0]!, value: comparison.prior }, { year: years[1]!, value: current, change: comparison.change }],
+      };
+    }
+    const abs = diff(current, comparison.prior);
+    if (!abs) return undefined;
+    return {
+      years,
+      measures: [{ points: [
+        { year: years[0]!, value: comparison.prior },
+        { year: years[1]!, value: current, change: { basis: 'LAST_YEAR', direction: comparison.change.direction, sentiment: comparison.change.sentiment, abs } },
+      ] }],
+    };
   }
   async metricSeries(agent: AgentRecord, code: string, lens: Lens, anchorYear: number, yearsBack: number): Promise<MetricSeries | undefined> {
     const def = effectiveCatalog(lens.scope, lens.basis).find(d => d.metricCode === code);
