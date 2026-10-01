@@ -1,4 +1,6 @@
 /** Domain types mirroring vendor/spec/insights.v1.yaml. Field names mirror the Insights API contract (C2); renaming is a breaking API change. */
+import type { AgentLevel } from './data/registry.js';
+
 export type PeriodType = 'MTD' | 'QTD' | 'YTD';
 export type BusinessLine = 'ALL' | 'INSURANCE' | 'TAKAFUL';
 export type Basis = 'STANDARD' | 'SCHEME';
@@ -171,3 +173,31 @@ export interface AgentOrganization {
   tier?: AgentLevel;
   reports: AgentOrganization[];
 }
+
+/** ARVIJ-1450 (insights.v1 `getAgentMonthlyHistory`): one month-level value per metric, per source database and aggregation. */
+export type MonthlyHistoryAggregation = 'Personal' | 'DirectUnit' | 'Group';
+/** The database a record was read from (also the `entity` literal on its rows). */
+export type MonthlyHistorySource = 'PAMB' | 'PBTB';
+export interface MonthlyMetricValue { metricCode: string; variant?: Variant; value: MetricScalar | null }
+export interface MonthlyHistoryPart {
+  /** In-month as-on date `YYYY-MM-DD`: the period's year-month with the declared as-on day (the month's last day when undeclared). Never the load watermark. */
+  asOnDate: string;
+  /** Flagged month-end in the source (`isMonthEnd`), or its declared as-on day is the last day of the month. */
+  monthEnd: boolean;
+  metrics: MonthlyMetricValue[];
+}
+export interface MonthlyHistoryRecord {
+  /** `YYYY-MM`. */
+  period: string;
+  year: number;
+  month: number;
+  source: MonthlyHistorySource;
+  aggregation: MonthlyHistoryAggregation;
+  /** `my_production` part; null when that collection has no row for this month/aggregation. */
+  production: MonthlyHistoryPart | null;
+  /** `my_mapa` part; null when that collection has no row for this month/aggregation. */
+  mapa: MonthlyHistoryPart | null;
+}
+export interface MonthlyHistory { agentId: string; from: string; to: string; records: MonthlyHistoryRecord[] }
+/** `from`/`to` are inclusive `YYYY-MM` months; `aggregation` absent ⇒ every aggregation. */
+export interface MonthlyHistoryRequest { from: string; to: string; aggregation?: MonthlyHistoryAggregation }

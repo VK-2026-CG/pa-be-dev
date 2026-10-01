@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { PeriodType, BusinessLine, Scope, TeamView } from '../../vendor/spec/performance-vm.js';
+import type { PeriodType, BusinessLine, HistoricalComparison, Scope, TeamView, Variant } from '../../vendor/spec/performance-vm.js';
 
 export interface QuickLinkCfg { id: string; iconToken: string; nav: { route: string }; order: number; visible: boolean }
 export interface MoreActionCfg { id: string; iconToken: string; nav: { route: string }; order: number }
@@ -37,6 +37,23 @@ export interface PerformanceConfig {
       windows: Array<'CURRENT_YEAR' | 'VS_LAST_YEAR' | 'VS_LAST_2_YEARS'>;
       defaultWindow: 'CURRENT_YEAR' | 'VS_LAST_YEAR' | 'VS_LAST_2_YEARS';
       maxYearsBack?: number;
+    };
+    /** S-P4-03 v2.0.0 Team Historical Data (ARVIJ-1450). The legacy `history` block above keeps serving the SELF flow. */
+    historicalData: {
+      screenId: string;
+      scope: 'TEAM';
+      /** Filter sheet order (Figma); `variant` set for TPC only. `total: true` ⇒ additive metric, the VM carries the desktop Total row (AC-P4-03-32). */
+      metrics: Array<{ metricCode: string; variant?: Variant; total?: boolean }>;
+      comparisons: HistoricalComparison[];
+      defaultMetric: { metricCode: string; variant?: Variant };
+      defaultComparison: HistoricalComparison;
+      /** SELF scope (the same screen for the agent's own Personal rows): its own metric set and default. */
+      self?: {
+        metrics: Array<{ metricCode: string; variant?: Variant; total?: boolean }>;
+        defaultMetric: { metricCode: string; variant?: Variant };
+      };
+      /** Years before the clock year included in the single domain read (window = lookbackYears + 1 years <= 48 months). */
+      lookbackYears: number;
     };
     customize: {
       screenId: string;

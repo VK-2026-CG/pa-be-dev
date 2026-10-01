@@ -13,6 +13,7 @@ import { ANCHOR_YEAR, contextFor, type Lens } from './data/values.js';
 import type { DataSource } from './data/source.js';
 import { PerformanceSourceNotFound } from './data/performance-record.js';
 import { withCause } from './bff/domain-client.js';import type { Basis, BusinessLine, PeriodType, Problem, Scope, TeamView } from './types.js';
+import { checkMonthlyRange, isMonthlyAggregation } from './data/monthly-history.js';
 import { SpecContestRepository } from './contest/spec-repository.js';
 import { registerSpecContestRoutes } from './contest/spec-routes.js';
 import { createContestBrochureStore, type ContestBrochureStore } from './contest/brochure-store.js';
@@ -63,8 +64,8 @@ interface LensQuery {
   period?: string; businessLine?: string; basis?: string; scope?: string; teamView?: string;
 }
 
-/** Parse + authorize the standard lens params. Returns null after replying on error. */
-async function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply, resolveAgent: IdentityResolver, ownIdentityOnly = false): Promise<(Lens & Caller) | null> {
+/** Authenticate the caller and resolve the `:agentId` path agent (404 unknown; a P4 caller may only read itself). Null after replying on error. */
+async function pathAgentFor(req: FastifyRequest<{ Params: { agentId: string } }>, reply: FastifyReply, resolveAgent: IdentityResolver, ownIdentityOnly = false): Promise<AgentRecord | null> {
   const c = await callerFor(req, reply, resolveAgent, ownIdentityOnly);
   if (!c) return null;
   let pathAgent: AgentRecord | undefined;
@@ -73,6 +74,13 @@ async function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { a
   if (pathAgent.agentId !== c.agent.agentId && c.agent.level === 'P4') {
     void problem(reply, 403, 'INS-4030', 'Agent may only read own data'); return null;
   }
+  return pathAgent;
+}
+
+/** Parse + authorize the standard lens params. Returns null after replying on error. */
+async function lensFor(req: FastifyRequest<{ Querystring: LensQuery; Params: { agentId: string } }>, reply: FastifyReply, resolveAgent: IdentityResolver, ownIdentityOnly = false): Promise<(Lens & Caller) | null> {
+  const pathAgent = await pathAgentFor(req, reply, resolveAgent, ownIdentityOnly);
+  if (!pathAgent) return null;
   const q = req.query;
   const period = (q.period ?? 'YTD') as PeriodType;
   const businessLine = (q.businessLine ?? 'ALL') as BusinessLine;
@@ -157,6 +165,26 @@ export function buildApp(source: DataSource, specContestRepository = new SpecCon
       const s = await source.metricSeries(l.agent, req.params.metricCode, l, anchorYear, yearsBack);
       if (!s) return problem(reply, 404, 'INS-4041', 'Metric has no history for this lens', req.params.metricCode);
       return s;
+    },
+  );
+
+  // ARVIJ-1450 (docs/monthly-history-source.md): month-level values from both source databases, no aggregation fallback.
+  app.get<{ Params: { agentId: string }; Querystring: { from?: unknown; to?: unknown; aggregation?: unknown } }>(
+    '/insights/v1/agents/:agentId/monthly-history',
+    async (req, reply) => {
+      const agent = await pathAgentFor(req, reply, resolveAgent, source.ownIdentityOnly); if (!agent) return;
+      const { from, to, aggregation } = req.query;
+      const range = checkMonthlyRange(from, to);
+      if (!range.ok) return problem(reply, 400, 'INS-4000', 'Invalid parameter', range.detail);
+      if (aggregation !== undefined && !isMonthlyAggregation(aggregation)) {
+        return problem(reply, 400, 'INS-4000', 'Invalid parameter', `aggregation=${typeof aggregation === 'string' ? aggregation.slice(0, 24) : 'invalid'}`);
+      }
+      try {
+        return await source.monthlyHistory(agent, { from: from as string, to: to as string, ...(aggregation !== undefined ? { aggregation } : {}) });
+      } catch (e) {
+        if ((e as { sourceCause?: string })?.sourceCause) return problem(reply, 503, 'INS-5030', withCause('Monthly history source unavailable', e));
+        throw e;
+      }
     },
   );
 

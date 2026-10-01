@@ -10,7 +10,10 @@ import { findAgent } from '../data/registry.js';
 import type { AgentRecord } from '../data/registry.js';
 import { CATALOG, effectiveCatalog } from '../data/catalog.js';
 import { ANCHOR_YEAR, type Lens } from '../data/values.js';
-import type { MemberBadgeCode, TeamMember, TeamMemberDashboard, TeamMemberList, TeamMemberSortBy } from '../types.js';
+import { checkMonthlyRange, isMonthlyAggregation } from '../data/monthly-history.js';
+import type {
+  MemberBadgeCode, MonthlyHistory, MonthlyHistoryAggregation, TeamMember, TeamMemberDashboard, TeamMemberList, TeamMemberSortBy,
+} from '../types.js';
 
 export class DomainError extends Error {
   constructor(public status: number, public code: string, public title: string) {
@@ -85,6 +88,8 @@ function teamDashboardLensOf(p: TeamDrilldownParams): Lens {
   };
 }
 
+export interface MonthlyHistoryParams { from: string; to: string; aggregation?: MonthlyHistoryAggregation }
+
 export function createInsightsDomain(source: DataSource) {
   const agentOrThrow = (id: string) => agentForSource(source, id);
   return {
@@ -124,6 +129,20 @@ export function createInsightsDomain(source: DataSource) {
       const s = await source.metricSeries(agent, code, lensOf(p), anchorYear, yearsBack);
       if (!s) throw new DomainError(404, 'INS-4041', 'Metric has no history for this lens');
       return s;
+    },
+    /** ARVIJ-1450 `getAgentMonthlyHistory`: validated here too, so the BFF cannot request an unbounded read. */
+    monthlyHistory: async (_caller: string, agentId: string, p: MonthlyHistoryParams): Promise<MonthlyHistory> => {
+      const agent = await agentOrThrow(agentId);
+      const range = checkMonthlyRange(p.from, p.to);
+      if (!range.ok || (p.aggregation !== undefined && !isMonthlyAggregation(p.aggregation))) {
+        throw new DomainError(400, 'INS-4000', 'Invalid parameter');
+      }
+      try {
+        return await source.monthlyHistory(agent, { from: p.from, to: p.to, ...(p.aggregation ? { aggregation: p.aggregation } : {}) });
+      } catch (error) {
+        if ((error as { sourceCause?: string })?.sourceCause) throw new DomainError(503, 'INS-5030', withCause('Monthly history source unavailable', error));
+        throw error;
+      }
     },
     milestones: async (_caller: string, agentId: string): Promise<any> => {
       const agent = await agentOrThrow(agentId);

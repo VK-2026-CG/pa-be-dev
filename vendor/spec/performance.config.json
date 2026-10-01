@@ -354,6 +354,34 @@
       "defaultWindow": "VS_LAST_2_YEARS",
       "maxYearsBack": 4
     },
+    "historicalData": {
+      "screenId": "S-P4-03",
+      "scope": "TEAM",
+      "metrics": [
+        { "metricCode": "TPC", "variant": "WITHOUT_REPRICING", "total": true },
+        { "metricCode": "TPC", "variant": "WITH_REPRICING", "total": true },
+        { "metricCode": "CASE_COUNT", "total": true },
+        { "metricCode": "MANPOWER" },
+        { "metricCode": "ACTIVITY_RATIO" },
+        { "metricCode": "PRODUCTIVITY" },
+        { "metricCode": "AVERAGE_CASE_SIZE" },
+        { "metricCode": "NEW_RECRUIT_CONTRACTED", "total": true }
+      ],
+      "comparisons": ["CURRENT_YEAR", "VS_LAST_YEAR", "VS_LAST_2_YEARS"],
+      "defaultMetric": { "metricCode": "TPC", "variant": "WITHOUT_REPRICING" },
+      "defaultComparison": "CURRENT_YEAR",
+      "self": {
+        "metrics": [
+          { "metricCode": "TPC", "variant": "WITHOUT_REPRICING", "total": true },
+          { "metricCode": "TPC", "variant": "WITH_REPRICING", "total": true },
+          { "metricCode": "CASE_COUNT", "total": true },
+          { "metricCode": "FYP", "total": true },
+          { "metricCode": "FYC", "total": true }
+        ],
+        "defaultMetric": { "metricCode": "TPC", "variant": "WITHOUT_REPRICING" }
+      },
+      "lookbackYears": 3
+    },
     "customize": {
       "screenId": "S-P4-04",
       "scopes": {

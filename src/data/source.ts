@@ -8,6 +8,7 @@ import { ANCHOR_YEAR, AS_OF_DATE, contextFor, metricDetail, metricList, metricSe
 import { getPreferences, memoryPreferences, MongoPreferenceStore, PREFERENCES_COLLECTION, putPreferences, type PrefError } from './preferences.js';
 import { recommendations, recordFeedback, type RecommendationListPayload } from './recommendations.js';
 import { mockTeamMemberDashboard } from './mocks/team-members.js';
+import { stubMonthlyHistory } from './mocks/monthly-history.js';
 import type {
   Basis,
   DrilldownBasis,
@@ -17,6 +18,8 @@ import type {
   MetricSeries,
   MetricSnapshotList,
   MilestoneProgressList,
+  MonthlyHistory,
+  MonthlyHistoryRequest,
   Scope,
   TeamMember,
   TeamMemberDashboard,
@@ -66,6 +69,12 @@ export interface DataSource {
     lens: Lens,
   ): Promise<TeamMemberDashboard | undefined>;
   getAgentOrganization?(agentId: string): Promise<AgentOrganization | undefined>;
+  /**
+   * ARVIJ-1450: month-level values for `from`..`to` (inclusive `YYYY-MM`, already validated, <= 48 months), one record per
+   * (period, source database, aggregation) that has a row; months without rows are absent. No aggregation fallback.
+   * Mongo failures throw an error carrying a sanitized `sourceCause`.
+   */
+  monthlyHistory(agent: AgentRecord, req: MonthlyHistoryRequest): Promise<MonthlyHistory>;
 }
 
 /** Offline regression fixture engine only; never a Mongo read fallback. */
@@ -109,6 +118,7 @@ class MemorySource implements DataSource {
     return mockTeamMemberDashboard(memberAgentId, lens);
   }
   async getAgentOrganization(): Promise<undefined> { return undefined; }
+  async monthlyHistory(agent: AgentRecord, req: MonthlyHistoryRequest): Promise<MonthlyHistory> { return stubMonthlyHistory(agent, req); }
 }
 
 export async function createSource(log: (msg: string) => void = () => {}): Promise<DataSource> {

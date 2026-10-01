@@ -16,7 +16,7 @@ import type { DataSource, TeamListRequest } from './source.js';
 import type { AgentRecord } from './registry.js';
 import { teamAgentRecord } from './team-tree.js';
 import type { Lens } from './values.js';
-import type { Basis, Scope } from '../types.js';
+import type { Basis, MonthlyHistoryRequest, Scope } from '../types.js';
 
 /** The mock tree's AM root (L3001's reports) stands in for the caller's team. */
 const MOCK_ROOT = 'L3001';
@@ -77,6 +77,7 @@ export class TeamDrilldownMockOverlay implements DataSource {
   recordFeedback(agent: AgentRecord, recommendationId: string, rating: 'UP' | 'DOWN') {
     return this.pick(agent).recordFeedback(agent, recommendationId, rating);
   }
+  monthlyHistory(agent: AgentRecord, req: MonthlyHistoryRequest) { return this.pick(agent).monthlyHistory(agent, req); }
   listTeamMembers(agent: AgentRecord, req: TeamListRequest) { return this.mock.listTeamMembers(this.asRoot(agent), req); }
   findTeamMember(agent: AgentRecord, memberAgentId: string, lens: Lens) {
     return this.mock.findTeamMember(this.asRoot(agent), memberAgentId, lens);

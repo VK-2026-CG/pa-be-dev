@@ -128,6 +128,8 @@ tags:
     description: Hierarchy-scoped member listing and selected-member dashboard composition.
   - name: Organization
     description: Nested agent organization read from the approved hierarchy source.
+  - name: MonthlyHistory
+    description: Month-level metric values from both Performance source databases (Team Historical Data, ARVIJ-1450).
 
 paths:
   /agents/{agentId}/organization:
@@ -482,6 +484,99 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /agents/{agentId}/monthly-history:
+    get:
+      operationId: getAgentMonthlyHistory
+      tags: [MonthlyHistory]
+      summary: Month-level metric values per source database and aggregation
+      description: |
+        Backs the BFF `GET /performance/historical-data` (S-P4-03 v2.0.0, Team
+        Historical Data, ARVIJ-1450). Returns one record per (month, source
+        database, aggregation) that has at least one row in `my_production` or
+        `my_mapa`, in ascending order: period, then source (`PAMB`, `PBTB`),
+        then aggregation (`Personal`, `DirectUnit`, `Group`). Months without a
+        row are omitted; an agent with no rows gets `records: []`.
+
+        `from`/`to` are inclusive `YYYY-MM` months, `from <= to`, at most 48
+        months apart (`400 INS-4000` otherwise). Both databases and both
+        collections are always read; this operation sums nothing across
+        sources (INSURANCE / TAKAFUL / ALL selection is a BFF concern) and
+        never falls back to another aggregation: the requested one or nothing.
+
+        A monthly value is the `ptd.<metric>.mtd` leaf of ONE row per
+        (collection, source, month, aggregation). When several rows exist the
+        row flagged month-end is preferred, else the greatest declared as-on
+        day, else the greatest `asOnDate`, then `id` / `_id` descending.
+        `monthEnd` is true for a row flagged month-end (`isMonthEnd` Y) or whose
+        declared as-on day is the last day of its month. Each part's `asOnDate`
+        is the as-on date inside the month (year-month with the declared as-on
+        day, the month's last day when undeclared), never the load watermark.
+        Persistency is YTD-only and is not emitted. Names, identifiers and vault data are
+        never projected from Mongo.
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+        - name: from
+          in: query
+          required: true
+          description: First month, inclusive.
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2025-01' }
+        - name: to
+          in: query
+          required: true
+          description: Last month, inclusive. At most 48 months after `from`.
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2026-07' }
+        - name: aggregation
+          in: query
+          description: Restrict to one aggregation. Absent = all three.
+          schema: { $ref: '#/components/schemas/MonthlyHistoryAggregation' }
+      responses:
+        '200':
+          description: Month-level values (possibly empty).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyHistory'
+              examples:
+                my-direct-unit:
+                  summary: One closed month and one partial month, PAMB DirectUnit (truncated)
+                  value:
+                    agentId: '1136911'
+                    from: '2026-06'
+                    to: '2026-07'
+                    records:
+                      - period: '2026-06'
+                        year: 2026
+                        month: 6
+                        source: PAMB
+                        aggregation: DirectUnit
+                        production:
+                          asOnDate: '2026-06-30'
+                          monthEnd: true
+                          metrics:
+                            - { metricCode: TPC, variant: WITHOUT_REPRICING, value: { kind: MONEY, amount: '25246.00', currency: MYR } }
+                            - { metricCode: FYC, value: null }
+                        mapa: null
+                      - period: '2026-07'
+                        year: 2026
+                        month: 7
+                        source: PAMB
+                        aggregation: DirectUnit
+                        production:
+                          asOnDate: '2026-07-27'
+                          monthEnd: false
+                          metrics:
+                            - { metricCode: CASE_COUNT, value: { kind: COUNT, value: 4 } }
+                        mapa: null
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503':
+          description: Performance source unavailable (`INS-5030`; the title carries a sanitized cause such as timeout or network).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /agents/{agentId}/milestones:
     get:
@@ -1450,6 +1545,79 @@ components:
           type: array
           description: Ordered anchor-year first, then descending prior years.
           items: { $ref: '#/components/schemas/YearSeries' }
+
+    # ---------- Monthly history (ARVIJ-1450) ----------
+    MonthlyHistoryAggregation:
+      type: string
+      description: Source `agentAggregation` (camelCase in all collections).
+      enum: [Personal, DirectUnit, Group]
+
+    MonthlyMetricValue:
+      type: object
+      required: [metricCode, value]
+      properties:
+        metricCode: { $ref: '#/components/schemas/MetricCode' }
+        variant:
+          allOf: [{ $ref: '#/components/schemas/Variant' }]
+          description: Present for TPC and PTPC only.
+        value:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
+          description: Null when the source value is null, missing or invalid (never zero-filled).
+
+    MonthlyHistoryPart:
+      type: object
+      description: The selected row of one collection for a month.
+      required: [asOnDate, monthEnd, metrics]
+      properties:
+        asOnDate:
+          type: string
+          format: date
+          description: >-
+            The as-on date inside the month: the period's year-month with the declared as-on day (the month's last
+            day when undeclared); never the load watermark.
+        monthEnd:
+          type: boolean
+          description: Row flagged month-end (`isMonthEnd`), or its declared as-on day is the last day of the month.
+        metrics:
+          type: array
+          description: >-
+            my_production -> TPC and PTPC (each WITHOUT_REPRICING then WITH_REPRICING), FYP, FYC, CASE_COUNT;
+            my_mapa -> MANPOWER, ACTIVITY_RATIO, PRODUCTIVITY, AVERAGE_CASE_SIZE, NEW_RECRUIT_CONTRACTED.
+          items: { $ref: '#/components/schemas/MonthlyMetricValue' }
+
+    MonthlyHistoryRecord:
+      type: object
+      required: [period, year, month, source, aggregation, production, mapa]
+      properties:
+        period: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        year: { type: integer }
+        month: { type: integer, minimum: 1, maximum: 12 }
+        source:
+          type: string
+          description: Database the record was read from (equals the rows' `entity`).
+          enum: [PAMB, PBTB]
+        aggregation: { $ref: '#/components/schemas/MonthlyHistoryAggregation' }
+        production:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/MonthlyHistoryPart' }]
+          description: Null when `my_production` has no row for this month and aggregation.
+        mapa:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/MonthlyHistoryPart' }]
+          description: Null when `my_mapa` has no row for this month and aggregation.
+
+    MonthlyHistory:
+      type: object
+      required: [agentId, from, to, records]
+      properties:
+        agentId: { type: string }
+        from: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        to: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        records:
+          type: array
+          description: Ascending by period, then source (PAMB, PBTB), then aggregation (Personal, DirectUnit, Group).
+          items: { $ref: '#/components/schemas/MonthlyHistoryRecord' }
 
     # ---------- Organization ----------
     AgentOrganization:

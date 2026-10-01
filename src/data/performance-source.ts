@@ -8,10 +8,15 @@ import {
   PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_HIERARCHY_COLLECTION, PERFORMANCE_READ_TIMEOUT_MS,
   type PerformanceCollection, type PerformanceDatabaseKey,
 } from '../config/performance.js';
-import { PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
+import { PERFORMANCE_BREAKDOWN_MAPPING, PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
+import { metricBreakdowns } from './performance-breakdown.js';
 import { sourceMetricScalar } from './performance-values.js';
 import { changeFor } from './change.js';
 import { performanceRecordMetadata, PerformanceSourceNotFound } from './performance-record.js';
+import {
+  assembleMonthlyHistory, checkMonthlyRange, MONTHLY_HISTORY_COLLECTIONS, MONTHLY_HISTORY_SOURCES, monthlyCandidates,
+  type MonthlyHistoryInput,
+} from './monthly-history.js';
 import type { Lens } from './values.js';
 import type {
   Basis,
@@ -30,6 +35,8 @@ import type {
   TeamSummaryTile,
   AgentOrganization,
   BarComparison,
+  MonthlyHistory,
+  MonthlyHistoryRequest,
 } from '../types.js';
 
 type Rows = Partial<Record<PerformanceCollection, Document>>;
@@ -38,6 +45,9 @@ const HIERARCHY_PROJECTION = { _id: 1, asOnDate: 1, 'audit.updatedAt': 1, 'hiera
 const HIERARCHY_ORDER = { asOnDate: -1, 'audit.updatedAt': -1, _id: -1 } as const;
 /** Marks an ID already looked up that has no hierarchy document (treated like an absent row). */
 const ABSENT: Document = Object.freeze({});
+/** Monthly history: whitelist only — no names, agent codes or vault data leave Mongo. Ties resolve `id` then `_id` descending (as `latest()`). */
+const MONTHLY_PROJECTION = { _id: 0, id: 1, period: 1, asOnDate: 1, isMonthEnd: 1, agentAggregation: 1, ptd: 1 } as const;
+const MONTHLY_ORDER = { 'period.year': 1, 'period.month': 1, id: -1, _id: -1 } as const;
 /** Upper bound on a resolved downline so a malformed tree cannot fan out without limit. */
 const MAX_DOWNLINE = 20_000;
 /** Hierarchy snapshots change daily; one request resolves the caller's root up to three times. */
@@ -498,10 +508,15 @@ export class PerformanceSource implements DataSource {
       ? await this.barComparisonFor(def, agent, lens, rows, collected, comparison, { year, month, day, aggregation, cache })
       : undefined;
     const alt = collected && def.capabilities.repricing ? this.value(def, rows, lens, true) : undefined;
+    // Breakdown by product: the same `my_production` row and period as the headline value (TPC/PTPC/FYP).
+    const breakdowns = collected && def.capabilities.breakdown
+      ? metricBreakdowns(code, rows[PERFORMANCE_BREAKDOWN_MAPPING[code]?.collection ?? 'my_production'], lens.period, lens.businessLine)
+      : [];
     const detail: MetricDetail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),
       ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING' as const, collected: alt }] } : {}),
       ...(comparison ? { comparison } : {}),
+      ...(breakdowns.length ? { breakdowns } : {}),
       ...(barComparison ? { barComparison } : {}),
       ...(collected && def.threshold ? { threshold: def.threshold } : {}) };
     return detail;
@@ -567,6 +582,38 @@ export class PerformanceSource implements DataSource {
     return { metricCode: code, valueType: def.valueType, context: seriesContext, anchorYear,
       series: Array.from({ length: yearsBack + 1 }, (_, offset) => ({ year: anchorYear - offset,
         points: Array.from({ length: 12 }, (_, month) => ({ month: month + 1, value: null })) })) };
+  }
+  /**
+   * Monthly history (ARVIJ-1450, docs/monthly-history-source.md): both databases x `my_production`/`my_mapa`, four reads
+   * in parallel, each bounded by `maxTimeMS` with one transient retry. Rows outside the month range or with malformed
+   * period/asOnDate metadata are dropped (counted in the log, never their content). There is no aggregation fallback.
+   */
+  async monthlyHistory(agent: AgentRecord, req: MonthlyHistoryRequest): Promise<MonthlyHistory> {
+    if (agent.tenant !== 'MY' || !/^[A-Za-z0-9_-]{1,40}$/.test(agent.agentId)) throw new Error('Invalid Performance identity');
+    const range = checkMonthlyRange(req.from, req.to);
+    if (!range.ok) throw new Error('Invalid monthly history range');
+    const jobs = MONTHLY_HISTORY_SOURCES.flatMap(source => MONTHLY_HISTORY_COLLECTIONS.map(collection => ({ source, collection })));
+    const inputs = await Promise.all(jobs.map(async ({ source, collection }): Promise<MonthlyHistoryInput> => {
+      const keys = PERFORMANCE_SOURCE_KEYS[collection];
+      // `entity` is the database's own literal ('PAMB' in PAMB, 'PBTB' in PBTB). The year range is a coarse index-friendly
+      // filter; months are filtered in code because period.yyyymm is spelled differently across collections.
+      const query: Document = { [keys.identity]: agent.agentId, entity: source, 'period.year': { $gte: range.from.year, $lte: range.to.year } };
+      if (req.aggregation) query[keys.aggregation] = req.aggregation;
+      if (collection === 'my_production') query[keys.caseStatus] = 'Collected';
+      const what = `monthly history read db=${source} collection=${collection}`;
+      let docs: Document[];
+      try {
+        docs = await this.withRetry(what, () => this.dbs[source].collection(collection).find(query, {
+          projection: MONTHLY_PROJECTION, maxTimeMS: PERFORMANCE_READ_TIMEOUT_MS,
+        }).sort(MONTHLY_ORDER).toArray());
+      } catch (error) {
+        throw Object.assign(new Error('Monthly history source read failed'), { sourceCause: this.logReadFailure(what, error) });
+      }
+      const { candidates, skipped } = monthlyCandidates(docs, range.from, range.to);
+      this.log(`performance read: monthly history db=${source} collection=${collection} aggregation=${req.aggregation ?? 'any'} rows=${docs.length} inRange=${candidates.length} skipped=${skipped}`);
+      return { source, collection, candidates };
+    }));
+    return assembleMonthlyHistory(agent.agentId, req.from, req.to, inputs);
   }
   async milestones(agent: AgentRecord) {
     const { context } = await this.selection(agent, { period: 'YTD', scope: 'SELF', basis: 'STANDARD', businessLine: 'INSURANCE' });

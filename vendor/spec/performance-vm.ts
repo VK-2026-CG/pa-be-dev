@@ -16,6 +16,9 @@
  * |        ?period&businessLine&basis&scope&teamView    |                        |                                                         |
  * | GET  /api/bff/v1/performance/metrics/:metricCode/history | MetricHistoryVM   | getMetricSeries + config (history windows/tabs)         |
  * |        ?businessLine&basis&scope&teamView&anchorYear&yearsBack |             |   (yearsBack=0 ⇒ Current Year + MoM deltas, D-11)       |
+ * | GET  /api/bff/v1/performance/historical-data        | HistoricalDataVM       | getAgentMonthlyHistory + historicalData config (C4)     |
+ * |        ?metricCode&variant&comparison&businessLine |                        |   (S-P4-03 v2.0.0 Team Historical Data, ARVIJ-1450;     |
+ * |        &teamView&basis&scope=TEAM                   |                        |   leaders only, GROUP needs P2)                         |
  * | GET  /api/bff/v1/performance/customize?scope        | CustomizeMetricsVM     | listMetricDefinitions + getMetricPreferences            |
  * | PUT  /api/bff/v1/performance/customize?scope        | CustomizeMetricsVM     | putMetricPreferences                                    |
  * | POST /api/bff/v1/performance/recommendations/:id/feedback | 204            | submitRecommendationFeedback                            |
@@ -182,7 +185,7 @@ export type MetricScalar =
   | DecimalValue;
 
 export interface DeltaVM {
-  comparisonBasis: "LAST_YEAR" | "LAST_MONTH";
+  comparisonBasis: "LAST_YEAR" | "LAST_MONTH" | "LAST_2_YEARS";
   direction: TrendDirection;
   /** Drives badge tone; computed by the domain (D-05) — or by the BFF from
    *  catalog `favourability` for month-over-month deltas (D-11). */
@@ -630,6 +633,90 @@ export interface MetricHistoryVM {
    * using catalog `favourability` (D-11).
    */
   momDeltas?: Array<DeltaVM | null>;
+}
+
+/* ───────────────── S-P4-03 v2.0.0 · Team Historical Data (ARVIJ-1450) ───────────────── */
+
+/** Time filter of the Team Historical Data table (`GET .../performance/historical-data`). */
+export type HistoricalComparison = "CURRENT_YEAR" | "VS_LAST_YEAR" | "VS_LAST_2_YEARS";
+
+/** One radio option of the Metric filter; `variant` is set for TPC only. */
+export interface HistoricalMetricOptionVM {
+  metricCode: string;
+  variant?: Variant;
+  selected: boolean;
+}
+
+export interface HistoricalComparisonOptionVM {
+  comparison: HistoricalComparison;
+  selected: boolean;
+}
+
+/**
+ * Desktop "Total" row (S-P4-03 §B, D-HD-16, AC-P4-03-32). Present only for
+ * additive metrics (C4 `screens.historicalData.metrics[].total = true`: TPC both
+ * variants, CASE_COUNT, NEW_RECRUIT_CONTRACTED). Like-for-like: every year column
+ * sums ONLY the months in which the anchor year has a value, so the % change
+ * compares equal periods. A year column is null when it lacks a value for any of
+ * those months (never a partial sum) or when the anchor year has no value at all.
+ */
+export interface HistoricalDataTotalsVM {
+  /** Aligned with `years`; null ⇒ render "-". */
+  values: Array<MetricScalar | null>;
+  /**
+   * Aligned with `changeColumns`; null ⇒ "N/A". Always null for a LAST_MONTH
+   * column (a month-over-month change of a total is undefined): the UI leaves
+   * that cell empty. Same `display: "PCT"`, one-decimal rule as the rows.
+   */
+  changes: Array<DeltaVM | null>;
+}
+
+/** One calendar month: a mobile card / a desktop table row. */
+export interface HistoricalDataRowVM {
+  month: number; // 1..12 → i18n insights.month.{n}.short / long
+  /** Aligned with `years`; null ⇒ render "-" (no row, or the source value is null). */
+  values: Array<MetricScalar | null>;
+  /**
+   * Aligned with `changeColumns`. null ⇒ render "N/A" (AC12): the current-year
+   * value is unavailable, the comparison month's value is unavailable, or it is zero.
+   * Always `display: "PCT"`, one decimal, never the R-PCT-ROUNDUP integer rule.
+   */
+  changes: Array<DeltaVM | null>;
+}
+
+/**
+ * Team Historical Data — "Historical Data" opened from the Team Performance
+ * dashboard (S-P4-03 §B, ARVIJ-1450-SP01). Always 12 rows (Jan..Dec) so the
+ * layout is intact even when `dataState` is EMPTY (AC-P4-03-26/-27).
+ *
+ * Column model by `selection.comparison` (anchor = `anchorYear` = year of the
+ * newest month the chosen source holds). Per the Jira stories (AC7/AC8/AC9):
+ *  - CURRENT_YEAR    years [A]            changeColumns [LAST_MONTH]
+ *  - VS_LAST_YEAR    years [A, A-1]       changeColumns [LAST_YEAR]
+ *  - VS_LAST_2_YEARS years [A, A-1, A-2]  changeColumns [LAST_YEAR, LAST_2_YEARS]
+ * UI captions are derived: LAST_YEAR → "vs {A-1}", LAST_2_YEARS → "vs {A-2}",
+ * LAST_MONTH → "vs last month".
+ */
+export interface HistoricalDataVM {
+  meta: VMeta;
+  /** EMPTY ⇔ every `rows[].values[]` cell is null. The UI shows a notice and keeps the frame. */
+  dataState: "OK" | "EMPTY";
+  /** `teamView` is present only when `scope` is TEAM. SELF = the agent's own (Personal) rows. */
+  context: { businessLine: BusinessLine; basis: Basis; scope: Scope; teamView?: TeamView };
+  selection: { metricCode: string; variant?: Variant; comparison: HistoricalComparison };
+  /** Filter sheet content, in Figma order (from config `screens.historicalData`). */
+  filter: { metrics: HistoricalMetricOptionVM[]; comparisons: HistoricalComparisonOptionVM[] };
+  valueType: MetricScalar["kind"];
+  /** Year of the newest data of the chosen source (the clock year when there is none). */
+  anchorYear: number;
+  /** Value columns, anchor year first. */
+  years: number[];
+  /** 1 or 2 change columns: [LAST_MONTH] (Current Year), [LAST_YEAR] or [LAST_YEAR, LAST_2_YEARS]. */
+  changeColumns: Array<{ basis: DeltaVM["comparisonBasis"] }>;
+  /** Always 12 rows, January first. */
+  rows: HistoricalDataRowVM[];
+  /** Desktop Total row; absent for non-additive metrics and never rendered on mobile cards. */
+  totals?: HistoricalDataTotalsVM;
 }
 
 /* ─────────────────────── S-P4-04 · Customize Metrics ────────────────────── */

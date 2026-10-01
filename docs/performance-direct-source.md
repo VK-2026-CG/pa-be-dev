@@ -123,7 +123,20 @@ Source BSON numeric types are retained; wire money is decimal-string half-up cen
   conflicts. The development allowlist remains temporary identity configuration;
   it is not a business-data source. No production authentication is implied.
 - Production: exact PTD period leaf for TPC/PTPC/FYP/CASE_COUNT; FYC null is EMPTY.
-  WITH_REPRICING is detail alternate only. No weighted-product/credit-point guess.
+  WITH_REPRICING is detail alternate only.
+- Breakdown by product (S-P4-02 1.22.0, `AC-P4-02-69`): Metric Detail for TPC/PTPC (both
+  variants) and FYP (one table) returns `breakdowns[]` from `my_production`
+  (`src/data/performance-breakdown.ts`, paths in `performance-mapping.ts`). Rows are
+  `LINKED_PREMIUM`/`REGULAR_PREMIUM`/`PSA`/`SINGLE_PREMIUM` from the exact period leaf
+  `ptd.<metric>[.<variant>].{linked,regular,psa,sp}.{mtd|qtd|ytd}`; a null or invalid leaf is
+  absent (never zero), a real 0 is kept, no usable leaf ⇒ no table; the Total is the sum of the
+  rows shown. TPC/PTPC also get `CREDIT_POINTS` = `10% × (PSA + SP)` capped at 25% of the
+  product total (D-19), derived from the same period's leaves and only when both exist — the
+  single `snapshot.tpc.*.creditPoint` value is never copied into a period. On the development
+  cluster that formula reproduces the stored snapshot value for the same month, `snapshot.tpc.*`
+  equals the `…mtd` leaves, and the period leaf equals the sum of the four product leaves.
+  FYP has no Credit Points / Unit Trust / Group Premium row (no source leaf). Penders (case
+  count) still has no `my_production` source, so `pendersCaseCount` is not emitted.
 - MAPA: PTD manpower/count, activity ratio as 0–100 percent, productivity decimal,
   average case size MYR major units, new recruits count. No invented bar history.
 - Persistency: YTD fields only, fractions ×100; no bonus substitution or MTD/QTD.

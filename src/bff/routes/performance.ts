@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Scope } from '../../../vendor/spec/performance-vm.js';
+import type { HistoricalComparison, Scope, Variant } from '../../../vendor/spec/performance-vm.js';
 import type { DomainApi } from '../domain-client.js';
 import { composeDashboard, composeViewingDashboard } from '../compose/dashboard.js';
 import { composeCustomize } from '../compose/customize.js';
 import { composeMetricDetail } from '../compose/metric-detail.js';
 import { composeHistory } from '../compose/history.js';
+import { composeHistoricalData } from '../compose/historical-data.js';
 import { buildMeta } from '../compose/shared.js';
 import { CONFIG, FILTERABLE_BADGES, TEAM_DRILLDOWN_CONFIG } from '../config.js';
 import { composeTeamDrilldown } from '../compose/team-drilldown.js';
@@ -166,6 +167,57 @@ export function registerPerformanceRoutes(app: FastifyInstance, domain: DomainAp
     }
     try {
       return await composeHistory(domain, persona, req.params.metricCode, lens, window);
+    } catch (e) {
+      return mapDomainError(reply, e);
+    }
+  });
+
+  /**
+   * S-P4-03 v2.0.0 Historical Data (ARVIJ-1450, AC-P4-03-15..34): ONE screen for both scopes. `scope` absent means TEAM.
+   * TEAM: leaders only (BFF-4032), GROUP needs P2 (BFF-4031). SELF: any persona, its own (Personal) rows, with its own
+   * metric set (`screens.historicalData.self`). Selection (metric/variant/comparison) is validated against the list of
+   * the requested scope; a bad value is BFF-4000. The legacy SELF history route above stays as it is.
+   */
+  app.get('/api/bff/v1/performance/historical-data', async (req: FastifyRequest<{ Querystring: Record<string, unknown> }>, reply: FastifyReply) => {
+    const persona = await getPersona(req);
+    const cfg = CONFIG.screens.historicalData;
+    // Query values must be single strings (a repeated parameter arrives as an array and is rejected).
+    const INVALID = Symbol('invalid');
+    const param = (name: string): string | undefined | typeof INVALID => {
+      const value = req.query[name];
+      return value === undefined ? undefined : typeof value === 'string' ? value : INVALID;
+    };
+    const bad = (name: string) => problem(reply, 400, 'BFF-4000', `Invalid ${name}`, String(req.query[name]).slice(0, 40));
+    const scopeParam = param('scope');
+    if (scopeParam === INVALID || (scopeParam !== undefined && scopeParam !== 'TEAM' && scopeParam !== 'SELF')) return bad('scope');
+    const scope: Scope = scopeParam ?? 'TEAM';
+    const view = scope === 'SELF' ? cfg.self : cfg;
+    if (!view) return bad('scope');
+    // 403 BFF-4032 (TEAM for a non-leader) / BFF-4031 (GROUP, not P2). SELF has no gating and ignores teamView.
+    const lens = parseLens({ ...req.query, scope }, persona, reply);
+    if (!lens) return;
+    if (lens.basis !== 'STANDARD') return bad('basis');
+
+    const metricParam = param('metricCode'), variantParam = param('variant'), comparisonParam = param('comparison');
+    if (metricParam === INVALID) return bad('metricCode');
+    if (variantParam === INVALID) return bad('variant');
+    if (comparisonParam === INVALID) return bad('comparison');
+    const metricCode = metricParam ?? view.defaultMetric.metricCode;
+    const comparison = comparisonParam ?? cfg.defaultComparison;
+    if (!cfg.comparisons.includes(comparison as HistoricalComparison)) return bad('comparison');
+    const entries = view.metrics.filter((m) => m.metricCode === metricCode);
+    if (!entries.length) return bad('metricCode');
+    // Only a metric that offers variants (TPC) takes one; it defaults to WITHOUT_REPRICING. Any variant on another metric is rejected.
+    const offersVariants = entries.some((m) => m.variant !== undefined);
+    if (!offersVariants && variantParam !== undefined) return bad('variant');
+    const variant = offersVariants ? (variantParam ?? 'WITHOUT_REPRICING') : undefined;
+    if (offersVariants && !entries.some((m) => m.variant === variant)) return bad('variant');
+
+    try {
+      return await composeHistoricalData(domain, persona, {
+        scope, metricCode, ...(variant ? { variant: variant as Variant } : {}), comparison: comparison as HistoricalComparison,
+        businessLine: lens.businessLine, ...(scope === 'TEAM' ? { teamView: lens.teamView ?? 'DIRECT' } : {}), basis: lens.basis,
+      });
     } catch (e) {
       return mapDomainError(reply, e);
     }

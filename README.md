@@ -69,6 +69,8 @@ the isolated offline regression fixture engine**, not the Mongo API:
 `GET /agents/:agentId/metrics` (listScope, codes, period, businessLine,
 basis, scope, teamView) · `GET /agents/:agentId/metrics/:metricCode` ·
 `GET /agents/:agentId/metrics/:metricCode/series` (anchorYear, yearsBack 0–4)
+· `GET /agents/:agentId/monthly-history` (from, to as `YYYY-MM` ≤ 48 months,
+optional aggregation; see `docs/monthly-history-source.md`)
 · `GET /agents/:agentId/milestones` · `GET /metric-definitions` ·
 `GET|PUT /agents/:agentId/metric-preferences?scope=` ·
 `GET /agents/:agentId/recommendations` ·

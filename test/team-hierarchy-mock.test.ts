@@ -83,7 +83,7 @@ describe('nested Team Drilldown mock hierarchy (dev seed)', () => {
     expect(root!.items.find(m => m.agentId === 'MCKAG010')!.directReportCount).toBeUndefined();
   });
 
-  it('drills down level by level: UM → UM1 → UM2 → agents', async () => {
+  it('(AC-P4-07-24) drills down level by level: UM → UM1 → UM2 → agents', async () => {
     const am = agentFor(MOCK_AM_ID, 'P2');
     const um = await list(am, 'MCKUM01');
     expect(um!.parent).toMatchObject({ agentId: 'MCKUM01', directReportCount: 3 });
@@ -96,14 +96,14 @@ describe('nested Team Drilldown mock hierarchy (dev seed)', () => {
     expect(um2!.items.every(m => m.hierarchyBasis === 'AGENT' && m.directReportCount === undefined)).toBe(true);
   });
 
-  it('a second branch reaches UM2 agents too, and an unknown parent is not visible', async () => {
+  it('(AC-P4-07-24) a second branch reaches UM2 agents too; an agent has no team and an unknown parent is not visible', async () => {
     const am = agentFor(MOCK_AM_ID, 'P2');
     expect((await list(am, 'MCKUM202'))!.items.map(m => m.agentId)).toEqual(['MCKAG008', 'MCKAG009']);
     expect(await list(am, 'MCKAG001')).toMatchObject({ items: [] }); // an agent has no team
     expect(await list(am, 'NOT-IN-TREE')).toBeUndefined();
   });
 
-  it('D-14 still holds: a UM caller sees its direct team only, not deeper levels', async () => {
+  it('(AC-P4-07-18) D-14 still holds: a UM caller sees its direct team only, not deeper levels', async () => {
     const um = agentFor('MCKUM01', 'P3');
     expect(await source.resolveIdentity('MCKUM01')).toMatchObject({ level: 'P3' });
     expect((await list(um))!.items.map(m => m.agentId).sort()).toEqual(['MCKAG006', 'MCKAG007', 'MCKUM101']);

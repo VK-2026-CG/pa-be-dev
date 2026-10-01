@@ -6,7 +6,7 @@
  */
 import { addDec, mulRatio, pctChange, pctRoundUpDec, toCents } from '../lib/money.js';
 import { effectiveCatalog, findDef } from './catalog.js';
-import { changeFor, directionFor, roundToOneDecimal, sentimentFor } from './change.js';
+import { directionFor, roundToOneDecimal, sentimentFor } from './change.js';
 import { mockTeamPendersCaseCount } from './mocks/team-penders.js';
 import type {
   BarComparison, Basis, BreakdownTable, BusinessLine, Change, GoalProgress,
