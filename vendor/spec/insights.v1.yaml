@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PRUAction — Insights Domain API
-  version: 1.8.0
+  version: 1.9.1
   description: |
     Domain API for the **Insights** bounded context (agent performance):
     metric snapshots, metric detail, historical series, milestone progress,
@@ -96,6 +96,23 @@ info:
       Drilldown traversal skip the leader's own ID in
       `subtree.scopeProfileIds`, and `displayRows.tier` maps
       case-insensitively. Hierarchy reads need no opt-in flag.
+    - **1.9.0** (ARVIJ-1450-SP01, additive; requester-approved 2026-10-01):
+      adds `GET /agents/{agentId}/monthly-history` (`getAgentMonthlyHistory`),
+      the "historic domain": for an agent and an inclusive `from`/`to` month
+      range it returns the monthly rows of **both** Performance databases
+      (PAMB, PBTB) and **both** collections (`my_production`, `my_mapa`) as one
+      array, one record per (month, source database, aggregation). Values are the
+      `ptd.<metric>.mtd` leaves of the month-end row (C1 §6d). It performs no
+      calculation across months or sources — percentage change, anchor-year
+      derivation and business-line selection are BFF concerns (C3 1.9.0
+      `HistoricalDataVM`). The older `getMetricSeries` is unchanged.
+    - **1.9.1** (S-P4-01, description-only): documents how `listAgentMetrics`
+      populates `MetricSnapshot.comparison` — the "vs LY" delta badge on the
+      Priority/Focus cards — including the day-aligned prior-year row rule, the
+      PERSISTENCY_* carve-out already documented for `getMetricDetail`, and the
+      neutral-zero result for a null prior-year leaf. No schema change:
+      `comparison` was already optional on `MetricSnapshot` and already present
+      in the operation's 200 example.
   contact:
     name: Insights Domain Team
   x-domain: insights
@@ -116,6 +133,8 @@ tags:
     description: Point-in-time metric snapshots and metric detail.
   - name: MetricSeries
     description: Monthly historical values per metric.
+  - name: MonthlyHistory
+    description: Raw monthly rows per agent from both Performance databases (the historic domain).
   - name: Milestones
     description: Progress against milestone programs (MDRT Series, Star Club, …).
   - name: Definitions
@@ -128,8 +147,6 @@ tags:
     description: Hierarchy-scoped member listing and selected-member dashboard composition.
   - name: Organization
     description: Nested agent organization read from the approved hierarchy source.
-  - name: MonthlyHistory
-    description: Month-level metric values from both Performance source databases (Team Historical Data, ARVIJ-1450).
 
 paths:
   /agents/{agentId}/organization:
@@ -162,7 +179,7 @@ paths:
         vault references, or raw source documents. Read role values from
         `displayRows.tier`, case-insensitively (observed `Agent`/`agent`):
         AM→P2, UM/UM1/UM2→P3, AGENT→P4. All reads
-        use the existing 8-second Mongo execution budget; no writes or
+        use the 30-second Mongo execution budget; no writes or
         provisioning occur.
       parameters:
         - $ref: '#/components/parameters/AgentId'
@@ -220,6 +237,23 @@ paths:
         business line / basis. Backs the **Priority Metrics** card row on
         S-P4-01. `scope=PRIORITY` resolves the agent's saved priority set
         (falling back to the country default ordering).
+
+        `comparison` (1.9.1) carries the per-card "vs last year" delta that
+        S-P4-01 renders as `priorityMetrics[].delta` ("+27% vs LY"). Display
+        rules live on the `Change` schema; which items carry it is decided here:
+        - Present only when the item has a `collected` value **and** a
+          **day-aligned** prior-year row exists — the same agent identity,
+          aggregation and collection, same period leaf, one year back.
+        - **Omitted** when no such prior-year row exists. A delta is never
+          fabricated from a partial or nearest-available period.
+        - **Omitted** for PERSISTENCY_CY / PERSISTENCY_Y1 / PERSISTENCY_Y2,
+          which are yearly measures — the same carve-out `getMetricDetail`
+          applies (S-P4-02 v1.12.0, AC-P4-02-46).
+        - When a prior-year row exists but the metric leaf is `null` or absent,
+          the prior value is treated as zero and the delta is
+          `direction: FLAT` / `sentiment: NEUTRAL` with a zero magnitude,
+          matching `getMetricDetail`'s neutral-zero rule. Consumers render this
+          as a flat "0% vs LY" badge, not as a missing one.
       parameters:
         - $ref: '#/components/parameters/AgentId'
         - $ref: '#/components/parameters/Period'
@@ -489,91 +523,101 @@ paths:
     get:
       operationId: getAgentMonthlyHistory
       tags: [MonthlyHistory]
-      summary: Month-level metric values per source database and aggregation
+      summary: Monthly records for an agent over a month range (PAMB + PBTB)
       description: |
-        Backs the BFF `GET /performance/historical-data` (S-P4-03 v2.0.0, Team
-        Historical Data, ARVIJ-1450). Returns one record per (month, source
-        database, aggregation) that has at least one row in `my_production` or
-        `my_mapa`, in ascending order: period, then source (`PAMB`, `PBTB`),
-        then aggregation (`Personal`, `DirectUnit`, `Group`). Months without a
-        row are omitted; an agent with no rows gets `records: []`.
+        Backs S-P4-03 §B (Team Historical Data, ARVIJ-1450-SP01) — the BFF
+        composes `HistoricalDataVM` from this payload and does ALL percentage
+        calculation. This operation returns data only.
 
-        `from`/`to` are inclusive `YYYY-MM` months, `from <= to`, at most 48
-        months apart (`400 INS-4000` otherwise). Both databases and both
-        collections are always read; this operation sums nothing across
-        sources (INSURANCE / TAKAFUL / ALL selection is a BFF concern) and
-        never falls back to another aggregation: the requested one or nothing.
+        **Source.** Both Performance databases (`pa_performance_PAMB-dev`,
+        `pa_performance_PBTB-dev`; the row's `entity` equals its database key)
+        and both collections (`my_production`, `my_mapa`). `my_production`
+        rows are restricted to `caseStatus = Collected`. No aggregation
+        fallback: the requested `aggregation` or no row.
 
-        A monthly value is the `ptd.<metric>.mtd` leaf of ONE row per
-        (collection, source, month, aggregation). When several rows exist the
-        row flagged month-end is preferred, else the greatest declared as-on
-        day, else the greatest `asOnDate`, then `id` / `_id` descending.
-        `monthEnd` is true for a row flagged month-end (`isMonthEnd` Y) or whose
-        declared as-on day is the last day of its month. Each part's `asOnDate`
-        is the as-on date inside the month (year-month with the declared as-on
-        day, the month's last day when undeclared), never the load watermark.
-        Persistency is YTD-only and is not emitted. Names, identifiers and vault data are
-        never projected from Mongo.
+        **One row per month.** When several rows exist for the same
+        (collection, source, month, aggregation) the domain keeps one: the row
+        flagged month-end, else the greatest declared as-on day (undeclared ⇒ the
+        month's last day), else the greatest `asOnDate`, then `id`/`_id`
+        descending (C1 §6d).
+
+        **Records.** One record per (month, source, aggregation) having at least
+        one row; months with no row are omitted. Records ascend by period, then
+        source (`PAMB` before `PBTB`), then aggregation (`Personal`,
+        `DirectUnit`, `Group`). Metric values are the `ptd.<metric>.mtd`
+        leaves; a null or invalid source value is `value: null`.
+
+        **Range.** `from`/`to` are inclusive `YYYY-MM`, `from <= to`, at most
+        48 months — otherwise `400` with problem code `INS-4000`.
+
+        **Privacy.** Only period fields, the as-on date and the whitelisted
+        metric leaves are read; names, identifiers of other people and vault
+        data never leave the database.
       parameters:
         - $ref: '#/components/parameters/AgentId'
         - name: from
           in: query
           required: true
-          description: First month, inclusive.
-          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2025-01' }
+          description: First month, inclusive (`YYYY-MM`).
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
         - name: to
           in: query
           required: true
-          description: Last month, inclusive. At most 48 months after `from`.
-          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2026-07' }
+          description: Last month, inclusive (`YYYY-MM`); at most 48 months after `from`.
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
         - name: aggregation
           in: query
-          description: Restrict to one aggregation. Absent = all three.
+          description: Restrict to one aggregation level; omitted ⇒ every level.
           schema: { $ref: '#/components/schemas/MonthlyHistoryAggregation' }
       responses:
         '200':
-          description: Month-level values (possibly empty).
+          description: Monthly records, possibly empty.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonthlyHistory'
               examples:
-                my-direct-unit:
-                  summary: One closed month and one partial month, PAMB DirectUnit (truncated)
+                team-direct-two-months:
+                  summary: DirectUnit team rows, PAMB only, two months (values truncated)
                   value:
-                    agentId: '1136911'
-                    from: '2026-06'
-                    to: '2026-07'
+                    agentId: '1034259'
+                    from: '2025-06'
+                    to: '2025-07'
                     records:
-                      - period: '2026-06'
-                        year: 2026
+                      - period: '2025-06'
+                        year: 2025
                         month: 6
                         source: PAMB
                         aggregation: DirectUnit
                         production:
-                          asOnDate: '2026-06-30'
+                          asOnDate: '2025-06-30'
                           monthEnd: true
                           metrics:
                             - { metricCode: TPC, variant: WITHOUT_REPRICING, value: { kind: MONEY, amount: '25246.00', currency: MYR } }
-                            - { metricCode: FYC, value: null }
-                        mapa: null
-                      - period: '2026-07'
-                        year: 2026
+                            - { metricCode: CASE_COUNT, value: { kind: COUNT, value: 41 } }
+                        mapa:
+                          asOnDate: '2025-06-30'
+                          monthEnd: true
+                          metrics:
+                            - { metricCode: MANPOWER, value: { kind: COUNT, value: 18 } }
+                            - { metricCode: NEW_RECRUIT_CONTRACTED, value: null }
+                      - period: '2025-07'
+                        year: 2025
                         month: 7
                         source: PAMB
                         aggregation: DirectUnit
                         production:
-                          asOnDate: '2026-07-27'
+                          asOnDate: '2025-07-27'
                           monthEnd: false
                           metrics:
-                            - { metricCode: CASE_COUNT, value: { kind: COUNT, value: 4 } }
+                            - { metricCode: TPC, variant: WITHOUT_REPRICING, value: { kind: MONEY, amount: '15087.00', currency: MYR } }
                         mapa: null
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503':
-          description: Performance source unavailable (`INS-5030`; the title carries a sanitized cause such as timeout or network).
+          description: A Performance database read failed or timed out (problem code `INS-5030`; the title carries only a sanitized cause category).
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -839,9 +883,15 @@ paths:
           in: query
           description: |
             (1.6.0) Lists the direct reports of this member instead of the
-            caller's own team — the S-P4-07 subteam drawer. The member MUST be
+            caller's own team — the S-P4-07 manager team view (a drawer until
+            S-P4-07 0.6.0, description-only change in 1.8.1). The member MUST be
             in the caller's downline (else 403 INS-4030). `teamView` gating is
             unchanged: a P3 caller may only open members of its DIRECT team.
+            Any member visible under that rule may be the parent, at any depth
+            (for a P2 caller: UM, UM1, UM2 and below), so a reportee returned
+            by one such call with `directReportCount > 0` can be passed to the
+            next. A P3 caller's reportee's own reportees are not in its DIRECT
+            team (see S-P4-07 OQ-P4-07-07).
           schema:
             type: string
             pattern: '^[A-Za-z0-9_-]{3,32}$'
@@ -1546,66 +1596,11 @@ components:
           description: Ordered anchor-year first, then descending prior years.
           items: { $ref: '#/components/schemas/YearSeries' }
 
-    # ---------- Monthly history (ARVIJ-1450) ----------
+    # ---------- Monthly history (the historic domain, 1.9.0) ----------
     MonthlyHistoryAggregation:
       type: string
-      description: Source `agentAggregation` (camelCase in all collections).
+      description: Source `agentAggregation` value. Personal = the agent's own rows; DirectUnit / Group = team roll-ups.
       enum: [Personal, DirectUnit, Group]
-
-    MonthlyMetricValue:
-      type: object
-      required: [metricCode, value]
-      properties:
-        metricCode: { $ref: '#/components/schemas/MetricCode' }
-        variant:
-          allOf: [{ $ref: '#/components/schemas/Variant' }]
-          description: Present for TPC and PTPC only.
-        value:
-          nullable: true
-          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
-          description: Null when the source value is null, missing or invalid (never zero-filled).
-
-    MonthlyHistoryPart:
-      type: object
-      description: The selected row of one collection for a month.
-      required: [asOnDate, monthEnd, metrics]
-      properties:
-        asOnDate:
-          type: string
-          format: date
-          description: >-
-            The as-on date inside the month: the period's year-month with the declared as-on day (the month's last
-            day when undeclared); never the load watermark.
-        monthEnd:
-          type: boolean
-          description: Row flagged month-end (`isMonthEnd`), or its declared as-on day is the last day of the month.
-        metrics:
-          type: array
-          description: >-
-            my_production -> TPC and PTPC (each WITHOUT_REPRICING then WITH_REPRICING), FYP, FYC, CASE_COUNT;
-            my_mapa -> MANPOWER, ACTIVITY_RATIO, PRODUCTIVITY, AVERAGE_CASE_SIZE, NEW_RECRUIT_CONTRACTED.
-          items: { $ref: '#/components/schemas/MonthlyMetricValue' }
-
-    MonthlyHistoryRecord:
-      type: object
-      required: [period, year, month, source, aggregation, production, mapa]
-      properties:
-        period: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
-        year: { type: integer }
-        month: { type: integer, minimum: 1, maximum: 12 }
-        source:
-          type: string
-          description: Database the record was read from (equals the rows' `entity`).
-          enum: [PAMB, PBTB]
-        aggregation: { $ref: '#/components/schemas/MonthlyHistoryAggregation' }
-        production:
-          nullable: true
-          allOf: [{ $ref: '#/components/schemas/MonthlyHistoryPart' }]
-          description: Null when `my_production` has no row for this month and aggregation.
-        mapa:
-          nullable: true
-          allOf: [{ $ref: '#/components/schemas/MonthlyHistoryPart' }]
-          description: Null when `my_mapa` has no row for this month and aggregation.
 
     MonthlyHistory:
       type: object
@@ -1616,8 +1611,70 @@ components:
         to: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
         records:
           type: array
-          description: Ascending by period, then source (PAMB, PBTB), then aggregation (Personal, DirectUnit, Group).
+          description: Ascending by period, then source (PAMB, PBTB), then aggregation. Months without any row are omitted.
           items: { $ref: '#/components/schemas/MonthlyHistoryRecord' }
+
+    MonthlyHistoryRecord:
+      type: object
+      required: [period, year, month, source, aggregation, production, mapa]
+      properties:
+        period: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        year: { type: integer }
+        month: { type: integer, minimum: 1, maximum: 12 }
+        source:
+          type: string
+          enum: [PAMB, PBTB]
+          description: Database the rows came from; equals the rows' own `entity`.
+        aggregation: { $ref: '#/components/schemas/MonthlyHistoryAggregation' }
+        production:
+          nullable: true
+          description: The chosen `my_production` row for this month, or null when none exists.
+          allOf: [{ $ref: '#/components/schemas/MonthlyHistoryPart' }]
+        mapa:
+          nullable: true
+          description: The chosen `my_mapa` row for this month, or null when none exists (PBTB currently holds none).
+          allOf: [{ $ref: '#/components/schemas/MonthlyHistoryPart' }]
+
+    MonthlyHistoryPart:
+      type: object
+      required: [asOnDate, monthEnd, metrics]
+      properties:
+        asOnDate:
+          type: string
+          format: date
+          description: >
+            The as-on date **inside the month**: the period's year-month with the
+            row's declared as-on day (`period.asOnMonthDay`), or the month's last
+            day when none is declared. Never the load watermark (`asOnDate` in the
+            source, which is the pipeline load date), same rule as the dashboard's
+            period end date (AC-PA-DIRECT-29).
+        monthEnd:
+          type: boolean
+          description: >
+            True when the row is flagged month-end (`isMonthEnd`, a string in
+            source; y/yes/true/1 ⇒ true) or its declared as-on day is the last
+            day of the month. False ⇒ the month is still partial (MTD).
+        metrics:
+          type: array
+          items: { $ref: '#/components/schemas/MonthlyMetricValue' }
+
+    MonthlyMetricValue:
+      type: object
+      required: [metricCode, value]
+      description: >
+        One `ptd.<metric>.mtd` leaf. Production emits TPC and PTPC (both
+        variants), FYP, FYC, CASE_COUNT; MAPA emits MANPOWER, ACTIVITY_RATIO,
+        PRODUCTIVITY, AVERAGE_CASE_SIZE, NEW_RECRUIT_CONTRACTED. Persistency is
+        YTD-only and not emitted.
+      properties:
+        metricCode: { $ref: '#/components/schemas/MetricCode' }
+        variant:
+          description: Present for TPC and PTPC only.
+          allOf: [{ $ref: '#/components/schemas/Variant' }]
+        value:
+          nullable: true
+          description: Null when the source leaf is null/absent or invalid.
+          allOf: [{ $ref: '#/components/schemas/MetricScalar' }]
 
     # ---------- Organization ----------
     AgentOrganization:
