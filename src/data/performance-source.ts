@@ -90,6 +90,8 @@ const zeroScalar = (kind: MetricDetail['valueType']): MetricScalar => kind === '
   : kind === 'COUNT' ? { kind, value: 0 }
     : kind === 'PERCENT' ? { kind, value: 0 }
       : { kind, value: 0, precision: 1 };
+/** Persistency is a yearly measure: no prior-year comparison on its card or detail. */
+const PERSISTENCY_CODES = new Set(['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2']);
 const isMissingMetricValue = (row: Document, path: string): boolean => {
   const value = at(row, path);
   return value === null || value === undefined;
@@ -477,15 +479,20 @@ export class PerformanceSource implements DataSource {
   }
 
   async metricList(agent: AgentRecord, lens: Lens, listScope: 'PRIORITY' | 'FOCUS' | 'ALL', codes?: string[]) {
-    const { rows, context } = await this.selection(agent, lens);
-    const items = effectiveCatalog(lens.scope, lens.basis)
+    const { rows, context, year, month, day, aggregation } = await this.selection(agent, lens);
+    const cache = new Map<string, Promise<Document | undefined>>();
+    const items = await Promise.all(effectiveCatalog(lens.scope, lens.basis)
       .filter(def => codes?.length ? codes.includes(def.metricCode) : listScope === 'ALL' || def.effCategory === listScope)
-      .map((def): MetricSnapshot => {
+      .map(async (def): Promise<MetricSnapshot> => {
         const collected = this.value(def, rows, lens);
+        // "vs last year" delta per card; omitted (never fabricated) when no day-aligned prior-year row exists.
+        const found = collected && !PERSISTENCY_CODES.has(def.metricCode)
+          ? await this.comparisonFor(def, agent, lens, collected, year, month, day, aggregation, cache) : undefined;
         return { metricCode: def.metricCode, valueType: def.valueType, asOfDate: context.asOfDate,
           ...(def.capabilities.repricing ? { variant: 'WITHOUT_REPRICING' as const } : {}),
-          dataState: collected ? 'OK' : 'EMPTY', ...(collected ? { collected, goal: { state: 'NOT_SET' as const } } : {}) };
-      });
+          dataState: collected ? 'OK' : 'EMPTY', ...(collected ? { collected, goal: { state: 'NOT_SET' as const } } : {}),
+          ...(found ? { comparison: found.change } : {}) };
+      }));
     return { context, items };
   }
   async metricDetail(agent: AgentRecord, code: string, lens: Lens): Promise<MetricDetail | undefined> {
@@ -494,7 +501,7 @@ export class PerformanceSource implements DataSource {
     const { rows, context, year, month, day, aggregation } = await this.selection(agent, lens);
     const priorYear = year - 1;
     const collected = this.value(def, rows, lens);
-    const isPersistency = ['PERSISTENCY_CY', 'PERSISTENCY_Y1', 'PERSISTENCY_Y2'].includes(code);
+    const isPersistency = PERSISTENCY_CODES.has(code);
     const cache = new Map<string, Promise<Document | undefined>>();
     const found = collected ? await this.comparisonFor(def, agent, lens, collected, year, month, day, aggregation, cache) : undefined;
     // Persistency shows its prior-year value only when a real prior row exists (never a zero stand-in);
