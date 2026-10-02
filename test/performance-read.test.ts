@@ -70,8 +70,9 @@ describe('existing Performance collection field contract', () => {
   });
   it('AC-PA-DIRECT-23 fixed DB defaults and dedicated URI selection reject accidental fallback', () => {
     expect(performanceDatabases({})).toEqual(PERFORMANCE_DATABASES);
-    expect(() => performanceDatabases({ MONGODB_PAMB_DB: 'other' })).toThrow();
-    expect(() => performanceDatabases({ MONGODB_PBTB_DB: 'other' })).toThrow();
+    // Deployments may name their databases freely; a blank value falls back to the default.
+    expect(performanceDatabases({ MONGODB_PAMB_DB: 'prod_pamb', MONGODB_PBTB_DB: ' prod_pbtb ' })).toEqual({ PAMB: 'prod_pamb', PBTB: 'prod_pbtb' });
+    expect(performanceDatabases({ MONGODB_PAMB_DB: '  ' })).toEqual(PERFORMANCE_DATABASES);
     expect(performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid' })).toEqual({ databases: PERFORMANCE_DATABASES, uri: 'mongodb://shared.invalid' });
     expect(performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid', MONGODB_PERFORMANCE_URI: 'mongodb://performance.invalid' }).uri).toBe('mongodb://performance.invalid');
     expect(() => performanceConnection({ MONGODB_URI: 'mongodb://shared.invalid', MONGODB_PERFORMANCE_URI: '' })).toThrow('connection required');

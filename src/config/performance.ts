@@ -1,4 +1,4 @@
-/** Fixed deployment source names; never selected by an HTTP request. */
+/** Default Performance source database names. Deployments may override them via MONGODB_PAMB_DB / MONGODB_PBTB_DB (never from an HTTP request). */
 export const PERFORMANCE_DATABASES = { PAMB: 'pa_performance_PAMB-dev', PBTB: 'pa_performance_PBTB-dev' } as const;
 export type PerformanceDatabaseKey = keyof typeof PERFORMANCE_DATABASES;
 /** Convenience alias: most fixtures/tests are INSURANCE(PAMB)-only. */
@@ -13,8 +13,7 @@ export const PERFORMANCE_READ_TIMEOUT_MS = 30_000;
 const DATABASE_ENV_VAR: Record<PerformanceDatabaseKey, string> = { PAMB: 'MONGODB_PAMB_DB', PBTB: 'MONGODB_PBTB_DB' };
 
 export function performanceDatabaseName(key: PerformanceDatabaseKey, env: NodeJS.ProcessEnv = process.env): string {
-  const name = env[DATABASE_ENV_VAR[key]] ?? PERFORMANCE_DATABASES[key];
-  if (name !== PERFORMANCE_DATABASES[key]) throw new Error('Performance requires the fixed deployment database');
+  const name = env[DATABASE_ENV_VAR[key]]?.trim() || PERFORMANCE_DATABASES[key];
   return name;
 }
 

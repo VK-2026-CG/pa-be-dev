@@ -5,7 +5,7 @@ import { effectiveCatalog, type EffectiveDef } from './catalog.js';
 import { getPreferences, memoryPreferences, putPreferences, type PreferenceStore } from './preferences.js';
 import type { AgentLevel } from './registry.js';
 import {
-  PERFORMANCE_COLLECTIONS, PERFORMANCE_DATABASES, PERFORMANCE_HIERARCHY_COLLECTION, PERFORMANCE_READ_TIMEOUT_MS,
+  PERFORMANCE_COLLECTIONS, PERFORMANCE_HIERARCHY_COLLECTION, PERFORMANCE_READ_TIMEOUT_MS,
   type PerformanceCollection, type PerformanceDatabaseKey,
 } from '../config/performance.js';
 import { PERFORMANCE_BREAKDOWN_MAPPING, PERFORMANCE_METRIC_MAPPING, PERFORMANCE_SOURCE_KEYS, performanceMetricPath } from './performance-mapping.js';
@@ -133,9 +133,7 @@ export class PerformanceSource implements DataSource {
     /** Agent preferences; `createSource` passes the Mongo `metrics_preferences` store. */
     private readonly preferences: PreferenceStore = memoryPreferences,
   ) {
-    if (dbs.PAMB.databaseName !== PERFORMANCE_DATABASES.PAMB || dbs.PBTB.databaseName !== PERFORMANCE_DATABASES.PBTB) {
-      throw new Error('Invalid Performance source database');
-    }
+    if (!dbs.PAMB.databaseName || !dbs.PBTB.databaseName) throw new Error('Invalid Performance source database');
     void _deprecatedDevMockFallback;
     void _deprecatedHierarchyEnabled;
   }
