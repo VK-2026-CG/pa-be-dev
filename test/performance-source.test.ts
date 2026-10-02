@@ -237,7 +237,7 @@ describe('three-collection Performance adapter', () => {
     const detail = await source.metricDetail(agent, 'TPC', lens);
     expect(detail?.comparison).toMatchObject({ prior: { amount: '3000.00' }, priorYear: 2024 });
   });
-  it('prior-year comparison: omitted (not fabricated) when the only prior-year record is later in the month than the current one', async () => {
+  it('prior-year comparison: later-in-month prior record is never used; metric detail shows the neutral zero prior (dashboard list omits the delta)', async () => {
     const currentPartial = { ...production, period: { ...period, asOnMonthDay: '15' } };
     const priorLate = { ...production, period: { ...period, year: 2024, yyyymm: '202405', asOnMonthDay: '31' },
       ptd: { ...production.ptd, tpc: { withoutRepricing: { ytd: 3000, mtd: 0 }, withRepricing: { ytd: 0, mtd: 0 } } } };
@@ -245,7 +245,11 @@ describe('three-collection Performance adapter', () => {
     const detail = await source.metricDetail(agent, 'TPC', lens);
     expect(detail?.dataState).toBe('OK');
     expect(detail?.primary?.collected).toMatchObject({ amount: '4538.76' });
-    expect(detail?.comparison).toBeUndefined();
+    // The 31st-day prior record (3,000.00) is after the current as-on day 15, so it is not compared: neutral zero prior.
+    expect(detail?.comparison).toMatchObject({ prior: { amount: '0.00' }, priorYear: 2024, change: { direction: 'FLAT', pct: 0 } });
+    // The dashboard list carries no delta at all rather than a fabricated zero.
+    const list = await source.metricList(agent, lens, 'ALL');
+    expect(list.items.find(x => x.metricCode === 'TPC')?.comparison).toBeUndefined();
   });
   it('prior-year comparison: metricList (dashboard) populates items[].comparison as a Change, one cached query per collection', async () => {
     const prior = { ...production, period: { ...period, year: 2024, yyyymm: '202405' },
