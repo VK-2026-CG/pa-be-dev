@@ -8,6 +8,8 @@ import type { TeamView } from '../../types.js';
  * stand-in until it does (OQ-77). Once the pipeline populates that field for real
  * (in both `values.ts`'s stub and `PerformanceSource`'s Mongo-backed read),
  * delete this file and this module, and read the field directly instead.
+ * Also feeds Mongo mode (`PerformanceSource.metricDetail`) via `pendersCaseCountFor`
+ * in `values.ts`, as a deliberate Penders-only exception to the no-synthetic-data rule.
  * v1.20.0 (AC-P4-02-58): keyed by `SELF` (the agent's own cases) as well as
  * the TEAM `teamView` units.
  */

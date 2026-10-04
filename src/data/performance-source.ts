@@ -17,7 +17,7 @@ import {
   assembleMonthlyHistory, checkMonthlyRange, MONTHLY_HISTORY_COLLECTIONS, MONTHLY_HISTORY_SOURCES, monthlyCandidates,
   type MonthlyHistoryInput,
 } from './monthly-history.js';
-import type { Lens } from './values.js';
+import { pendersCaseCountFor, type Lens } from './values.js';
 import type {
   Basis,
   BusinessLine,
@@ -517,7 +517,11 @@ export class PerformanceSource implements DataSource {
     const breakdowns = collected && def.capabilities.breakdown
       ? metricBreakdowns(code, rows[PERFORMANCE_BREAKDOWN_MAPPING[code]?.collection ?? 'my_production'], lens.period, lens.businessLine)
       : [];
+    // Narrow, sanctioned exception to "no synthetic values": no Mongo source for the Penders case count yet
+    // (OQ-77/OQ-90), so TPC/PTPC keep the interim mock count until the real API contract lands.
+    const pendersCaseCount = collected ? pendersCaseCountFor(code, lens) : undefined;
     const detail: MetricDetail = { metricCode: code, valueType: def.valueType, context, dataState: collected ? 'OK' : 'EMPTY',
+      ...(pendersCaseCount !== undefined ? { pendersCaseCount } : {}),
       ...(collected ? { primary: { variant: 'WITHOUT_REPRICING' as const, collected } } : {}),
       ...(alt ? { altVariants: [{ variant: 'WITH_REPRICING' as const, collected: alt }] } : {}),
       ...(comparison ? { comparison } : {}),

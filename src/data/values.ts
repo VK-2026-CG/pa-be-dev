@@ -202,7 +202,7 @@ function pendersFor(code: string, l: Lens): MetricScalar | undefined {
  * OQ-77). v1.20.0 (AC-P4-02-58): emitted at SELF too (the agent's own cases),
  * not only TEAM; CASE_COUNT's TEAM-only card comes from `pendersFor` instead.
  */
-function pendersCaseCountFor(code: string, l: Lens): number | undefined {
+export function pendersCaseCountFor(code: string, l: Lens): number | undefined {
   const def = findDef(code);
   if (!def?.capabilities.repricing) return undefined;
   return mockTeamPendersCaseCount(code, l.scope === 'TEAM' ? (l.teamView ?? 'DIRECT') : 'SELF');
