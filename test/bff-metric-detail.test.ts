@@ -93,26 +93,16 @@ describe('BFF metric detail (S-P4-02)', () => {
     expect(penders.value.kind).toBe('COUNT');
   });
 
-  it('FYP SELF: gauge + comparison + one breakdown (7 products, plain CREDIT_POINTS), no VARIANT_VALUE/PENDERS (AC-P4-02-39/40)', async () => {
+  it('FYP SELF: gauge + comparison only (like FYC), no breakdown/VARIANT_VALUE/PENDERS', async () => {
     const d = await getJson(app, 'AGENT_P4', `${BFF}/performance/metrics/FYP`);
-    expect(d.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON', 'BREAKDOWN']);
+    expect(d.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON']);
     const gauge = d.sections.find((s: any) => s.type === 'GAUGE');
     expect(gauge.penders).toBeDefined(); // AC-P4-02-39: Penders stays MONEY, gauge-legend-only
-    const breakdown = d.sections.find((s: any) => s.type === 'BREAKDOWN');
-    const productCodes = breakdown.rows.map((r: any) => r.productCode);
-    expect(productCodes).toEqual([
-      'LINKED_PREMIUM', 'REGULAR_PREMIUM', 'PSA', 'SINGLE_PREMIUM', 'CREDIT_POINTS', 'UNIT_TRUST', 'GROUP_PREMIUM',
-    ]);
-    // AC-P4-02-40: FYP's CREDIT_POINTS is a plain weightPct row, not TPC/PTPC's capped formula.
-    const credit = breakdown.rows.find((r: any) => r.productCode === 'CREDIT_POINTS');
-    expect(credit.weightPct).toBe(10);
   });
 
-  it('FYP TEAM: still no Penders KPI card and no second (WITH_REPRICING) breakdown (AC-P4-02-39/40)', async () => {
+  it('FYP TEAM: still no Penders KPI card and no breakdown', async () => {
     const d = await getJson(app, 'LEADER_P2', `${BFF}/performance/metrics/FYP?scope=TEAM`);
-    expect(d.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON', 'BREAKDOWN']);
-    expect(d.sections.find((s: any) => s.type === 'PENDERS')).toBeUndefined();
-    expect(d.sections.filter((s: any) => s.type === 'BREAKDOWN')).toHaveLength(1);
+    expect(d.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON']);
   });
 
   it('MANPOWER (TEAM): stacked Existing Agents + New Recruits, chip on totals only (AC-P4-02-10/42/43)', async () => {

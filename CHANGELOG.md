@@ -1,6 +1,7 @@
 # Changelog
 
 ## 2026-10-04
+- FYP metric detail now follows FYC: the `breakdown` capability is removed from FYP in `src/data/catalog.ts`, so neither memory nor Mongo mode returns `breakdowns[]` and the BFF emits only GAUGE + COMPARISON for FYP (the by-product table, v1.11.0 AC-P4-02-40 / v1.22.0 AC-P4-02-69, is withdrawn for FYP; TPC/PTPC keep it). The pure builder `metricBreakdowns` and its FYP mapping are left in place but unused for FYP. Vendored spec docs still describe the FYP breakdown and are not updated here.
 - Penders card kept on TPC/PTPC in Mongo mode: `PerformanceSource.metricDetail` now sets `pendersCaseCount` (when the metric has a Collected value and the `repricing` capability) from the interim mock (`src/data/mocks/team-penders.ts`, via the now-exported `pendersCaseCountFor` in `values.ts`), so the BFF emits the `PENDERS` section as it does in memory mode. This is a deliberate, Penders-only exception to "no synthetic values in Mongo mode" (OQ-77/OQ-90) until the real API contract is confirmed; remove it then. FYP/CASE_COUNT are unchanged.
 
 ## 2026-10-02
