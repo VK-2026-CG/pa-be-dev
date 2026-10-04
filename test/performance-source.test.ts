@@ -124,6 +124,13 @@ describe('three-collection Performance adapter', () => {
     const detail = await setup().source.metricDetail(agent, 'TPC', lens);
     expect(detail?.altVariants?.[0]?.collected).toMatchObject({ amount: '12668.72' });
   });
+  it('keeps the interim Penders case count on TPC/PTPC detail only (OQ-77/OQ-90)', async () => {
+    const { source } = setup();
+    expect((await source.metricDetail(agent, 'TPC', lens))?.pendersCaseCount).toBe(2);
+    expect((await source.metricDetail(agent, 'FYP', lens))?.pendersCaseCount).toBeUndefined();
+    // No Collected value (EMPTY) ⇒ no Penders count either.
+    expect((await source.metricDetail(leader, 'TPC', team))?.pendersCaseCount).toBeUndefined();
+  });
   it('AC-PA-DIRECT-05 maps Group MAPA units without fabricated bars or other agents', async () => {
     const { source } = setup();
     const list = await source.metricList(leader, team, 'ALL');

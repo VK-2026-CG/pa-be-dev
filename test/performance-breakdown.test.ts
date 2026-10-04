@@ -145,8 +145,7 @@ describe('domain metricDetail carries the breakdown (insights.v1 getAgentMetricD
     expect(mtd?.breakdowns?.[0]?.rows[0]?.cells[0]?.value).toMatchObject({ amount: '4146314.40' });
 
     const fyp = await source.metricDetail(agent, 'FYP', lens);
-    expect(fyp?.breakdowns).toHaveLength(1);
-    expect(fyp?.breakdowns?.[0]?.rows).toHaveLength(4);
+    expect(fyp?.breakdowns).toBeUndefined(); // FYP follows FYC: no product breakdown (capability withdrawn)
     expect((await source.metricDetail(agent, 'CASE_COUNT', lens))?.breakdowns).toBeUndefined();
   });
 
@@ -173,7 +172,7 @@ describe('BFF composes the breakdown sections from the domain', () => {
     const vm = res.json();
     expect(vm.dataState).toBe('OK');
     expect(vm.sections.map((s: { id: string }) => s.id)).toEqual([
-      'gauge.primary', 'comparison.primary', 'variant.with-repricing', 'breakdown.without-repricing', 'breakdown.with-repricing',
+      'gauge.primary', 'comparison.primary', 'variant.with-repricing', 'penders.primary', 'breakdown.without-repricing', 'breakdown.with-repricing',
     ]);
     const without = vm.sections.find((s: { id: string }) => s.id === 'breakdown.without-repricing');
     expect(without).toMatchObject({ type: 'BREAKDOWN', variant: 'WITHOUT_REPRICING', columns: ['INSURANCE'] });
@@ -181,11 +180,10 @@ describe('BFF composes the breakdown sections from the domain', () => {
     expect(without.totals).toEqual([{ businessLine: 'INSURANCE', value: { kind: 'MONEY', amount: '14786511.48', currency: 'MYR' } }]);
   });
 
-  it('FYP: a single breakdown table, and a metric without product leaves simply has no breakdown section', async () => {
+  it('FYP has no breakdown section, and a metric without product leaves simply has none either', async () => {
     const app = buildApp(sourceOf([row()])); apps.push(app);
     const fyp = (await app.inject({ url: '/api/bff/v1/performance/metrics/FYP?period=YTD&businessLine=ALL', headers: { 'x-agent-id': agent.agentId } })).json();
-    expect(fyp.sections.filter((s: { type: string }) => s.type === 'BREAKDOWN')).toHaveLength(1);
-    expect(fyp.sections.find((s: { type: string }) => s.type === 'BREAKDOWN').rows).toHaveLength(4);
+    expect(fyp.sections.some((s: { type: string }) => s.type === 'BREAKDOWN')).toBe(false);
 
     const bare = row({ ptd: { tpc: { withoutRepricing: { ytd: 4538.76, mtd: 0 }, withRepricing: { ytd: 12668.72, mtd: 8249.96 } }, fyp: { ytd: 21678.39 }, caseCount: { total: { ytd: 4 } } } });
     const app2 = buildApp(sourceOf([bare])); apps.push(app2);

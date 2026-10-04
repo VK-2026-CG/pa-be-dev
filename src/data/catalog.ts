@@ -41,13 +41,12 @@ export const CATALOG: MetricDefinition[] = [
     capabilities: cap({ goal: true, penders: true, barComparison: true, history: true }),
     dimensions: { periods: P, businessLines: BL, basis: B },
     segmentOverrides: { SCHEME: { defaultOrder: 3 } } },
-  // v1.11.0 (pruaction-spec S-P4-02, ARVIJ-107/165 AC-P4-02-40): breakdown
-  // enabled — 7-product set (below), NOT TPC/PTPC's narrowed 5. No repricing
-  // capability, so `breakdown()` emits WITHOUT_REPRICING only and CREDIT_POINTS
-  // stays a plain weighted row (never the capped TPC/PTPC formula).
+  // 2026-10-04: FYP follows FYC — no product breakdown (it was enabled by
+  // v1.11.0 AC-P4-02-40 / v1.22.0 AC-P4-02-69 and is now withdrawn). Only TPC/PTPC
+  // keep the by-product table.
   { metricCode: 'FYP', availability: 'BACKED', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 4, customizable: false,
     scopes: ['SELF', 'TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
-    capabilities: cap({ goal: true, penders: true, breakdown: true, history: true }),
+    capabilities: cap({ goal: true, penders: true, history: true }),
     dimensions: { periods: P, businessLines: BL, basis: B },
     segmentOverrides: { SCHEME: { defaultOrder: 2 } } },
   { metricCode: 'MANPOWER', availability: 'UNBACKED', valueType: 'COUNT', category: 'PRIORITY', defaultSelected: true, defaultOrder: 5, customizable: false,
