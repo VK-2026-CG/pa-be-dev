@@ -60,9 +60,9 @@ export const CATALOG: MetricDefinition[] = [
     capabilities: cap({ threshold: true, history: true }), threshold: { value: 90, comparator: 'GTE' },
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'PRODUCTIVITY', availability: 'UNBACKED', valueType: 'DECIMAL', category: 'PRIORITY', defaultSelected: true, defaultOrder: 7, customizable: false,
-    // ABS -> PCT: S-P4-02 v1.15.0 (ARVIJ-161, AC-P4-02-50). Stays a gauge — the bar-chart ask is OQ-66.
+    // ABS -> PCT: S-P4-02 v1.15.0 (ARVIJ-161, AC-P4-02-50). No bar chart (OQ-66); the screen is a "Current" + comparison card (AC-P4-02-92).
     scopes: ['TEAM'], favourability: 'HIGHER_IS_BETTER', changeDisplay: 'PCT',
-    capabilities: cap({ barComparison: true, history: true }),
+    capabilities: cap({ history: true }),
     dimensions: { periods: P, businessLines: BL, basis: ['STANDARD'] } },
   { metricCode: 'AVERAGE_CASE_SIZE', availability: 'UNBACKED', valueType: 'MONEY', currency: 'MYR', category: 'PRIORITY', defaultSelected: true, defaultOrder: 8, customizable: false,
     // ABS -> PCT: S-P4-02 v1.16.0 (ARVIJ-162, AC-P4-02-52). Stays a gauge — the bar-chart ask is OQ-66.

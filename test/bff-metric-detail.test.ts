@@ -163,9 +163,9 @@ describe('BFF metric detail (S-P4-02)', () => {
     expect(cmp.change.direction).toBe(cur > pri ? 'UP' : cur < pri ? 'DOWN' : 'FLAT');
   });
 
-  it('PRODUCTIVITY renders BAR_COMPARISON + COMPARISON (Figma Metric Drill downs); change is a relative, rounded-up PCT with DECIMAL values (AC-P4-02-50/51)', async () => {
+  it('PRODUCTIVITY renders GAUGE + COMPARISON, no bar chart (AC-P4-02-92); change is a relative, rounded-up PCT with DECIMAL values (AC-P4-02-50/51)', async () => {
     const p = await getJson(app, 'LEADER_P2', `${BFF}/performance/metrics/PRODUCTIVITY?scope=TEAM`);
-    expect(p.sections.map((s: any) => s.type)).toEqual(['BAR_COMPARISON', 'COMPARISON']);
+    expect(p.sections.map((s: any) => s.type)).toEqual(['GAUGE', 'COMPARISON']);
     const cmp = p.sections.find((s: any) => s.type === 'COMPARISON');
     expect(cmp.current).toMatchObject({ kind: 'DECIMAL', value: 9.7 });
     expect(cmp.prior).toMatchObject({ kind: 'DECIMAL', value: 9.3 });
